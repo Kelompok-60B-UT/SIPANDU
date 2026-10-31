@@ -1,3 +1,5 @@
+export const instant = false
+
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import { signOut } from '@/app/actions/auth'
