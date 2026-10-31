@@ -2,8 +2,8 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   Construction,
-  Droplets,
-  Lightbulb,
+  FileText,
+  HeartHandshake,
   MessagesSquare,
   ShieldCheck,
   Trash2,
@@ -11,12 +11,36 @@ import {
 import SectionHeading from "@/components/ui/SectionHeading";
 
 const categories = [
-  { icon: Trash2, name: "Kebersihan", desc: "Sampah dan kebersihan lingkungan" },
-  { icon: Droplets, name: "Drainase", desc: "Saluran air dan genangan" },
-  { icon: Lightbulb, name: "Penerangan", desc: "Lampu jalan dan fasilitas umum" },
-  { icon: Construction, name: "Infrastruktur", desc: "Jalan dan sarana lingkungan" },
-  { icon: ShieldCheck, name: "Ketertiban", desc: "Keamanan dan kenyamanan warga" },
-  { icon: MessagesSquare, name: "Layanan lainnya", desc: "Saran dan kebutuhan warga" },
+  {
+    icon: Construction,
+    name: "Infrastruktur",
+    desc: "Jalan rusak, drainase, penerangan jalan",
+  },
+  {
+    icon: Trash2,
+    name: "Kebersihan",
+    desc: "Sampah, kebersihan lingkungan, saluran air",
+  },
+  {
+    icon: ShieldCheck,
+    name: "Keamanan",
+    desc: "Ketertiban dan kenyamanan lingkungan warga",
+  },
+  {
+    icon: HeartHandshake,
+    name: "Sosial",
+    desc: "Kepedulian warga dan kegiatan kemasyarakatan",
+  },
+  {
+    icon: FileText,
+    name: "Administrasi",
+    desc: "Pengantar RT/RW dan layanan administrasi warga",
+  },
+  {
+    icon: MessagesSquare,
+    name: "Lainnya",
+    desc: "Masukan dan pengaduan di luar kategori utama",
+  },
 ];
 
 export default function Categories() {
@@ -34,8 +58,8 @@ export default function Categories() {
             return (
               <Link
                 key={c.name}
-                href="/laporan/baru"
-                className="flex items-center gap-3 rounded-xl border border-border bg-white p-4 hover:border-primary"
+                href="/login"
+                className="flex items-center gap-3 rounded-xl border border-border bg-white p-4 transition-colors hover:border-primary"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-primary">
                   <Icon size={18} />
@@ -46,7 +70,7 @@ export default function Categories() {
                   </span>
                   <span className="block text-xs text-muted">{c.desc}</span>
                 </span>
-                <ArrowUpRight size={14} className="text-muted" />
+                <ArrowUpRight size={14} className="shrink-0 text-muted" />
               </Link>
             );
           })}

@@ -21,7 +21,7 @@ const items = [
 
 export default function Features() {
   return (
-    <section className="bg-white">
+    <section id="tentang" className="scroll-mt-20 bg-white">
       <div className="mx-auto max-w-6xl px-6 py-16">
         <SectionHeading
           label="Layanan dekat, warga terlibat"
