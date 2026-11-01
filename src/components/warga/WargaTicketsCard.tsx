@@ -2,7 +2,8 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ChevronDown, RefreshCw, Search, Star } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import { statusLabelId } from "@/utils/transition";
 import type { TicketStatus } from "@/types";
@@ -45,8 +46,16 @@ export default function WargaTicketsCard({
   tickets: TicketListItem[];
   reporterName: string;
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -68,23 +77,39 @@ export default function WargaTicketsCard({
       id="pengaduan-saya"
       className="scroll-mt-20 rounded-2xl border border-border bg-white p-5 sm:p-6"
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-ink">Pengaduan saya</h2>
           <p className="mt-0.5 text-xs text-muted">
             Semua pembaruan laporan Anda, dalam satu tempat.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setSearch("");
-            setStatusFilter("");
-          }}
-          className="shrink-0 cursor-pointer text-xs font-semibold text-primary hover:underline"
-        >
-          Lihat semua
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={isRefreshing}
+            onClick={handleRefresh}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-surface/60 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw
+              size={13}
+              className={
+                isRefreshing ? "animate-spin text-primary" : "text-primary"
+              }
+            />
+            <span>{isRefreshing ? "Memuat..." : "Refresh"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("");
+            }}
+            className="shrink-0 cursor-pointer text-xs font-semibold text-primary hover:underline"
+          >
+            Lihat semua
+          </button>
+        </div>
       </div>
 
       {/* Bar Pencarian & Filter Status */}
@@ -132,7 +157,7 @@ export default function WargaTicketsCard({
               <th className="rounded-l-lg px-3.5 py-2.5">Nomor Tiket</th>
               <th className="px-3.5 py-2.5">Laporan / Wilayah</th>
               <th className="px-3.5 py-2.5">Tanggal</th>
-              <th className="px-3.5 py-2.5">Status</th>
+              <th className="px-3.5 py-2.5">Status &amp; Rating</th>
               <th className="rounded-r-lg px-3.5 py-2.5">Aksi</th>
             </tr>
           </thead>
@@ -178,7 +203,30 @@ export default function WargaTicketsCard({
                         )}
                       </td>
                       <td className="px-3.5 py-3.5 align-middle">
-                        <Badge status={ticket.status} dot />
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge status={ticket.status} dot />
+                          {ticket.rating ? (
+                            <div
+                              className="inline-flex items-center gap-1 rounded-md border border-amber-200/80 bg-amber-50/70 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800"
+                              title={ticket.rating_comment ?? undefined}
+                            >
+                              <Star
+                                size={11}
+                                className="fill-amber-400 text-amber-400"
+                              />
+                              <span>{ticket.rating}/5</span>
+                              {ticket.rating_comment && (
+                                <span className="max-w-[130px] truncate font-normal text-amber-900/80">
+                                  • “{ticket.rating_comment}”
+                                </span>
+                              )}
+                            </div>
+                          ) : ticket.status === "selesai" ? (
+                            <span className="text-[10px] font-medium text-muted">
+                              Belum dinilai
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-3.5 py-3.5 align-middle">
                         <Link

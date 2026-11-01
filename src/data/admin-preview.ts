@@ -3,6 +3,7 @@ import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { listUsers } from '@/app/actions/admin'
 import type { TicketStatus, UserRole } from '@/types/database.types'
 import type { DashboardStats } from '@/data/tickets'
+import type { StaffAttachmentItem } from '@/data/staff-preview'
 
 export interface AdminTicketRow {
   id: number
@@ -15,6 +16,9 @@ export interface AdminTicketRow {
   status: TicketStatus
   statusContextNote: string
   defaultAdminNote: string
+  rating: number | null
+  ratingComment: string | null
+  proofAttachments: StaffAttachmentItem[]
 }
 
 export interface AdminAccountRow {
@@ -22,6 +26,7 @@ export interface AdminAccountRow {
   fullName: string
   email: string
   role: UserRole
+  regionId?: number | null
   regionLabel: string
   permissionDesc: string
   isActive: boolean
@@ -30,7 +35,9 @@ export interface AdminAccountRow {
 export interface AdminRtInfo {
   id: number
   name: string
+  rw?: string
   leaderName: string
+  leaderUserId?: string | null
   residentCount: number
   isActive: boolean
 }
@@ -50,6 +57,8 @@ export interface AdminActivityLog {
 export interface AdminDashboardData {
   isPreview: boolean
   adminName: string
+  rwNumber?: string
+  rwAreaName?: string
   unreadCount: number
   residentTotal: number
   staffActiveTotal: number
@@ -64,6 +73,8 @@ export interface AdminDashboardData {
 export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
   isPreview: true,
   adminName: 'Rina Marlina',
+  rwNumber: '06',
+  rwAreaName: 'Parakansaat, Bandung',
   unreadCount: 3,
   residentTotal: 386,
   staffActiveTotal: 8,
@@ -90,6 +101,9 @@ export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
         'Dewi Lestari • RT 03. Laporan dikirim pada 31 Oktober, 08.15 WIB dan sedang menunggu verifikasi Ketua RT 03.',
       defaultAdminNote:
         'Membantu koordinasi pemeriksaan lokasi bersama Ketua RT 03 dan tim kebersihan.',
+      rating: null,
+      ratingComment: null,
+      proofAttachments: [],
     },
     {
       id: 265,
@@ -104,6 +118,9 @@ export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
         'Dewi Lestari • RT 03. Laporan telah diverifikasi oleh Agus Setiawan pada 30 Oktober, 14.00 WIB.',
       defaultAdminNote:
         'Membantu RW berkoordinasi dengan teknisi penerangan. Pemeriksaan lampu dijadwalkan hari ini.',
+      rating: null,
+      ratingComment: null,
+      proofAttachments: [],
     },
     {
       id: 263,
@@ -118,6 +135,43 @@ export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
         'Siti Aminah • RT 02. Sedang ditangani oleh tim sarana lingkungan RW 06 sejak 30 Oktober, 08.30 WIB.',
       defaultAdminNote:
         'Pengerukan saluran Jalan Cempaka telah rampung dilakukan bersama pengurus RW.',
+      rating: null,
+      ratingComment: null,
+      proofAttachments: [
+        {
+          id: 302,
+          type: 'penyelesaian',
+          fileName: 'saluran-cempaka-bersih.jpg',
+          sizeBytes: Math.round(1.9 * 1024 * 1024),
+          previewUrl: '/dummysampah.jpg',
+        },
+      ],
+    },
+    {
+      id: 261,
+      ticketNumber: 'PG-2026-0261',
+      title: 'Saluran air tersumbat di Gang Melati',
+      categoryName: 'Drainase',
+      regionName: 'RT 03',
+      reporterName: 'Dewi Lestari',
+      dateShort: '28 Okt 2026',
+      status: 'selesai',
+      statusContextNote:
+        'Dewi Lestari • RT 03. Laporan telah selesai ditangani oleh RW 06 dan telah dinilai oleh warga.',
+      defaultAdminNote:
+        'Sampah dan endapan telah diangkat. Aliran air kembali lancar.',
+      rating: 5,
+      ratingComment:
+        'Penanganan sangat cepat, saluran air sudah bersih dan lancar kembali.',
+      proofAttachments: [
+        {
+          id: 303,
+          type: 'penyelesaian',
+          fileName: 'dummysaluransesudah.jpg',
+          sizeBytes: 214777,
+          previewUrl: '/dummysaluransesudah.jpg',
+        },
+      ],
     },
   ],
   accounts: [
@@ -288,7 +342,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
             `
             *,
             categories (id, name),
-            regions (id, name, rw)
+            regions (id, name, rw),
+            ticket_attachments (*)
           `,
           )
           .neq('status', 'draft')
@@ -330,17 +385,46 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }
 
     const catCount = new Map<number, number>()
-    for (const row of ticketsRes.data) {
+    const allProofPaths: string[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const row of ticketsRes.data as any[]) {
       if (row.status in stats) {
         stats[row.status as keyof DashboardStats]++
       }
       catCount.set(row.category_id, (catCount.get(row.category_id) ?? 0) + 1)
+      const attachments = Array.isArray(row.ticket_attachments)
+        ? row.ticket_attachments
+        : []
+      for (const a of attachments) {
+        if (
+          a.type === 'penyelesaian' &&
+          typeof a.storage_path === 'string' &&
+          a.storage_path
+        ) {
+          allProofPaths.push(a.storage_path)
+        }
+      }
+    }
+
+    const signedUrlMap = new Map<string, string>()
+    if (allProofPaths.length > 0) {
+      const { data: signedList } = await supabase.storage
+        .from('ticket-attachments')
+        .createSignedUrls(allProofPaths, 3600)
+      for (const item of signedList ?? []) {
+        if (item.path && item.signedUrl) {
+          signedUrlMap.set(item.path, item.signedUrl)
+        }
+      }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tickets: AdminTicketRow[] = ticketsRes.data.map((row: any) => {
       const repName = reporterMap.get(row.user_id) ?? 'Warga RW 06'
       const regName = row.regions?.name ?? 'RT -'
+      const attachments = Array.isArray(row.ticket_attachments)
+        ? row.ticket_attachments
+        : []
       return {
         id: row.id,
         ticketNumber: row.ticket_number ?? `PG-${row.id}`,
@@ -353,6 +437,20 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         statusContextNote: `${repName} • ${regName}. Status tiket saat ini sedang berada pada tahap ${row.status}.`,
         defaultAdminNote:
           'Membantu koordinasi tindak lanjut penanganan laporan warga.',
+        rating: row.rating ?? null,
+        ratingComment: row.rating_comment ?? null,
+        proofAttachments: attachments
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((a: any) => a.type === 'penyelesaian')
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((a: any) => ({
+            id: a.id,
+            type: 'penyelesaian' as const,
+            fileName: a.file_name,
+            sizeBytes: a.size_bytes,
+            previewUrl: signedUrlMap.get(a.storage_path) ?? '',
+            storagePath: a.storage_path,
+          })),
       }
     })
 
@@ -372,6 +470,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           fullName: u.full_name || u.email,
           email: u.email,
           role: u.role,
+          regionId: u.region_id,
           regionLabel: regLabel,
           permissionDesc: permissionForRole(u.role, regLabel),
           isActive: u.is_active,
@@ -392,6 +491,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           fullName: p.full_name || 'Pengguna SIPANDU',
           email: p.id === user.id ? (user.email ?? '-') : '-',
           role,
+          regionId: p.region_id,
           regionLabel: regLabel,
           permissionDesc: permissionForRole(role, regLabel),
           isActive: p.is_active,
@@ -406,18 +506,26 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     const rtRegions: AdminRtInfo[] =
       regionsRes.data && regionsRes.data.length > 0
-        ? regionsRes.data.map((r) => ({
-            id: r.id,
-            name: r.name,
-            leaderName:
-              accounts.find(
-                (a) => a.role === 'ketua_rt' && a.regionLabel === r.name,
-              )?.fullName ?? 'Ketua RT',
-            residentCount: accounts.filter(
-              (a) => a.role === 'warga' && a.regionLabel === r.name,
-            ).length,
-            isActive: r.is_active,
-          }))
+        ? regionsRes.data.map((r) => {
+            const rtLeader = accounts.find(
+              (a) =>
+                a.role === 'ketua_rt' &&
+                (a.regionId === r.id || a.regionLabel === r.name),
+            )
+            return {
+              id: r.id,
+              name: r.name,
+              rw: r.rw,
+              leaderName: rtLeader?.fullName ?? 'Belum ditetapkan',
+              leaderUserId: rtLeader?.id ?? null,
+              residentCount: accounts.filter(
+                (a) =>
+                  a.role === 'warga' &&
+                  (a.regionId === r.id || a.regionLabel === r.name),
+              ).length,
+              isActive: r.is_active,
+            }
+          })
         : []
 
     const categories: AdminCategorySummary[] =
@@ -441,6 +549,16 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       typeof user.user_metadata?.full_name === 'string'
         ? user.user_metadata.full_name
         : null
+    const rwNumber =
+      regionsRes.data?.[0]?.rw ||
+      (typeof user.user_metadata?.rw_number === 'string'
+        ? user.user_metadata.rw_number
+        : '06')
+    const rwAreaName =
+      typeof user.user_metadata?.rw_area_name === 'string' &&
+      user.user_metadata.rw_area_name.trim()
+        ? user.user_metadata.rw_area_name.trim()
+        : 'Parakansaat, Bandung'
 
     return {
       isPreview: false,
@@ -449,6 +567,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         metaAdminName ??
         user.email?.split('@')[0] ??
         'Admin',
+      rwNumber,
+      rwAreaName,
       unreadCount: stats.terkirim,
       residentTotal,
       staffActiveTotal,

@@ -2,7 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { unstable_rethrow } from 'next/navigation'
-import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
+import {
+  createAdminClient,
+  createClient,
+  isSupabaseConfigured,
+} from '@/utils/supabase/server'
 import {
   CreateDraftSchema,
   UpdateDraftSchema,
@@ -17,6 +21,38 @@ import {
   type ActionResult,
 } from '@/utils/action-result'
 import type { CategoryOption, PublicStats, RegionOption, Ticket } from '@/types'
+import type { TicketStatus } from '@/types/database.types'
+
+async function saveTimelineNote(
+  ticketId: number,
+  toStatus: TicketStatus,
+  note?: string,
+  fallbackNote?: string,
+) {
+  const finalNote = note?.trim() || fallbackNote
+  if (!finalNote) return
+
+  try {
+    const admin = createAdminClient()
+    const { data: latest } = await admin
+      .from('ticket_timeline')
+      .select('id, note')
+      .eq('ticket_id', ticketId)
+      .eq('to_status', toStatus)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (latest?.id && (note?.trim() || !latest.note)) {
+      await admin
+        .from('ticket_timeline')
+        .update({ note: finalNote })
+        .eq('id', latest.id)
+    }
+  } catch {
+    // Abaikan jika service role tidak tersedia pada environment lokal tertentu
+  }
+}
 
 const FALLBACK_REGIONS: RegionOption[] = [
   { id: 1, name: 'RT 01', rw: '06' },
@@ -271,6 +307,7 @@ export async function submitTicket(
 
 export async function verifyTicket(
   ticketId: number,
+  note?: string,
 ): Promise<ActionResult<undefined>> {
   if (!isSupabaseConfigured()) return okEmpty()
 
@@ -280,8 +317,17 @@ export async function verifyTicket(
   })
   if (error) return err(supabaseErrorToMessage(error))
 
+  await saveTimelineNote(
+    ticketId,
+    'diverifikasi_rt',
+    note,
+    'Laporan telah diverifikasi oleh Ketua RT dan diteruskan ke RW untuk tindak lanjut.',
+  )
+
   revalidatePath('/dashboard/rt')
   revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/admin')
+  revalidatePath('/dashboard/warga')
   revalidatePath(`/tickets/${ticketId}`)
   return okEmpty()
 }
@@ -307,12 +353,15 @@ export async function rejectTicket(
   if (error) return err(supabaseErrorToMessage(error))
 
   revalidatePath('/dashboard/rt')
+  revalidatePath('/dashboard/admin')
+  revalidatePath('/dashboard/warga')
   revalidatePath(`/tickets/${parsed.data.ticket_id}`)
   return okEmpty()
 }
 
 export async function processTicket(
   ticketId: number,
+  note?: string,
 ): Promise<ActionResult<undefined>> {
   if (!isSupabaseConfigured()) return okEmpty()
 
@@ -322,13 +371,24 @@ export async function processTicket(
   })
   if (error) return err(supabaseErrorToMessage(error))
 
+  await saveTimelineNote(
+    ticketId,
+    'diproses_rw',
+    note,
+    'Laporan sedang ditindaklanjuti oleh pengurus RW di lapangan.',
+  )
+
   revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/rt')
+  revalidatePath('/dashboard/admin')
+  revalidatePath('/dashboard/warga')
   revalidatePath(`/tickets/${ticketId}`)
   return okEmpty()
 }
 
 export async function completeTicket(
   ticketId: number,
+  note?: string,
 ): Promise<ActionResult<undefined>> {
   if (!isSupabaseConfigured()) return okEmpty()
 
@@ -338,7 +398,16 @@ export async function completeTicket(
   })
   if (error) return err(supabaseErrorToMessage(error))
 
+  await saveTimelineNote(
+    ticketId,
+    'selesai',
+    note,
+    'Penanganan laporan telah selesai dilaksanakan oleh pengurus RW.',
+  )
+
   revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/rt')
+  revalidatePath('/dashboard/admin')
   revalidatePath('/dashboard/warga')
   revalidatePath(`/tickets/${ticketId}`)
   return okEmpty()
@@ -370,6 +439,10 @@ export async function rateTicket(
   })
   if (error) return err(supabaseErrorToMessage(error))
 
+  revalidatePath('/dashboard/warga')
+  revalidatePath('/dashboard/rt')
+  revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/admin')
   revalidatePath(`/tickets/${parsed.data.ticket_id}`)
   return okEmpty()
 }

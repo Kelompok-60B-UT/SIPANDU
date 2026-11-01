@@ -178,7 +178,372 @@ export async function setCategoryActive(
 
   if (error) return err(supabaseErrorToMessage(error))
   revalidatePath('/dashboard/admin')
+  revalidatePath('/tickets/new')
   return okEmpty()
+}
+
+export async function deleteCategory(categoryId: number): Promise<
+  ActionResult<{
+    fallbackCategoryId: number
+    fallbackCategoryName: string
+    movedCount: number
+  }>
+> {
+  if (!isSupabaseConfigured()) {
+    return ok({
+      fallbackCategoryId: 6,
+      fallbackCategoryName: 'Layanan lainnya',
+      movedCount: 0,
+    })
+  }
+
+  const adminId = await requireAdmin()
+  if (!adminId) return err('Anda tidak memiliki izin')
+
+  try {
+    const admin = createAdminClient()
+
+    const { data: targetCat, error: targetErr } = await admin
+      .from('categories')
+      .select('id, name')
+      .eq('id', categoryId)
+      .single()
+
+    if (targetErr || !targetCat) {
+      return err('Kategori tidak ditemukan')
+    }
+
+    const lowerTarget = targetCat.name.trim().toLowerCase()
+    if (lowerTarget === 'lainnya' || lowerTarget === 'layanan lainnya') {
+      return err(
+        'Kategori "Lainnya" merupakan kategori penampung utama dan tidak dapat dihapus.',
+      )
+    }
+
+    // Cari kategori penampung "Lainnya" / "Layanan lainnya"
+    const { data: allCats } = await admin
+      .from('categories')
+      .select('id, name, is_active')
+      .neq('id', categoryId)
+      .order('id', { ascending: true })
+
+    let fallbackCat = (allCats ?? []).find((c) =>
+      c.name.toLowerCase().includes('lainnya'),
+    )
+
+    if (!fallbackCat) {
+      const { data: created, error: createErr } = await admin
+        .from('categories')
+        .insert({
+          name: 'Lainnya',
+          description: 'Pengaduan di luar kategori yang tersedia',
+          is_active: true,
+        })
+        .select('id, name, is_active')
+        .single()
+      if (createErr || !created) {
+        return err(
+          createErr
+            ? supabaseErrorToMessage(createErr)
+            : 'Gagal menyiapkan kategori Lainnya',
+        )
+      }
+      fallbackCat = created
+    } else if (!fallbackCat.is_active) {
+      await admin
+        .from('categories')
+        .update({ is_active: true })
+        .eq('id', fallbackCat.id)
+    }
+
+    // Hitung laporan yang menggunakan kategori ini lalu pindahkan ke kategori Lainnya
+    const { count: ticketCount } = await admin
+      .from('tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('category_id', categoryId)
+
+    const movedCount = ticketCount ?? 0
+    if (movedCount > 0) {
+      const { error: moveErr } = await admin
+        .from('tickets')
+        .update({
+          category_id: fallbackCat.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('category_id', categoryId)
+      if (moveErr) return err(supabaseErrorToMessage(moveErr))
+    }
+
+    const { error: delErr } = await admin
+      .from('categories')
+      .delete()
+      .eq('id', categoryId)
+    if (delErr) return err(supabaseErrorToMessage(delErr))
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/warga')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/tickets/new')
+
+    return ok({
+      fallbackCategoryId: fallbackCat.id,
+      fallbackCategoryName: fallbackCat.name,
+      movedCount,
+    })
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal menghapus kategori layanan')
+  }
+}
+
+export async function updateUserRole(input: {
+  userId: string
+  role: UserRole
+  regionId?: number | null
+}): Promise<ActionResult<undefined>> {
+  const validRoles: UserRole[] = ['warga', 'ketua_rt', 'ketua_rw', 'admin']
+  if (!validRoles.includes(input.role)) {
+    return err('Peran tidak valid')
+  }
+
+  if (!isSupabaseConfigured()) return okEmpty()
+
+  const adminId = await requireAdmin()
+  if (!adminId) return err('Anda tidak memiliki izin')
+  if (adminId === input.userId && input.role !== 'admin') {
+    return err('Tidak dapat menurunkan peran akun Admin Anda sendiri')
+  }
+
+  try {
+    const admin = createAdminClient()
+    const nextRegionId =
+      input.role === 'warga' || input.role === 'ketua_rt'
+        ? input.regionId && input.regionId > 0
+          ? input.regionId
+          : null
+        : input.regionId && input.regionId > 0
+          ? input.regionId
+          : null
+
+    const { error: authErr } = await admin.auth.admin.updateUserById(
+      input.userId,
+      {
+        app_metadata: { sipandu_role: input.role },
+        user_metadata: { region_id: nextRegionId },
+      },
+    )
+    if (authErr) return err(supabaseErrorToMessage(authErr))
+
+    const { error: profErr } = await admin
+      .from('profiles')
+      .update({
+        region_id: nextRegionId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.userId)
+    if (profErr) return err(supabaseErrorToMessage(profErr))
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/warga')
+    return okEmpty()
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal memperbarui peran akun')
+  }
+}
+
+export async function saveRegion(input: {
+  id?: number
+  name: string
+  rw?: string
+  isActive?: boolean
+  leaderUserId?: string | null
+}): Promise<
+  ActionResult<{ id: number; name: string; rw: string; isActive: boolean }>
+> {
+  const name = input.name.trim()
+  const rw = (input.rw ?? '06').trim() || '06'
+  const isActive = input.isActive ?? true
+
+  if (name.length < 2) {
+    return err('Nama RT wajib diisi (minimal 2 karakter)')
+  }
+
+  if (!isSupabaseConfigured()) {
+    return ok({
+      id: input.id ?? Date.now(),
+      name,
+      rw,
+      isActive,
+    })
+  }
+
+  const adminId = await requireAdmin()
+  if (!adminId) return err('Anda tidak memiliki izin')
+
+  try {
+    const admin = createAdminClient()
+    let regionId = input.id
+
+    if (regionId) {
+      const { error } = await admin
+        .from('regions')
+        .update({ name, rw, is_active: isActive })
+        .eq('id', regionId)
+      if (error) return err(supabaseErrorToMessage(error))
+    } else {
+      const { data, error } = await admin
+        .from('regions')
+        .insert({ name, rw, is_active: isActive })
+        .select('id')
+        .single()
+      if (error || !data) {
+        return err(
+          error ? supabaseErrorToMessage(error) : 'Gagal menambahkan wilayah RT',
+        )
+      }
+      regionId = data.id
+    }
+
+    if (input.leaderUserId && regionId) {
+      await admin.auth.admin.updateUserById(input.leaderUserId, {
+        app_metadata: { sipandu_role: 'ketua_rt' },
+        user_metadata: { region_id: regionId },
+      })
+      await admin
+        .from('profiles')
+        .update({
+          region_id: regionId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.leaderUserId)
+    }
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/warga')
+    revalidatePath('/register')
+    revalidatePath('/tickets/new')
+
+    return ok({ id: regionId, name, rw, isActive })
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal menyimpan data wilayah RT')
+  }
+}
+
+export async function deleteRegion(
+  regionId: number,
+): Promise<ActionResult<{ fallbackRegionId: number; fallbackRegionName: string }>> {
+  if (!isSupabaseConfigured()) {
+    return ok({ fallbackRegionId: 1, fallbackRegionName: 'RT 01' })
+  }
+
+  const adminId = await requireAdmin()
+  if (!adminId) return err('Anda tidak memiliki izin')
+
+  try {
+    const admin = createAdminClient()
+    const { data: otherRegions } = await admin
+      .from('regions')
+      .select('id, name')
+      .neq('id', regionId)
+      .order('id', { ascending: true })
+
+    if (!otherRegions || otherRegions.length === 0) {
+      return err('Minimal harus ada 1 wilayah RT aktif di dalam sistem.')
+    }
+
+    const fallback = otherRegions[0]
+
+    // Pindahkan warga & tiket yang terhubung ke wilayah penampung agar tidak melanggar FK
+    await admin
+      .from('profiles')
+      .update({
+        region_id: fallback.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('region_id', regionId)
+
+    await admin
+      .from('tickets')
+      .update({
+        region_id: fallback.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('region_id', regionId)
+
+    const { error: delErr } = await admin
+      .from('regions')
+      .delete()
+      .eq('id', regionId)
+    if (delErr) return err(supabaseErrorToMessage(delErr))
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/warga')
+    revalidatePath('/register')
+    revalidatePath('/tickets/new')
+
+    return ok({
+      fallbackRegionId: fallback.id,
+      fallbackRegionName: fallback.name,
+    })
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal menghapus wilayah RT')
+  }
+}
+
+export async function updateRwSettings(input: {
+  rwNumber: string
+  rwAreaName: string
+  rwLeaderUserId?: string | null
+}): Promise<ActionResult<undefined>> {
+  const rwNumber = input.rwNumber.trim().replace(/[^0-9A-Za-z]/g, '') || '06'
+  const rwAreaName = input.rwAreaName.trim() || 'Parakansaat, Bandung'
+
+  if (!isSupabaseConfigured()) return okEmpty()
+
+  const adminId = await requireAdmin()
+  if (!adminId) return err('Anda tidak memiliki izin')
+
+  try {
+    const admin = createAdminClient()
+    const { error: regErr } = await admin
+      .from('regions')
+      .update({ rw: rwNumber })
+      .gt('id', 0)
+    if (regErr) return err(supabaseErrorToMessage(regErr))
+
+    if (input.rwLeaderUserId) {
+      await admin.auth.admin.updateUserById(input.rwLeaderUserId, {
+        app_metadata: { sipandu_role: 'ketua_rw' },
+      })
+    }
+
+    const supabase = await createClient()
+    await supabase.auth.updateUser({
+      data: {
+        rw_number: rwNumber,
+        rw_area_name: rwAreaName,
+      },
+    })
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/warga')
+    return okEmpty()
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal menyimpan pengaturan RW')
+  }
 }
 
 export async function verifyResident(

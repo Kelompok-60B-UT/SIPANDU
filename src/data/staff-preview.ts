@@ -36,6 +36,8 @@ export interface StaffTicketItem {
   defaultRtNote: string
   defaultRwNote: string
   rejectionReason: string | null
+  rating: number | null
+  ratingComment: string | null
   reportAttachments: StaffAttachmentItem[]
   proofAttachments: StaffAttachmentItem[]
   timeline: StaffTimelineItem[]
@@ -85,6 +87,8 @@ export const PREVIEW_RT_DATA: StaffContextData = {
         'Lokasi sesuai RT 03. Mohon koordinasi pengangkutan sampah.',
       defaultRwNote: '',
       rejectionReason: null,
+      rating: null,
+      ratingComment: null,
       reportAttachments: [
         {
           id: 101,
@@ -122,6 +126,8 @@ export const PREVIEW_RT_DATA: StaffContextData = {
         'Lokasi berada di Gang Anggrek RT 03. Perlu penertiban bersama pengurus.',
       defaultRwNote: '',
       rejectionReason: null,
+      rating: null,
+      ratingComment: null,
       reportAttachments: [
         {
           id: 102,
@@ -178,6 +184,8 @@ export const PREVIEW_RW_DATA: StaffContextData = {
       defaultRwNote:
         'Petugas teknis RW dijadwalkan mengganti lampu PJU di pertigaan Gang Mawar.',
       rejectionReason: null,
+      rating: null,
+      ratingComment: null,
       reportAttachments: [
         {
           id: 201,
@@ -216,6 +224,8 @@ export const PREVIEW_RW_DATA: StaffContextData = {
       defaultRwNote:
         'Lubang telah ditambal oleh tim sarana. Akses jalan kembali aman dilalui warga.',
       rejectionReason: null,
+      rating: null,
+      ratingComment: null,
       reportAttachments: [
         {
           id: 202,
@@ -268,6 +278,8 @@ export const PREVIEW_RW_DATA: StaffContextData = {
       defaultRwNote:
         'Pengerukan sedimen saluran Jalan Cempaka selesai dilakukan bersama warga RT 02.',
       rejectionReason: null,
+      rating: null,
+      ratingComment: null,
       reportAttachments: [
         {
           id: 203,
@@ -299,6 +311,69 @@ export const PREVIEW_RW_DATA: StaffContextData = {
           status: 'diproses_rw',
           dateLabel: '30 Okt, 08.30',
           actorNote: 'Pembersihan saluran dijadwalkan oleh tim kebersihan RW.',
+        },
+      ],
+    },
+    {
+      id: 261,
+      ticketNumber: 'PG-2026-0261',
+      title: 'Saluran air tersumbat di Gang Melati',
+      description:
+        'Saluran air di depan Gang Melati tersumbat daun dan sampah sejak 27 Oktober. Saat hujan, air meluap ke jalan dan mengganggu akses warga.',
+      locationLandmark: 'Gang Melati, depan rumah No. 12 RT 03.',
+      categoryName: 'Drainase',
+      regionId: 3,
+      regionName: 'RT 03',
+      reporterName: 'Dewi Lestari',
+      status: 'selesai',
+      dateShort: '28 Okt 2026',
+      submittedFullLabel: '28 Oktober 2026, 08.15 WIB',
+      defaultRtNote: 'Lokasi dan kondisi sesuai laporan. Diteruskan ke RW.',
+      defaultRwNote:
+        'Sampah dan endapan telah diangkat. Aliran air kembali lancar.',
+      rejectionReason: null,
+      rating: 5,
+      ratingComment:
+        'Penanganan sangat cepat, saluran air sudah bersih dan lancar kembali. Terima kasih Pak RT dan Pak RW.',
+      reportAttachments: [
+        {
+          id: 204,
+          type: 'laporan',
+          fileName: 'dummysaluransebelum.jpg',
+          sizeBytes: 218736,
+          previewUrl: '/dummysaluransebelum.jpg',
+        },
+      ],
+      proofAttachments: [
+        {
+          id: 303,
+          type: 'penyelesaian',
+          fileName: 'dummysaluransesudah.jpg',
+          sizeBytes: 214777,
+          previewUrl: '/dummysaluransesudah.jpg',
+        },
+      ],
+      timeline: [
+        {
+          id: 41,
+          status: 'diverifikasi_rt',
+          dateLabel: '28 Okt, 10.00',
+          actorNote:
+            'Agus Setiawan: Lokasi dan kondisi sesuai laporan. Diteruskan ke RW untuk pembersihan saluran.',
+        },
+        {
+          id: 42,
+          status: 'diproses_rw',
+          dateLabel: '29 Okt, 09.00',
+          actorNote:
+            'Bambang Heryana: Tim kebersihan dijadwalkan membersihkan saluran air bersama warga.',
+        },
+        {
+          id: 43,
+          status: 'selesai',
+          dateLabel: '30 Okt, 15.30',
+          actorNote:
+            'Bambang Heryana: Sampah dan endapan telah diangkat. Aliran air kembali lancar.',
         },
       ],
     },
@@ -437,6 +512,31 @@ export async function getStaffDashboardData(
       ditolak: 0,
     }
 
+    const allStoragePaths: string[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const row of ticketsRes.data as any[]) {
+      const attachments = Array.isArray(row.ticket_attachments)
+        ? row.ticket_attachments
+        : []
+      for (const a of attachments) {
+        if (typeof a.storage_path === 'string' && a.storage_path) {
+          allStoragePaths.push(a.storage_path)
+        }
+      }
+    }
+
+    const signedUrlMap = new Map<string, string>()
+    if (allStoragePaths.length > 0) {
+      const { data: signedList } = await supabase.storage
+        .from('ticket-attachments')
+        .createSignedUrls(allStoragePaths, 3600)
+      for (const item of signedList ?? []) {
+        if (item.path && item.signedUrl) {
+          signedUrlMap.set(item.path, item.signedUrl)
+        }
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mappedTickets: StaffTicketItem[] = ticketsRes.data.map((row: any) => {
       if (row.status in stats) {
@@ -466,6 +566,8 @@ export async function getStaffDashboardData(
         defaultRtNote: `Lokasi sesuai ${row.regions?.name ?? 'RT'}. Mohon tindak lanjut pengurus RW.`,
         defaultRwNote: '',
         rejectionReason: row.rejection_reason,
+        rating: row.rating ?? null,
+        ratingComment: row.rating_comment ?? null,
         reportAttachments: attachments
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .filter((a: any) => a.type === 'laporan')
@@ -475,7 +577,7 @@ export async function getStaffDashboardData(
             type: 'laporan' as const,
             fileName: a.file_name,
             sizeBytes: a.size_bytes,
-            previewUrl: '',
+            previewUrl: signedUrlMap.get(a.storage_path) ?? '',
             storagePath: a.storage_path,
           })),
         proofAttachments: attachments
@@ -487,7 +589,7 @@ export async function getStaffDashboardData(
             type: 'penyelesaian' as const,
             fileName: a.file_name,
             sizeBytes: a.size_bytes,
-            previewUrl: '',
+            previewUrl: signedUrlMap.get(a.storage_path) ?? '',
             storagePath: a.storage_path,
           })),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

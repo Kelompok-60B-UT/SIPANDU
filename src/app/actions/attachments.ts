@@ -62,7 +62,10 @@ export async function registerAttachment(
   if (error) return err(supabaseErrorToMessage(error))
 
   revalidatePath(`/tickets/${ticketId}`)
+  revalidatePath('/dashboard/warga')
+  revalidatePath('/dashboard/rt')
   revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/admin')
   return ok({ id: data.id })
 }
 
@@ -100,5 +103,9 @@ export async function deleteAttachment(
     .remove([attachment.storage_path])
 
   revalidatePath(`/tickets/${attachment.ticket_id}`)
+  revalidatePath('/dashboard/warga')
+  revalidatePath('/dashboard/rt')
+  revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/admin')
   return okEmpty()
 }

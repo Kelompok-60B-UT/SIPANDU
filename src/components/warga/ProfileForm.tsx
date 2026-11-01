@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Camera,
@@ -9,8 +10,9 @@ import {
   Info,
   Loader2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
-import { updateProfile } from "@/app/actions/profile";
+import { updateProfile, updateProfileAvatar } from "@/app/actions/profile";
 import type { Profile, RegionOption } from "@/types";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB sesuai desain
@@ -27,18 +29,55 @@ function formatRtDigits(name: string): string {
   return digits ? digits.padStart(2, "0") : name;
 }
 
+function fileToCompressedDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Gagal membaca file foto"));
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onerror = () => reject(new Error("Gagal memuat pratinjau foto"));
+      img.onload = () => {
+        const size = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(String(reader.result));
+          return;
+        }
+        const minSide = Math.min(img.width, img.height);
+        const sx = (img.width - minSide) / 2;
+        const sy = (img.height - minSide) / 2;
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ProfileForm({
   profile,
   email,
   regions,
+  initialAvatarUrl,
+  initialKelurahan,
+  initialCity,
 }: {
   profile: Profile;
   email: string;
   regions: RegionOption[];
+  initialAvatarUrl?: string | null;
+  initialKelurahan?: string;
+  initialCity?: string;
 }) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [fullName, setFullName] = useState(profile.full_name);
   const [phone, setPhone] = useState(profile.phone ?? "");
@@ -47,9 +86,41 @@ export default function ProfileForm({
     profile.region_id ?? regions[2]?.id ?? regions[0]?.id ?? 3,
   );
   const [rw, setRw] = useState("06");
-  const [kelurahan, setKelurahan] = useState("Cisaranten Endah");
-  const [city, setCity] = useState("Bandung");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [kelurahan, setKelurahan] = useState(
+    initialKelurahan || "Cisaranten Endah",
+  );
+  const [city, setCity] = useState(initialCity || "Bandung");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    initialAvatarUrl ?? null,
+  );
+  const [prevInitialAvatarUrl, setPrevInitialAvatarUrl] = useState<
+    string | null | undefined
+  >(initialAvatarUrl);
+
+  if (prevInitialAvatarUrl !== initialAvatarUrl) {
+    setPrevInitialAvatarUrl(initialAvatarUrl);
+    if (initialAvatarUrl !== undefined) {
+      setAvatarUrl(initialAvatarUrl);
+    }
+  }
+
+  useEffect(() => {
+    const syncAvatar = () => {
+      if (!initialAvatarUrl) {
+        try {
+          const saved = localStorage.getItem("sipandu_avatar_url");
+          if (saved) setAvatarUrl(saved);
+        } catch {
+          // ignore
+        }
+      }
+    };
+    syncAvatar();
+    window.addEventListener("sipandu-avatar-change", syncAvatar);
+    return () =>
+      window.removeEventListener("sipandu-avatar-change", syncAvatar);
+  }, [initialAvatarUrl]);
+
   const [feedback, setFeedback] = useState<{
     error?: string;
     success?: string;
@@ -57,8 +128,9 @@ export default function ProfileForm({
 
   const initials = getInitials(fullName || profile.full_name);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     setFeedback(null);
 
@@ -72,7 +144,72 @@ export default function ProfileForm({
     }
 
     const objectUrl = URL.createObjectURL(file);
+    // Langsung replace tampilan foto profil sebelumnya
     setAvatarUrl(objectUrl);
+    setUploadingAvatar(true);
+
+    try {
+      const compactDataUrl = await fileToCompressedDataUrl(file);
+      try {
+        localStorage.setItem("sipandu_avatar_url", compactDataUrl);
+        window.dispatchEvent(new Event("sipandu-avatar-change"));
+      } catch {
+        // ignore storage quota
+      }
+
+      const fd = new FormData();
+      fd.set("avatar", file);
+      fd.set("avatar_data_url", compactDataUrl);
+
+      const res = await updateProfileAvatar(fd);
+      if (!res.success) {
+        setFeedback({ error: res.error });
+      } else {
+        if (res.data.avatarUrl) {
+          setAvatarUrl(res.data.avatarUrl);
+        }
+        setFeedback({
+          success: "Foto profil berhasil diganti dan disimpan.",
+        });
+        router.refresh();
+      }
+    } catch (errObj) {
+      setFeedback({
+        error:
+          errObj instanceof Error
+            ? errObj.message
+            : "Gagal mengganti foto profil.",
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setFeedback(null);
+    setAvatarUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    try {
+      localStorage.removeItem("sipandu_avatar_url");
+      window.dispatchEvent(new Event("sipandu-avatar-change"));
+    } catch {
+      // ignore
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.set("remove", "true");
+      const res = await updateProfileAvatar(fd);
+      if (!res.success) {
+        setFeedback({ error: res.error });
+      } else {
+        setFeedback({ success: "Foto profil berhasil dihapus." });
+        router.refresh();
+      }
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleReset = () => {
@@ -81,21 +218,24 @@ export default function ProfileForm({
     setAddress(profile.address ?? "");
     setRegionId(profile.region_id ?? regions[2]?.id ?? regions[0]?.id ?? 3);
     setRw("06");
-    setKelurahan("Cisaranten Endah");
-    setCity("Bandung");
-    setAvatarUrl(null);
+    setKelurahan(initialKelurahan || "Cisaranten Endah");
+    setCity(initialCity || "Bandung");
     setFeedback(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = (formData: FormData) => {
     setFeedback(null);
+    formData.set("region_id", String(regionId));
+    formData.set("kelurahan", kelurahan);
+    formData.set("city", city);
     startTransition(async () => {
       const res = await updateProfile(formData);
       if (!res.success) {
         setFeedback({ error: res.error });
       } else {
         setFeedback({ success: "Perubahan profil berhasil disimpan." });
+        router.refresh();
       }
     });
   };
@@ -116,46 +256,72 @@ export default function ProfileForm({
         </div>
 
         <div className="flex flex-wrap items-center gap-5">
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={avatarUrl}
-              alt={fullName}
-              className="h-16 w-16 shrink-0 rounded-full border border-border object-cover"
-            />
-          ) : (
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xl font-bold text-primary">
-              {initials}
-            </div>
-          )}
+          <div className="relative h-16 w-16 shrink-0">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt={fullName}
+                className="h-16 w-16 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-xl font-bold text-primary">
+                {initials}
+              </div>
+            )}
+            {uploadingAvatar && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-ink/40 text-white">
+                <Loader2 size={18} className="animate-spin" />
+              </div>
+            )}
+          </div>
 
           <div>
             <div className="flex flex-wrap items-center gap-4">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-white px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-surface">
-                <Camera size={15} className="text-primary" />
-                <span>Ganti foto</span>
+              <label
+                className={`inline-flex items-center gap-2 rounded-xl border border-border bg-white px-3.5 py-2 text-xs font-semibold text-ink transition-colors ${
+                  uploadingAvatar || isPending
+                    ? "cursor-not-allowed opacity-60"
+                    : "cursor-pointer hover:bg-surface"
+                }`}
+              >
+                {uploadingAvatar ? (
+                  <Loader2 size={15} className="animate-spin text-primary" />
+                ) : (
+                  <Camera size={15} className="text-primary" />
+                )}
+                <span>
+                  {uploadingAvatar
+                    ? "Mengganti foto..."
+                    : avatarUrl
+                      ? "Ganti foto"
+                      : "Unggah foto"}
+                </span>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/jpeg,image/png"
+                  disabled={uploadingAvatar || isPending}
                   onChange={handleAvatarChange}
                   className="hidden"
                 />
               </label>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setAvatarUrl(null);
-                  if (fileInputRef.current) fileInputRef.current.value = "";
-                }}
-                className="cursor-pointer text-xs font-semibold text-muted transition-colors hover:text-ink"
-              >
-                Hapus foto
-              </button>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  disabled={uploadingAvatar || isPending}
+                  onClick={handleRemoveAvatar}
+                  className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-red-600 transition-colors hover:text-red-700 disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                  Hapus foto
+                </button>
+              )}
             </div>
             <p className="mt-2 text-[11px] text-muted">
-              JPG atau PNG, maksimal 2 MB. Gunakan foto yang jelas.
+              JPG atau PNG, maksimal 2 MB. Mengganti foto akan otomatis menimpa
+              foto profil sebelumnya.
             </p>
           </div>
         </div>

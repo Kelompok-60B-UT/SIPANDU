@@ -16,6 +16,8 @@ import {
   Info,
   Loader2,
   MapPin,
+  MessageSquare,
+  RefreshCw,
   Send,
   Star,
   Trash2,
@@ -213,6 +215,15 @@ export default function TicketDetailClient({
   const router = useRouter();
   const { viewer, categories, regions } = data;
   const [ticket, setTicket] = useState<TicketDetailView | null>(data.ticket);
+  const [prevDataTicket, setPrevDataTicket] = useState<TicketDetailView | null>(
+    data.ticket,
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  if (prevDataTicket !== data.ticket) {
+    setPrevDataTicket(data.ticket);
+    setTicket(data.ticket);
+  }
 
   const [copied, setCopied] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -230,6 +241,15 @@ export default function TicketDetailClient({
   // State tindakan RT / RW / Draf Warga
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [rtVerifyNote, setRtVerifyNote] = useState(
+    `Lokasi dan kondisi sesuai laporan ${data.ticket?.regionName ?? "RT"}. Diteruskan ke Ketua RW untuk tindak lanjut.`,
+  );
+  const [rwProcessNote, setRwProcessNote] = useState(
+    "Pengurus RW menjadwalkan petugas dan warga untuk penanganan di lokasi kejadian.",
+  );
+  const [rwCompleteNote, setRwCompleteNote] = useState(
+    "Penanganan lapangan telah selesai dilaksanakan. Foto bukti penyelesaian dilampirkan.",
+  );
   const [editingDraft, setEditingDraft] = useState(false);
   const [draftTitle, setDraftTitle] = useState(data.ticket?.title ?? "");
   const [draftCategoryId, setDraftCategoryId] = useState(
@@ -339,9 +359,6 @@ export default function TicketDetailClient({
   );
   const allLightboxPhotos = [...reportPhotos, ...completionPhotos];
 
-  const primaryReportPhoto = reportPhotos[0] ?? null;
-  const primaryCompletionPhoto = completionPhotos[0] ?? null;
-
   const isOwner = viewer.userId === ticket.userId;
   const currentStepIdx = getStepIndex(ticket.status);
 
@@ -353,6 +370,19 @@ export default function TicketDetailClient({
     } catch {
       setCopied(false);
     }
+  };
+
+  const handleRefreshStatus = () => {
+    setFeedback(null);
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => {
+      setIsRefreshing(false);
+      setFeedback({
+        type: "success",
+        message: "Status penanganan dan kronologi tiket telah diperbarui.",
+      });
+    }, 550);
   };
 
   // --- Handler Upload Foto (Laporan saat Draf / Penyelesaian saat RW) ---
@@ -374,6 +404,14 @@ export default function TicketDetailClient({
       setFeedback({
         type: "error",
         message: "Maksimal 3 foto laporan yang dapat dilampirkan.",
+      });
+      return;
+    }
+
+    if (type === "penyelesaian" && completionPhotos.length >= 3) {
+      setFeedback({
+        type: "error",
+        message: "Maksimal 3 foto bukti penyelesaian yang dapat dilampirkan.",
       });
       return;
     }
@@ -624,19 +662,19 @@ export default function TicketDetailClient({
 
   const handleVerifyRt = () => {
     setFeedback(null);
+    const noteText =
+      rtVerifyNote.trim() ||
+      `Lokasi dan kondisi sesuai laporan ${ticket.regionName}. Diteruskan ke Ketua RW 06.`;
     startTransition(async () => {
-      const res = await verifyTicket(ticket.id);
+      const res = await verifyTicket(ticket.id, noteText);
       if (!res.success) {
         setFeedback({ type: "error", message: res.error });
         return;
       }
-      appendLocalTimeline(
-        "diverifikasi_rt",
-        "Lokasi dan kondisi sesuai laporan. Diteruskan ke Ketua RW 06.",
-      );
+      appendLocalTimeline("diverifikasi_rt", noteText);
       setFeedback({
         type: "success",
-        message: "Tiket diverifikasi dan diteruskan ke Ketua RW.",
+        message: "Tiket diverifikasi dan diteruskan ke Ketua RW beserta catatan.",
       });
       if (isSupabaseConfigured()) router.refresh();
     });
@@ -674,19 +712,19 @@ export default function TicketDetailClient({
 
   const handleProcessRw = () => {
     setFeedback(null);
+    const noteText =
+      rwProcessNote.trim() ||
+      "Pengurus RW mulai melakukan penanganan di lokasi kejadian.";
     startTransition(async () => {
-      const res = await processTicket(ticket.id);
+      const res = await processTicket(ticket.id, noteText);
       if (!res.success) {
         setFeedback({ type: "error", message: res.error });
         return;
       }
-      appendLocalTimeline(
-        "diproses_rw",
-        "Pengurus RW mulai melakukan penanganan di lokasi kejadian.",
-      );
+      appendLocalTimeline("diproses_rw", noteText);
       setFeedback({
         type: "success",
-        message: "Status tiket diperbarui menjadi Diproses RW.",
+        message: "Status tiket diperbarui menjadi Diproses RW beserta pesan penanganan.",
       });
       if (isSupabaseConfigured()) router.refresh();
     });
@@ -703,16 +741,17 @@ export default function TicketDetailClient({
       return;
     }
 
+    const noteText =
+      rwCompleteNote.trim() ||
+      "Penanganan selesai dilaksanakan. Foto bukti penyelesaian dilampirkan.";
+
     startTransition(async () => {
-      const res = await completeTicket(ticket.id);
+      const res = await completeTicket(ticket.id, noteText);
       if (!res.success) {
         setFeedback({ type: "error", message: res.error });
         return;
       }
-      appendLocalTimeline(
-        "selesai",
-        "Penanganan selesai dilaksanakan. Foto bukti penyelesaian dilampirkan.",
-      );
+      appendLocalTimeline("selesai", noteText);
       setFeedback({
         type: "success",
         message: "Pengaduan berhasil ditandai Selesai!",
@@ -1011,10 +1050,23 @@ export default function TicketDetailClient({
           </h2>
           <p className="mt-1.5 text-xs leading-relaxed text-muted">
             Pastikan laporan berada di wilayah Anda sebelum diteruskan ke Ketua
-            RW 06.
+            RW 06. Pesan/catatan di bawah akan tampil pada kronologi warga.
           </p>
 
-          <div className="mt-4 space-y-2.5">
+          <div className="mt-3.5">
+            <label className="block text-[11px] font-semibold text-ink">
+              Pesan / catatan verifikasi RT untuk warga &amp; RW
+            </label>
+            <textarea
+              rows={2}
+              value={rtVerifyNote}
+              onChange={(e) => setRtVerifyNote(e.target.value)}
+              placeholder="Tulis catatan verifikasi lokasi atau arahan tindak lanjut..."
+              className="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
+            />
+          </div>
+
+          <div className="mt-3.5 space-y-2.5">
             <button
               type="button"
               disabled={isPending}
@@ -1074,11 +1126,23 @@ export default function TicketDetailClient({
             Tiket telah diverifikasi Ketua RT dan siap dijadwalkan untuk
             penanganan lapangan.
           </p>
+          <div className="mt-3.5">
+            <label className="block text-[11px] font-semibold text-ink">
+              Pesan / komentar tindak lanjut RW untuk warga
+            </label>
+            <textarea
+              rows={2}
+              value={rwProcessNote}
+              onChange={(e) => setRwProcessNote(e.target.value)}
+              placeholder="Tulis rencana jadwal atau petugas penanganan lapangan..."
+              className="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
+            />
+          </div>
           <button
             type="button"
             disabled={isPending}
             onClick={handleProcessRw}
-            className="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+            className="mt-3.5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
           >
             {isPending && <Loader2 size={14} className="animate-spin" />}
             Mulai proses penanganan
@@ -1087,16 +1151,19 @@ export default function TicketDetailClient({
       );
     }
 
-    // 5. Ketua RW + Diproses RW -> Upload Foto Bukti + Selesaikan Tiket
-    if (viewer.role === "ketua_rw" && ticket.status === "diproses_rw") {
+    // 5. Ketua RW / Admin + Diproses RW -> Upload Foto Bukti (maks 3) + Selesaikan Tiket
+    if (
+      (viewer.role === "ketua_rw" || viewer.role === "admin") &&
+      ticket.status === "diproses_rw"
+    ) {
       return (
         <section className="rounded-2xl border border-blue-100 bg-[#F4F8FF] p-5 sm:p-6">
           <h2 className="text-base font-bold text-ink">
             Penyelesaian pengaduan RW
           </h2>
           <p className="mt-1.5 text-xs leading-relaxed text-muted">
-            Unggah minimal 1 foto bukti penyelesaian lapangan sebelum menandai
-            tiket selesai.
+            Unggah foto bukti penyelesaian lapangan (minimal 1, maksimal 3 foto)
+            dan tulis pesan hasil penanganan untuk warga.
           </p>
 
           <input
@@ -1111,19 +1178,34 @@ export default function TicketDetailClient({
             }}
           />
 
-          <div className="mt-4 space-y-2.5">
+          <div className="mt-3.5">
+            <label className="block text-[11px] font-semibold text-ink">
+              Pesan / komentar hasil penyelesaian RW
+            </label>
+            <textarea
+              rows={2}
+              value={rwCompleteNote}
+              onChange={(e) => setRwCompleteNote(e.target.value)}
+              placeholder="Tulis ringkasan hasil pekerjaan lapangan yang telah diselesaikan..."
+              className="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
+            />
+          </div>
+
+          <div className="mt-3.5 space-y-2.5">
             <button
               type="button"
-              disabled={uploadingPhoto}
+              disabled={uploadingPhoto || completionPhotos.length >= 3}
               onClick={() => proofInputRef.current?.click()}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white py-2.5 text-xs font-semibold text-primary hover:bg-blue-50/60 disabled:opacity-60"
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white py-2.5 text-xs font-semibold text-primary hover:bg-blue-50/60 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {uploadingPhoto ? (
                 <Loader2 size={14} className="animate-spin" />
               ) : (
                 <Upload size={14} />
               )}
-              Unggah foto bukti ({completionPhotos.length})
+              {completionPhotos.length >= 3
+                ? "Batas 3 foto bukti tercapai (3/3)"
+                : `Unggah foto bukti (${completionPhotos.length}/3)`}
             </button>
 
             <button
@@ -1214,7 +1296,23 @@ export default function TicketDetailClient({
 
       {/* Kartu Stepper Status Penanganan */}
       <section className="mt-5 rounded-2xl border border-border bg-white p-5 sm:p-6">
-        <h2 className="text-base font-bold text-ink">Status penanganan</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-bold text-ink">Status penanganan</h2>
+          <button
+            type="button"
+            disabled={isRefreshing || isPending}
+            onClick={handleRefreshStatus}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-surface/60 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw
+              size={13}
+              className={
+                isRefreshing ? "animate-spin text-primary" : "text-primary"
+              }
+            />
+            <span>{isRefreshing ? "Memuat ulang..." : "Refresh status"}</span>
+          </button>
+        </div>
 
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
           <Badge status={ticket.status} dot />
@@ -1419,84 +1517,172 @@ export default function TicketDetailClient({
               Foto laporan &amp; bukti penyelesaian
             </h2>
             <p className="mt-0.5 text-xs text-muted">
-              Kondisi sebelum dan sesudah penanganan.
+              Kondisi sebelum dan sesudah penanganan (maksimal 3 foto per
+              bagian).
             </p>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
               {/* Foto Laporan Warga (Sebelum) */}
-              <div>
-                {primaryReportPhoto ? (
-                  <>
-                    <SafeTicketImage
-                      attachment={primaryReportPhoto}
-                      alt={`Foto laporan warga - ${ticket.title}`}
-                      onClick={() => setLightboxIndex(0)}
-                    />
-                    <p className="mt-2.5 text-xs font-bold text-ink">
-                      Foto laporan warga
-                      {reportPhotos.length > 1
-                        ? ` (${reportPhotos.length} foto)`
-                        : ""}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-muted">
-                      {formatFullDateId(primaryReportPhoto.createdAt)} •{" "}
-                      {primaryReportPhoto.uploaderName}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setLightboxIndex(0)}
-                        className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
-                      >
-                        Lihat foto ukuran penuh
-                        <ArrowRight size={12} />
-                      </button>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-ink">
+                    Foto laporan warga ({reportPhotos.length}/3)
+                  </p>
+                </div>
 
-                      {ticket.status === "draft" && isOwner && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDeleteAttachment(primaryReportPhoto.id)
-                          }
-                          className="cursor-pointer text-[11px] font-semibold text-red-600 hover:underline"
-                        >
-                          Hapus foto
-                        </button>
-                      )}
-                    </div>
-                  </>
+                {reportPhotos.length > 0 ? (
+                  <div className="space-y-3">
+                    {reportPhotos.map((att, idx) => (
+                      <div
+                        key={att.id}
+                        className="rounded-xl border border-border/80 bg-surface/40 p-2.5"
+                      >
+                        <SafeTicketImage
+                          attachment={att}
+                          alt={`Foto laporan warga ${idx + 1} - ${ticket.title}`}
+                          onClick={() => setLightboxIndex(idx)}
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-ink">
+                              Foto #{idx + 1} • {att.fileName}
+                            </p>
+                            <p className="text-[11px] text-muted">
+                              {formatFullDateId(att.createdAt)} •{" "}
+                              {att.uploaderName}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setLightboxIndex(idx)}
+                              className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                            >
+                              Perbesar
+                              <ArrowRight size={11} />
+                            </button>
+                            {(ticket.status === "draft" ||
+                              ticket.status === "terkirim") &&
+                              isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttachment(att.id)}
+                                  className="cursor-pointer text-[11px] font-semibold text-red-600 hover:underline"
+                                >
+                                  Hapus
+                                </button>
+                              )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <div className="flex aspect-[16/10] w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 p-4 text-center">
                     <p className="text-xs font-semibold text-ink">
                       Belum ada foto laporan
                     </p>
                     <p className="mt-1 text-[11px] text-muted">
-                      Pelapor tidak menyertakan foto saat membuat laporan ini.
+                      Pelapor belum menyertakan foto pada laporan ini.
                     </p>
                   </div>
                 )}
+
+                {isOwner &&
+                  (ticket.status === "draft" ||
+                    ticket.status === "terkirim") && (
+                    <label
+                      className={`flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+                        reportPhotos.length >= 3 || uploadingPhoto
+                          ? "cursor-not-allowed border-border bg-surface text-muted"
+                          : "cursor-pointer border-primary/50 bg-blue-50/40 text-primary hover:bg-blue-50/80"
+                      }`}
+                    >
+                      {uploadingPhoto ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Upload size={14} />
+                      )}
+                      <span>
+                        {reportPhotos.length >= 3
+                          ? "Maksimal 3 foto laporan tercapai (3/3)"
+                          : `Unggah foto laporan (${reportPhotos.length}/3)`}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        disabled={reportPhotos.length >= 3 || uploadingPhoto}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file)
+                            void handleUploadAttachment(file, "laporan");
+                          e.target.value = "";
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
               </div>
 
               {/* Bukti Penyelesaian dari RW (Sesudah) */}
-              <div>
-                {primaryCompletionPhoto ? (
-                  <>
-                    <SafeTicketImage
-                      attachment={primaryCompletionPhoto}
-                      alt={`Bukti penyelesaian RW - ${ticket.title}`}
-                      onClick={() => setLightboxIndex(reportPhotos.length)}
-                    />
-                    <p className="mt-2.5 text-xs font-bold text-emerald-700">
-                      Bukti penyelesaian dari RW
-                      {completionPhotos.length > 1
-                        ? ` (${completionPhotos.length} foto)`
-                        : ""}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-muted">
-                      {formatFullDateId(primaryCompletionPhoto.createdAt)} •{" "}
-                      {primaryCompletionPhoto.uploaderName}
-                    </p>
-                  </>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-emerald-700">
+                    Bukti penyelesaian RW ({completionPhotos.length}/3)
+                  </p>
+                </div>
+
+                {completionPhotos.length > 0 ? (
+                  <div className="space-y-3">
+                    {completionPhotos.map((att, idx) => (
+                      <div
+                        key={att.id}
+                        className="rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-2.5"
+                      >
+                        <SafeTicketImage
+                          attachment={att}
+                          alt={`Bukti penyelesaian RW ${idx + 1} - ${ticket.title}`}
+                          onClick={() =>
+                            setLightboxIndex(reportPhotos.length + idx)
+                          }
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-emerald-800">
+                              Bukti #{idx + 1} • {att.fileName}
+                            </p>
+                            <p className="text-[11px] text-muted">
+                              {formatFullDateId(att.createdAt)} •{" "}
+                              {att.uploaderName}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLightboxIndex(reportPhotos.length + idx)
+                              }
+                              className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                            >
+                              Perbesar
+                              <ArrowRight size={11} />
+                            </button>
+                            {(viewer.role === "ketua_rw" ||
+                              viewer.role === "admin") &&
+                              ticket.status === "diproses_rw" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttachment(att.id)}
+                                  className="cursor-pointer text-[11px] font-semibold text-red-600 hover:underline"
+                                >
+                                  Hapus
+                                </button>
+                              )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <div className="flex aspect-[16/10] w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 p-4 text-center">
                     <p className="text-xs font-semibold text-ink">
@@ -1508,18 +1694,59 @@ export default function TicketDetailClient({
                     </p>
                   </div>
                 )}
+
+                {(viewer.role === "ketua_rw" || viewer.role === "admin") &&
+                  ticket.status === "diproses_rw" && (
+                    <label
+                      className={`flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+                        completionPhotos.length >= 3 || uploadingPhoto
+                          ? "cursor-not-allowed border-border bg-surface text-muted"
+                          : "cursor-pointer border-emerald-400/70 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-50"
+                      }`}
+                    >
+                      {uploadingPhoto ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Upload size={14} />
+                      )}
+                      <span>
+                        {completionPhotos.length >= 3
+                          ? "Maksimal 3 foto bukti tercapai (3/3)"
+                          : `Unggah foto bukti (${completionPhotos.length}/3)`}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        disabled={
+                          completionPhotos.length >= 3 || uploadingPhoto
+                        }
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file)
+                            void handleUploadAttachment(file, "penyelesaian");
+                          e.target.value = "";
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
               </div>
             </div>
           </section>
 
           {/* 3. Kronologi Penanganan */}
           <section className="rounded-2xl border border-border bg-white p-5 sm:p-6">
-            <h2 className="text-base font-bold text-ink">
-              Kronologi penanganan
-            </h2>
-            <p className="mt-0.5 text-xs text-muted">
-              Setiap pembaruan tercatat secara transparan.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-bold text-ink">
+                  Kronologi penanganan
+                </h2>
+                <p className="mt-0.5 text-xs text-muted">
+                  Setiap status, pesan, dan komentar dari pengurus RT/RW
+                  tercatat secara transparan.
+                </p>
+              </div>
+            </div>
 
             {ticket.timeline.length === 0 ? (
               <p className="mt-4 text-xs text-muted">
@@ -1532,6 +1759,36 @@ export default function TicketDetailClient({
                   const isFinalSuccess =
                     isLast && entry.toStatus === "selesai";
                   const isRejected = entry.toStatus === "ditolak";
+                  const isStaffStatus =
+                    entry.toStatus === "diverifikasi_rt" ||
+                    entry.toStatus === "diproses_rw" ||
+                    entry.toStatus === "selesai" ||
+                    entry.toStatus === "ditolak";
+
+                  const fallbackNote =
+                    entry.toStatus === "diverifikasi_rt"
+                      ? `Laporan telah diverifikasi oleh Ketua ${ticket.regionName} dan diteruskan ke RW ${ticket.regionRw}.`
+                      : entry.toStatus === "diproses_rw"
+                        ? `Pengurus RW ${ticket.regionRw} sedang menindaklanjuti penanganan di lapangan.`
+                        : entry.toStatus === "selesai"
+                          ? "Penanganan lapangan telah selesai dilaksanakan oleh pengurus RW."
+                          : entry.toStatus === "ditolak"
+                            ? (ticket.rejectionReason ??
+                              "Laporan belum dapat ditindaklanjuti sesuai ketentuan wilayah.")
+                            : `Laporan dikirim oleh pelapor dan diterima pada sistem SIPANDU.`;
+
+                  const resolvedNote = entry.note?.trim() || fallbackNote;
+
+                  const commentBadgeLabel =
+                    entry.toStatus === "diverifikasi_rt"
+                      ? `Pesan / Catatan Ketua ${ticket.regionName}`
+                      : entry.toStatus === "diproses_rw"
+                        ? `Pesan / Komentar Ketua RW ${ticket.regionRw}`
+                        : entry.toStatus === "selesai"
+                          ? `Pesan Penyelesaian RW ${ticket.regionRw}`
+                          : entry.toStatus === "ditolak"
+                            ? "Alasan Penolakan Pengurus"
+                            : "Keterangan Pengiriman Laporan";
 
                   return (
                     <li
@@ -1574,11 +1831,23 @@ export default function TicketDetailClient({
                           {entry.actorName} • {entry.actorRoleDisplay}
                         </p>
 
-                        {entry.note && (
-                          <p className="mt-1 text-xs leading-relaxed text-muted">
-                            {entry.note}
+                        <div
+                          className={`mt-2 rounded-xl border px-3.5 py-2.5 ${
+                            isRejected
+                              ? "border-red-200 bg-red-50/60"
+                              : isStaffStatus
+                                ? "border-blue-100 bg-[#F4F8FF]"
+                                : "border-border/80 bg-surface/60"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+                            <MessageSquare size={12} className="shrink-0" />
+                            <span>{commentBadgeLabel}</span>
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed text-ink/90">
+                            {resolvedNote}
                           </p>
-                        )}
+                        </div>
                       </div>
                     </li>
                   );
@@ -1645,6 +1914,45 @@ export default function TicketDetailClient({
                       ? formatFullDateId(ticket.rejectedAt ?? ticket.updatedAt)
                       : formatFullDateId(ticket.submittedAt ?? ticket.createdAt)}
                 </dd>
+              </div>
+
+              <div className="border-t border-border pt-3.5">
+                <dt className="text-[11px] text-muted">
+                  Hasil penilaian warga
+                </dt>
+                {ticket.rating ? (
+                  <dd className="mt-1.5 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            size={14}
+                            className={
+                              star <= (ticket.rating ?? 0)
+                                ? "fill-amber-400 text-amber-400"
+                                : "fill-transparent text-amber-300"
+                            }
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs font-bold text-ink">
+                        {ticket.rating}/5 Bintang
+                      </span>
+                    </div>
+                    {ticket.ratingComment && (
+                      <p className="mt-1.5 text-xs italic leading-relaxed text-ink/85">
+                        “{ticket.ratingComment}”
+                      </p>
+                    )}
+                  </dd>
+                ) : (
+                  <dd className="mt-0.5 text-xs font-medium text-muted">
+                    {ticket.status === "selesai"
+                      ? "Belum ada penilaian dari warga"
+                      : "Tersedia setelah tiket selesai"}
+                  </dd>
+                )}
               </div>
             </dl>
           </section>

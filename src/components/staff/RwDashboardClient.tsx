@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
@@ -12,13 +13,21 @@ import {
   Image as ImageIcon,
   Info,
   Loader2,
+  RefreshCw,
   Search,
+  Star,
+  Trash2,
+  Upload,
   Wrench,
 } from "lucide-react";
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
+import RekapDownloadButton from "@/components/common/RekapDownloadButton";
 import { completeTicket, processTicket } from "@/app/actions/tickets";
-import { registerAttachment } from "@/app/actions/attachments";
+import {
+  deleteAttachment,
+  registerAttachment,
+} from "@/app/actions/attachments";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
 import { statusLabelId } from "@/utils/transition";
 import { generateStoragePath, validateAttachment } from "@/utils/upload";
@@ -63,10 +72,25 @@ export default function RwDashboardClient({
 }: {
   initialData: StaffContextData;
 }) {
+  const router = useRouter();
   const [tickets, setTickets] = useState<StaffTicketItem[]>(
     initialData.tickets,
   );
   const [stats, setStats] = useState(initialData.stats);
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData);
+    setTickets(initialData.tickets);
+    setStats(initialData.stats);
+  }
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
 
   // Pilih default #PG-2026-0264 sesuai desain (atau tiket pertama)
   const defaultSelected =
@@ -102,10 +126,10 @@ export default function RwDashboardClient({
   );
 
   const [proofFiles, setProofFiles] = useState<
-    Record<number, StaffAttachmentItem | null>
+    Record<number, StaffAttachmentItem[]>
   >(() =>
     Object.fromEntries(
-      initialData.tickets.map((t) => [t.id, t.proofAttachments[0] ?? null]),
+      initialData.tickets.map((t) => [t.id, t.proofAttachments ?? []]),
     ),
   );
 
@@ -168,20 +192,31 @@ export default function RwDashboardClient({
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file || !selectedTicket) return;
     setFeedback(null);
+
+    const currentId = selectedTicket.id;
+    const existingList = proofFiles[currentId] ?? [];
+    if (existingList.length >= 3) {
+      setFeedback({
+        ticketId: currentId,
+        type: "error",
+        text: "Maksimal 3 foto bukti penyelesaian yang dapat dilampirkan.",
+      });
+      return;
+    }
 
     const check = validateAttachment(file);
     if (!check.valid) {
       setFeedback({
-        ticketId: selectedTicket.id,
+        ticketId: currentId,
         type: "error",
         text: check.error ?? "File tidak valid",
       });
       return;
     }
 
-    const currentId = selectedTicket.id;
     const localUrl = URL.createObjectURL(file);
 
     if (isSupabaseConfigured()) {
@@ -210,16 +245,18 @@ export default function RwDashboardClient({
 
         if (!regRes.success) throw new Error(regRes.error);
 
+        const newItem: StaffAttachmentItem = {
+          id: regRes.data.id,
+          type: "penyelesaian",
+          fileName: file.name,
+          sizeBytes: file.size,
+          previewUrl: localUrl,
+          storagePath,
+        };
+
         setProofFiles((prev) => ({
           ...prev,
-          [currentId]: {
-            id: regRes.data.id,
-            type: "penyelesaian",
-            fileName: file.name,
-            sizeBytes: file.size,
-            previewUrl: localUrl,
-            storagePath,
-          },
+          [currentId]: [...(prev[currentId] ?? []), newItem],
         }));
         setSavedIds((prev) => ({ ...prev, [currentId]: false }));
       } catch (errObj) {
@@ -238,17 +275,49 @@ export default function RwDashboardClient({
     }
 
     // Mode pratinjau FE
+    const newItem: StaffAttachmentItem = {
+      id: Date.now(),
+      type: "penyelesaian",
+      fileName: file.name,
+      sizeBytes: file.size,
+      previewUrl: localUrl,
+    };
     setProofFiles((prev) => ({
       ...prev,
-      [currentId]: {
-        id: Date.now(),
-        type: "penyelesaian",
-        fileName: file.name,
-        sizeBytes: file.size,
-        previewUrl: localUrl,
-      },
+      [currentId]: [...(prev[currentId] ?? []), newItem],
     }));
     setSavedIds((prev) => ({ ...prev, [currentId]: false }));
+  };
+
+  const handleRemoveProofPhoto = (ticketId: number, attachmentId: number) => {
+    setFeedback(null);
+    if (isSupabaseConfigured() && attachmentId > 0) {
+      startTransition(async () => {
+        const res = await deleteAttachment(attachmentId);
+        if (!res.success) {
+          setFeedback({
+            ticketId,
+            type: "error",
+            text: res.error,
+          });
+          return;
+        }
+        setProofFiles((prev) => ({
+          ...prev,
+          [ticketId]: (prev[ticketId] ?? []).filter(
+            (item) => item.id !== attachmentId,
+          ),
+        }));
+      });
+      return;
+    }
+
+    setProofFiles((prev) => ({
+      ...prev,
+      [ticketId]: (prev[ticketId] ?? []).filter(
+        (item) => item.id !== attachmentId,
+      ),
+    }));
   };
 
   // Eksekusi langsung tanpa dialog konfirmasi (sesuai instruksi)
@@ -259,7 +328,7 @@ export default function RwDashboardClient({
       targetStatuses[currentId] ??
       (selectedTicket.status === "diverifikasi_rt" ? "diproses_rw" : "selesai");
     const note = (rwNotes[currentId] ?? "").trim();
-    const proof = proofFiles[currentId] ?? null;
+    const proofs = proofFiles[currentId] ?? [];
 
     if (!note) {
       setFeedback({
@@ -270,11 +339,11 @@ export default function RwDashboardClient({
       return;
     }
 
-    if (nextStatus === "selesai" && !proof) {
+    if (nextStatus === "selesai" && proofs.length === 0) {
       setFeedback({
         ticketId: currentId,
         type: "error",
-        text: "Foto bukti penyelesaian wajib diunggah sebelum menyelesaikan tiket.",
+        text: "Minimal 1 foto bukti penyelesaian wajib diunggah sebelum menyelesaikan tiket.",
       });
       return;
     }
@@ -285,14 +354,14 @@ export default function RwDashboardClient({
       const prevStatus = selectedTicket.status;
 
       if (nextStatus === "diproses_rw" && prevStatus === "diverifikasi_rt") {
-        const res = await processTicket(currentId);
+        const res = await processTicket(currentId, note);
         if (!res.success) {
           setFeedback({ ticketId: currentId, type: "error", text: res.error });
           return;
         }
       } else if (nextStatus === "selesai") {
         if (prevStatus === "diverifikasi_rt") {
-          const step1 = await processTicket(currentId);
+          const step1 = await processTicket(currentId, note);
           if (!step1.success) {
             setFeedback({
               ticketId: currentId,
@@ -303,7 +372,7 @@ export default function RwDashboardClient({
           }
         }
         if (prevStatus !== "selesai") {
-          const res = await completeTicket(currentId);
+          const res = await completeTicket(currentId, note);
           if (!res.success) {
             setFeedback({
               ticketId: currentId,
@@ -323,7 +392,7 @@ export default function RwDashboardClient({
           return {
             ...t,
             status: nextStatus,
-            proofAttachments: proof ? [proof] : t.proofAttachments,
+            proofAttachments: proofs,
             timeline: [
               ...t.timeline,
               {
@@ -366,7 +435,7 @@ export default function RwDashboardClient({
       setFeedback({
         ticketId: currentId,
         type: "success",
-        text: `Pembaruan status ${statusLabelId(nextStatus)} berhasil disimpan dan warga telah diberi tahu.`,
+        text: `Pembaruan status ${statusLabelId(nextStatus)} beserta catatan berhasil disimpan dan warga telah diberi tahu.`,
       });
     });
   };
@@ -377,9 +446,9 @@ export default function RwDashboardClient({
     ? (targetStatuses[selectedTicket.id] ??
       (selectedTicket.status === "diverifikasi_rt" ? "diproses_rw" : "selesai"))
     : "selesai";
-  const activeProof = selectedTicket
-    ? (proofFiles[selectedTicket.id] ?? null)
-    : null;
+  const activeProofs = selectedTicket
+    ? (proofFiles[selectedTicket.id] ?? [])
+    : [];
   const isSaved = selectedTicket ? Boolean(savedIds[selectedTicket.id]) : false;
 
   return (
@@ -390,18 +459,22 @@ export default function RwDashboardClient({
       unreadCount={initialData.unreadCount}
     >
       <div id="ringkasan" className="scroll-mt-20 space-y-6">
-        {/* Header Sapaan RW */}
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-            RW 06 PARAKANSAAT • OKTOBER 2026
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
-            Dari laporan, jadi tindakan.
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            Selamat pagi, Pak {greetingFirstName}. Koordinasikan tindak lanjut
-            laporan yang sudah diverifikasi RT.
-          </p>
+        {/* Header Sapaan RW & Unduh Rekap */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+              RW 06 PARAKANSAAT • OKTOBER 2026
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
+              Dari laporan, jadi tindakan.
+            </h1>
+            <p className="mt-1 text-sm text-muted">
+              Selamat pagi, Pak {greetingFirstName}. Koordinasikan tindak lanjut
+              laporan yang sudah diverifikasi RT.
+            </p>
+          </div>
+
+          <RekapDownloadButton />
         </div>
 
         {/* Banner Biru Laporan Baru Diteruskan RT */}
@@ -491,7 +564,7 @@ export default function RwDashboardClient({
           id="antrean-tindak-lanjut"
           className="scroll-mt-20 rounded-2xl border border-border bg-white p-5 sm:p-6"
         >
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-ink">
                 Antrean tindak lanjut
@@ -500,17 +573,33 @@ export default function RwDashboardClient({
                 Laporan valid dari RT dan penanganan yang sedang berjalan.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("");
-                setRtFilter("");
-              }}
-              className="shrink-0 cursor-pointer text-xs font-semibold text-primary hover:underline"
-            >
-              Lihat seluruhnya
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={isRefreshing || isPending}
+                onClick={handleRefresh}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-surface/60 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw
+                  size={13}
+                  className={
+                    isRefreshing ? "animate-spin text-primary" : "text-primary"
+                  }
+                />
+                <span>{isRefreshing ? "Memuat..." : "Refresh"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("");
+                  setRtFilter("");
+                }}
+                className="shrink-0 cursor-pointer text-xs font-semibold text-primary hover:underline"
+              >
+                Lihat seluruhnya
+              </button>
+            </div>
           </div>
 
           {/* Pencarian + Filter Status + Filter RT */}
@@ -580,7 +669,7 @@ export default function RwDashboardClient({
                   <th className="rounded-l-lg px-3.5 py-2.5">Nomor Tiket</th>
                   <th className="px-3.5 py-2.5">Laporan / Wilayah</th>
                   <th className="px-3.5 py-2.5">Tanggal</th>
-                  <th className="px-3.5 py-2.5">Status</th>
+                  <th className="px-3.5 py-2.5">Status &amp; Rating</th>
                   <th className="rounded-r-lg px-3.5 py-2.5">Aksi</th>
                 </tr>
               </thead>
@@ -621,7 +710,30 @@ export default function RwDashboardClient({
                           {ticket.dateShort}
                         </td>
                         <td className="px-3.5 py-3.5 align-middle">
-                          <Badge status={ticket.status} dot />
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge status={ticket.status} dot />
+                            {ticket.rating ? (
+                              <div
+                                className="inline-flex items-center gap-1 rounded-md border border-amber-200/80 bg-amber-50/70 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800"
+                                title={ticket.ratingComment ?? undefined}
+                              >
+                                <Star
+                                  size={11}
+                                  className="fill-amber-400 text-amber-400"
+                                />
+                                <span>{ticket.rating}/5</span>
+                                {ticket.ratingComment && (
+                                  <span className="max-w-[120px] truncate font-normal text-amber-900/80">
+                                    • “{ticket.ratingComment}”
+                                  </span>
+                                )}
+                              </div>
+                            ) : ticket.status === "selesai" ? (
+                              <span className="text-[10px] font-medium text-muted">
+                                Belum dinilai
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3.5 py-3.5 align-middle">
                           <button
@@ -679,14 +791,42 @@ export default function RwDashboardClient({
                   {selectedTicket.title}
                 </h3>
 
-                <div className="mt-2.5">
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
                   <Badge status={selectedTicket.status} dot />
+                  {selectedTicket.rating && (
+                    <div className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                      <Star
+                        size={12}
+                        className="fill-amber-400 text-amber-400"
+                      />
+                      <span>Rating Warga: {selectedTicket.rating}/5</span>
+                    </div>
+                  )}
                 </div>
 
                 <p className="mt-3 text-xs text-muted">
                   {selectedTicket.reporterName} • {selectedTicket.regionName} •{" "}
                   {selectedTicket.categoryName}
                 </p>
+
+                {selectedTicket.rating && (
+                  <div className="mt-3.5 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-ink">
+                      <Star
+                        size={13}
+                        className="fill-amber-400 text-amber-400"
+                      />
+                      <span>
+                        Penilaian Warga ({selectedTicket.rating}/5 Bintang)
+                      </span>
+                    </div>
+                    {selectedTicket.ratingComment && (
+                      <p className="mt-1 text-xs italic text-ink/85">
+                        “{selectedTicket.ratingComment}”
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Kotak Riwayat Timeline */}
                 <div className="mt-4 space-y-3.5 rounded-2xl bg-surface p-4">
@@ -710,8 +850,8 @@ export default function RwDashboardClient({
                       Bukti wajib untuk Selesai
                     </p>
                     <p className="mt-0.5 text-xs leading-relaxed text-muted">
-                      Unggah foto hasil penanganan dan tuliskan catatan
-                      penyelesaian yang dapat dipahami warga.
+                      Unggah foto hasil penanganan (maks. 3 foto) dan tuliskan
+                      catatan penyelesaian yang dapat dipahami warga.
                     </p>
                   </div>
                 </div>
@@ -786,7 +926,8 @@ export default function RwDashboardClient({
                     htmlFor="rw_note"
                     className="block text-xs font-semibold text-ink"
                   >
-                    Catatan penyelesaian <span className="text-ink">*</span>
+                    Catatan / pesan penyelesaian untuk warga{" "}
+                    <span className="text-ink">*</span>
                   </label>
                   <textarea
                     id="rw_note"
@@ -810,51 +951,90 @@ export default function RwDashboardClient({
 
                 <div>
                   <label className="block text-xs font-semibold text-ink">
-                    Foto bukti penyelesaian{" "}
+                    Foto bukti penyelesaian ({activeProofs.length}/3){" "}
                     {activeTargetStatus === "selesai" && (
                       <span className="text-ink">*</span>
                     )}
                   </label>
 
-                  <label className="mt-1.5 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border bg-white px-4 py-3 transition-colors hover:border-primary/50 hover:bg-surface/40">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <ImageIcon
-                        size={18}
-                        className="shrink-0 text-primary"
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-ink">
-                          {uploadingPhoto
-                            ? "Mengunggah foto bukti..."
-                            : activeProof
-                              ? activeProof.fileName
-                              : "Pilih foto bukti penanganan"}
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-muted">
-                          {activeProof
-                            ? `${formatBytesMb(activeProof.sizeBytes)} • Siap diunggah`
-                            : "Klik untuk memilih file JPG atau PNG"}
-                        </p>
-                      </div>
-                    </div>
+                  {/* Daftar Foto Bukti Terunggah (hingga 3 foto) */}
+                  {activeProofs.length > 0 && (
+                    <div className="mt-2 space-y-2.5">
+                      {activeProofs.map((proofItem, idx) => (
+                        <div
+                          key={proofItem.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface/50 p-2.5"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            {proofItem.previewUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={proofItem.previewUrl}
+                                alt={proofItem.fileName}
+                                className="h-14 w-20 shrink-0 rounded-lg border border-border object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-14 w-20 shrink-0 items-center justify-center rounded-lg border border-border bg-white text-primary">
+                                <ImageIcon size={18} />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-bold text-ink">
+                                Bukti #{idx + 1} • {proofItem.fileName}
+                              </p>
+                              <p className="mt-0.5 text-[11px] text-muted">
+                                {formatBytesMb(proofItem.sizeBytes)} • Terunggah
+                              </p>
+                            </div>
+                          </div>
 
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() =>
+                              handleRemoveProofPhoto(
+                                selectedTicket.id,
+                                proofItem.id,
+                              )
+                            }
+                            aria-label={`Hapus ${proofItem.fileName}`}
+                            className="cursor-pointer rounded-lg p-1.5 text-muted transition-colors hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tombol Unggah Tetap Ada Setelah Mengunggah (Maks 3 Foto) */}
+                  <label
+                    className={`mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-3 text-xs font-semibold transition-colors ${
+                      activeProofs.length >= 3 || uploadingPhoto
+                        ? "cursor-not-allowed border-border bg-surface text-muted"
+                        : "cursor-pointer border-primary/50 bg-blue-50/40 text-primary hover:bg-blue-50/80"
+                    }`}
+                  >
                     {uploadingPhoto ? (
-                      <Loader2
-                        size={16}
-                        className="shrink-0 animate-spin text-primary"
-                      />
-                    ) : activeProof ? (
-                      <CheckCircle2
-                        size={17}
-                        className="shrink-0 text-emerald-600"
-                      />
-                    ) : null}
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Upload size={15} />
+                    )}
+                    <span>
+                      {uploadingPhoto
+                        ? "Mengunggah foto bukti..."
+                        : activeProofs.length >= 3
+                          ? "Batas maksimal 3 foto bukti tercapai (3 dari 3)"
+                          : `Unggah foto bukti • ${activeProofs.length} dari 3 terunggah`}
+                    </span>
 
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept="image/jpeg,image/png"
-                      disabled={uploadingPhoto || isPending}
+                      disabled={
+                        uploadingPhoto || isPending || activeProofs.length >= 3
+                      }
                       onChange={handleProofFileSelect}
                       className="hidden"
                     />

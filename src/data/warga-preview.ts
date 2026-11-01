@@ -11,6 +11,9 @@ export interface WargaUserContext {
   role: UserRole
   profile: Profile
   region: RegionOption
+  avatarUrl?: string | null
+  kelurahan?: string
+  city?: string
 }
 
 export const PREVIEW_REGIONS: RegionOption[] = [
@@ -220,6 +223,20 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
     if (!user) return PREVIEW_USER
 
     const role = getRoleFromJwt(user.app_metadata) ?? 'warga'
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+    const avatarUrl =
+      typeof meta.avatar_url === 'string' && meta.avatar_url.trim()
+        ? meta.avatar_url.trim()
+        : null
+    const kelurahan =
+      typeof meta.kelurahan === 'string' && meta.kelurahan.trim()
+        ? meta.kelurahan.trim()
+        : 'Cisaranten Endah'
+    const city =
+      typeof meta.city === 'string' && meta.city.trim()
+        ? meta.city.trim()
+        : 'Bandung'
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -227,7 +244,6 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
       .single()
 
     if (!profile) {
-      const meta = (user.user_metadata ?? {}) as Record<string, unknown>
       const fallbackName =
         typeof meta.full_name === 'string' && meta.full_name.trim()
           ? meta.full_name.trim()
@@ -254,6 +270,9 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
           updated_at: nowIso,
         },
         region,
+        avatarUrl,
+        kelurahan,
+        city,
       }
     }
 
@@ -276,6 +295,9 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
       role,
       profile,
       region,
+      avatarUrl,
+      kelurahan,
+      city,
     }
   } catch (error) {
     unstable_rethrow(error)

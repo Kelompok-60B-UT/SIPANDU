@@ -41,6 +41,7 @@ function ProfileView({
       roleLabel={roleLabel}
       regionLabel={regionLabel}
       unreadCount={unreadCount}
+      avatarUrl={userCtx.avatarUrl}
     >
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
@@ -58,6 +59,9 @@ function ProfileView({
           profile={userCtx.profile}
           email={userCtx.email}
           regions={regions}
+          initialAvatarUrl={userCtx.avatarUrl}
+          initialKelurahan={userCtx.kelurahan}
+          initialCity={userCtx.city}
         />
       </div>
     </WargaShell>

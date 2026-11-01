@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
@@ -8,31 +9,42 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock,
-  Download,
   Files,
   Info,
   Loader2,
   Plus,
+  RefreshCw,
   Save,
   Search,
+  Star,
+  Trash2,
   Upload,
   UserPlus,
   Wrench,
 } from "lucide-react";
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
+import RekapDownloadButton from "@/components/common/RekapDownloadButton";
 import {
   completeTicket,
   processTicket,
   rejectTicket,
   verifyTicket,
 } from "@/app/actions/tickets";
-import { registerAttachment } from "@/app/actions/attachments";
+import {
+  deleteAttachment,
+  registerAttachment,
+} from "@/app/actions/attachments";
 import {
   createStaff,
+  deleteCategory,
+  deleteRegion,
   saveCategory,
+  saveRegion,
   setCategoryActive,
   setStaffActive,
+  updateRwSettings,
+  updateUserRole,
 } from "@/app/actions/admin";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
 import { roleLabelId } from "@/utils/roles";
@@ -47,6 +59,7 @@ import type {
   AdminRtInfo,
   AdminTicketRow,
 } from "@/data/admin-preview";
+import type { StaffAttachmentItem } from "@/data/staff-preview";
 
 const ADMIN_STATUS_CHOICES: TicketStatus[] = [
   "terkirim",
@@ -55,6 +68,11 @@ const ADMIN_STATUS_CHOICES: TicketStatus[] = [
   "selesai",
   "ditolak",
 ];
+
+function formatBytesMb(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(1).replace(".", ",")} MB`;
+}
 
 function shortCode(ticketNumber: string): string {
   const parts = ticketNumber.split("-");
@@ -66,8 +84,24 @@ export default function AdminDashboardClient({
 }: {
   initialData: AdminDashboardData;
 }) {
+  const router = useRouter();
   const [tickets, setTickets] = useState<AdminTicketRow[]>(initialData.tickets);
   const [stats, setStats] = useState(initialData.stats);
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData);
+    setTickets(initialData.tickets);
+    setStats(initialData.stats);
+  }
+
+  const handleRefreshTickets = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
   const [accounts, setAccounts] = useState<AdminAccountRow[]>(
     initialData.accounts,
   );
@@ -117,8 +151,12 @@ export default function AdminDashboardClient({
     Object.fromEntries(initialData.tickets.map((t) => [t.id, true])),
   );
   const [proofFiles, setProofFiles] = useState<
-    Record<number, { fileName: string; sizeBytes: number } | null>
-  >({});
+    Record<number, StaffAttachmentItem[]>
+  >(() =>
+    Object.fromEntries(
+      initialData.tickets.map((t) => [t.id, t.proofAttachments ?? []]),
+    ),
+  );
   const [savedTickets, setSavedTickets] = useState<Record<number, boolean>>({});
   const [statusFeedback, setStatusFeedback] = useState<{
     type: "success" | "error";
@@ -129,20 +167,39 @@ export default function AdminDashboardClient({
   const [accountSearch, setAccountSearch] = useState("");
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [accountFeedback, setAccountFeedback] = useState<string | null>(null);
+  const [editingRoleAccountId, setEditingRoleAccountId] = useState<
+    string | null
+  >(null);
+  const [draftRole, setDraftRole] = useState<UserRole>("warga");
+  const [draftRegionId, setDraftRegionId] = useState<number>(3);
 
   // State Wilayah RT / RW
   const [selectedRtId, setSelectedRtId] = useState<number>(
     initialData.rtRegions[2]?.id ?? initialData.rtRegions[0]?.id ?? 3,
   );
-  const [rwLabel, setRwLabel] = useState("RW 06 Parakansaat, Bandung");
+  const [rwNumber, setRwNumber] = useState(initialData.rwNumber || "06");
+  const [rwAreaName, setRwAreaName] = useState(
+    initialData.rwAreaName || "Parakansaat, Bandung",
+  );
+  const [rwLeaderUserId, setRwLeaderUserId] = useState<string>(() => {
+    const rwAcc = initialData.accounts.find((a) => a.role === "ketua_rw");
+    return rwAcc?.id ?? "";
+  });
   const [editingRw, setEditingRw] = useState(false);
+  const [showAddRtForm, setShowAddRtForm] = useState(false);
+  const [newRtName, setNewRtName] = useState("");
+  const [newRtLeaderId, setNewRtLeaderId] = useState("");
+  const [editingRtId, setEditingRtId] = useState<number | null>(null);
+  const [editRtName, setEditRtName] = useState("");
+  const [editRtLeaderId, setEditRtLeaderId] = useState("");
+  const [rtFeedback, setRtFeedback] = useState<string | null>(null);
 
   // State Kategori Layanan
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [manageCategories, setManageCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryFeedback, setCategoryFeedback] = useState<string | null>(null);
 
-  const [downloadingRekap, setDownloadingRekap] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -191,26 +248,6 @@ export default function AdminDashboardClient({
     ]);
   };
 
-  // Unduh Rekap (/api/rekap)
-  const handleDownloadRekap = async () => {
-    setDownloadingRekap(true);
-    try {
-      const res = await fetch("/api/rekap");
-      const json = await res.json();
-      const blob = new Blob([JSON.stringify(json, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `rekap-sipandu-rw06-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloadingRekap(false);
-    }
-  };
-
   const handleSelectTicket = (t: AdminTicketRow) => {
     setSelectedTicketId(t.id);
     setStatusFeedback(null);
@@ -222,8 +259,19 @@ export default function AdminDashboardClient({
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file || !selectedTicket) return;
     setStatusFeedback(null);
+
+    const currentId = selectedTicket.id;
+    const existingList = proofFiles[currentId] ?? [];
+    if (existingList.length >= 3) {
+      setStatusFeedback({
+        type: "error",
+        text: "Maksimal 3 foto bukti penyelesaian yang dapat dilampirkan.",
+      });
+      return;
+    }
 
     const check = validateAttachment(file);
     if (!check.valid) {
@@ -234,7 +282,7 @@ export default function AdminDashboardClient({
       return;
     }
 
-    const currentId = selectedTicket.id;
+    const localUrl = URL.createObjectURL(file);
 
     if (isSupabaseConfigured()) {
       setUploadingProof(true);
@@ -259,6 +307,20 @@ export default function AdminDashboardClient({
           sizeBytes: file.size,
         });
         if (!regRes.success) throw new Error(regRes.error);
+
+        const newItem: StaffAttachmentItem = {
+          id: regRes.data.id,
+          type: "penyelesaian",
+          fileName: file.name,
+          sizeBytes: file.size,
+          previewUrl: localUrl,
+          storagePath,
+        };
+        setProofFiles((prev) => ({
+          ...prev,
+          [currentId]: [...(prev[currentId] ?? []), newItem],
+        }));
+        setSavedTickets((prev) => ({ ...prev, [currentId]: false }));
       } catch (errObj) {
         setStatusFeedback({
           type: "error",
@@ -267,17 +329,50 @@ export default function AdminDashboardClient({
               ? errObj.message
               : "Gagal mengunggah bukti penanganan",
         });
+      } finally {
         setUploadingProof(false);
-        return;
       }
-      setUploadingProof(false);
+      return;
     }
 
+    const newItem: StaffAttachmentItem = {
+      id: Date.now(),
+      type: "penyelesaian",
+      fileName: file.name,
+      sizeBytes: file.size,
+      previewUrl: localUrl,
+    };
     setProofFiles((prev) => ({
       ...prev,
-      [currentId]: { fileName: file.name, sizeBytes: file.size },
+      [currentId]: [...(prev[currentId] ?? []), newItem],
     }));
     setSavedTickets((prev) => ({ ...prev, [currentId]: false }));
+  };
+
+  const handleRemoveProof = (ticketId: number, attachmentId: number) => {
+    setStatusFeedback(null);
+    if (isSupabaseConfigured() && attachmentId > 0) {
+      startTransition(async () => {
+        const res = await deleteAttachment(attachmentId);
+        if (!res.success) {
+          setStatusFeedback({ type: "error", text: res.error });
+          return;
+        }
+        setProofFiles((prev) => ({
+          ...prev,
+          [ticketId]: (prev[ticketId] ?? []).filter(
+            (item) => item.id !== attachmentId,
+          ),
+        }));
+      });
+      return;
+    }
+    setProofFiles((prev) => ({
+      ...prev,
+      [ticketId]: (prev[ticketId] ?? []).filter(
+        (item) => item.id !== attachmentId,
+      ),
+    }));
   };
 
   const handleSaveTicketStatus = () => {
@@ -286,7 +381,7 @@ export default function AdminDashboardClient({
     const prevStatus = selectedTicket.status;
     const nextStatus = targetStatuses[currentId] ?? "diproses_rw";
     const note = (adminNotes[currentId] ?? "").trim();
-    const hasProof = Boolean(proofFiles[currentId]);
+    const proofs = proofFiles[currentId] ?? [];
 
     setStatusFeedback(null);
 
@@ -298,29 +393,29 @@ export default function AdminDashboardClient({
       return;
     }
 
-    if (nextStatus === "selesai" && !hasProof) {
+    if (nextStatus === "selesai" && proofs.length === 0) {
       setStatusFeedback({
         type: "error",
-        text: "Untuk status Selesai, mohon unggah bukti penanganan terlebih dahulu.",
+        text: "Untuk status Selesai, mohon unggah minimal 1 bukti penanganan terlebih dahulu.",
       });
       return;
     }
 
     startTransition(async () => {
       if (nextStatus === "diverifikasi_rt" && prevStatus === "terkirim") {
-        const r = await verifyTicket(currentId);
+        const r = await verifyTicket(currentId, note);
         if (!r.success) {
           setStatusFeedback({ type: "error", text: r.error });
           return;
         }
       } else if (nextStatus === "diproses_rw") {
-        const r = await processTicket(currentId);
+        const r = await processTicket(currentId, note);
         if (!r.success) {
           setStatusFeedback({ type: "error", text: r.error });
           return;
         }
       } else if (nextStatus === "selesai") {
-        const r = await completeTicket(currentId);
+        const r = await completeTicket(currentId, note);
         if (!r.success) {
           setStatusFeedback({ type: "error", text: r.error });
           return;
@@ -342,6 +437,7 @@ export default function AdminDashboardClient({
             ? {
                 ...t,
                 status: nextStatus,
+                proofAttachments: proofs,
                 statusContextNote: `${t.reporterName} • ${t.regionName}. Diperbarui langsung oleh Admin: ${note}`,
               }
             : t,
@@ -388,7 +484,7 @@ export default function AdminDashboardClient({
       const regName =
         role === "ketua_rt" || role === "warga"
           ? (rtRegions.find((r) => r.id === regId)?.name ?? "RT 03")
-          : "RW 06";
+          : `RW ${rwNumber}`;
 
       setAccounts((prev) => [
         {
@@ -396,6 +492,7 @@ export default function AdminDashboardClient({
           fullName,
           email,
           role,
+          regionId: role === "ketua_rt" || role === "warga" ? regId : null,
           regionLabel: regName,
           permissionDesc:
             role === "admin"
@@ -407,10 +504,119 @@ export default function AdminDashboardClient({
         },
         ...prev,
       ]);
+      if (role === "ketua_rt") {
+        setRtRegions((prev) =>
+          prev.map((rt) =>
+            rt.id === regId
+              ? { ...rt, leaderName: fullName, leaderUserId: res.data.id }
+              : rt,
+          ),
+        );
+      }
       prependActivity(
         `menambahkan akun ${roleLabelId(role)} baru (${fullName}).`,
       );
       setShowAddAccount(false);
+    });
+  };
+
+  const handleOpenRoleEditor = (acc: AdminAccountRow) => {
+    if (editingRoleAccountId === acc.id) {
+      setEditingRoleAccountId(null);
+      return;
+    }
+    setAccountFeedback(null);
+    setEditingRoleAccountId(acc.id);
+    setDraftRole(acc.role);
+    const matchedRt = rtRegions.find(
+      (r) => r.id === acc.regionId || r.name === acc.regionLabel,
+    );
+    setDraftRegionId(matchedRt?.id ?? rtRegions[0]?.id ?? 1);
+  };
+
+  const handleSaveAccountRole = (acc: AdminAccountRow) => {
+    if (
+      acc.role === "admin" &&
+      acc.fullName === initialData.adminName &&
+      draftRole !== "admin"
+    ) {
+      setAccountFeedback(
+        "Tidak dapat menurunkan peran akun Admin yang sedang digunakan.",
+      );
+      return;
+    }
+    setAccountFeedback(null);
+
+    const needsRegion = draftRole === "warga" || draftRole === "ketua_rt";
+    const targetRegionId = needsRegion ? draftRegionId : null;
+    const targetRegionName = needsRegion
+      ? (rtRegions.find((r) => r.id === draftRegionId)?.name ?? "RT 01")
+      : `RW ${rwNumber}`;
+    const nextPerm =
+      draftRole === "admin"
+        ? "Kelola data & status langsung"
+        : draftRole === "ketua_rw"
+          ? "Tindak lanjut & penyelesaian"
+          : draftRole === "ketua_rt"
+            ? `Verifikasi laporan ${targetRegionName}`
+            : "Buat & pantau laporan sendiri";
+
+    startTransition(async () => {
+      const res = await updateUserRole({
+        userId: acc.id,
+        role: draftRole,
+        regionId: targetRegionId,
+      });
+      if (!res.success) {
+        setAccountFeedback(res.error);
+        return;
+      }
+
+      setAccounts((prev) =>
+        prev.map((item) =>
+          item.id === acc.id
+            ? {
+                ...item,
+                role: draftRole,
+                regionId: targetRegionId,
+                regionLabel: targetRegionName,
+                permissionDesc: nextPerm,
+              }
+            : item,
+        ),
+      );
+
+      if (draftRole === "ketua_rt" && targetRegionId) {
+        setRtRegions((prev) =>
+          prev.map((rt) =>
+            rt.id === targetRegionId
+              ? { ...rt, leaderName: acc.fullName, leaderUserId: acc.id }
+              : rt.leaderUserId === acc.id
+                ? { ...rt, leaderName: "Belum ditetapkan", leaderUserId: null }
+                : rt,
+          ),
+        );
+      } else if (acc.role === "ketua_rt") {
+        setRtRegions((prev) =>
+          prev.map((rt) =>
+            rt.leaderUserId === acc.id || rt.leaderName === acc.fullName
+              ? { ...rt, leaderName: "Belum ditetapkan", leaderUserId: null }
+              : rt,
+          ),
+        );
+      }
+
+      if (draftRole === "ketua_rw") {
+        setRwLeaderUserId(acc.id);
+      }
+
+      setEditingRoleAccountId(null);
+      setAccountFeedback(
+        `Peran ${acc.fullName} berhasil diubah menjadi ${roleLabelId(draftRole)} (${targetRegionName}).`,
+      );
+      prependActivity(
+        `mengubah peran akun ${acc.fullName} menjadi ${roleLabelId(draftRole)} (${targetRegionName}).`,
+      );
     });
   };
 
@@ -439,24 +645,228 @@ export default function AdminDashboardClient({
     });
   };
 
-  const handleAddRt = () => {
+  const handleOpenAddRt = () => {
     const nextNum = rtRegions.length + 1;
     const padded = String(nextNum).padStart(2, "0");
-    const newRt: AdminRtInfo = {
-      id: Date.now(),
-      name: `RT ${padded}`,
-      leaderName: "Belum ditetapkan",
-      residentCount: 0,
-      isActive: true,
-    };
-    setRtRegions((prev) => [...prev, newRt]);
-    setSelectedRtId(newRt.id);
-    prependActivity(`menambahkan wilayah baru ${newRt.name} ke RW 06.`);
+    setNewRtName(`RT ${padded}`);
+    setNewRtLeaderId("");
+    setEditingRtId(null);
+    setShowAddRtForm(true);
+    setRtFeedback(null);
+  };
+
+  const handleCreateRt = () => {
+    const trimmed = newRtName.trim();
+    if (trimmed.length < 2) {
+      setRtFeedback("Nama RT wajib diisi (contoh: RT 07).");
+      return;
+    }
+    setRtFeedback(null);
+    startTransition(async () => {
+      const res = await saveRegion({
+        name: trimmed,
+        rw: rwNumber,
+        isActive: true,
+        leaderUserId: newRtLeaderId || null,
+      });
+      if (!res.success) {
+        setRtFeedback(res.error);
+        return;
+      }
+      const chosenLeader = accounts.find((a) => a.id === newRtLeaderId);
+      const newRt: AdminRtInfo = {
+        id: res.data.id,
+        name: res.data.name,
+        rw: res.data.rw,
+        leaderName: chosenLeader?.fullName ?? "Belum ditetapkan",
+        leaderUserId: chosenLeader?.id ?? null,
+        residentCount: 0,
+        isActive: true,
+      };
+      setRtRegions((prev) => [...prev, newRt]);
+      if (chosenLeader) {
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === chosenLeader.id
+              ? {
+                  ...a,
+                  role: "ketua_rt",
+                  regionId: newRt.id,
+                  regionLabel: newRt.name,
+                  permissionDesc: `Verifikasi laporan ${newRt.name}`,
+                }
+              : a,
+          ),
+        );
+      }
+      setSelectedRtId(newRt.id);
+      setShowAddRtForm(false);
+      setRtFeedback(`Wilayah ${newRt.name} berhasil ditambahkan.`);
+      prependActivity(
+        `menambahkan wilayah baru ${newRt.name} ke RW ${rwNumber}.`,
+      );
+    });
+  };
+
+  const handleStartEditRt = (rt: AdminRtInfo) => {
+    setShowAddRtForm(false);
+    setEditingRtId(rt.id);
+    setEditRtName(rt.name);
+    const currentLeader = accounts.find(
+      (a) =>
+        a.id === rt.leaderUserId ||
+        (a.role === "ketua_rt" && a.regionLabel === rt.name),
+    );
+    setEditRtLeaderId(currentLeader?.id ?? "");
+    setRtFeedback(null);
+  };
+
+  const handleSaveEditRt = (rt: AdminRtInfo) => {
+    const trimmed = editRtName.trim();
+    if (trimmed.length < 2) {
+      setRtFeedback("Nama RT wajib diisi.");
+      return;
+    }
+    setRtFeedback(null);
+    startTransition(async () => {
+      const res = await saveRegion({
+        id: rt.id,
+        name: trimmed,
+        rw: rwNumber,
+        isActive: rt.isActive,
+        leaderUserId: editRtLeaderId || null,
+      });
+      if (!res.success) {
+        setRtFeedback(res.error);
+        return;
+      }
+      const chosenLeader = accounts.find((a) => a.id === editRtLeaderId);
+      setRtRegions((prev) =>
+        prev.map((item) =>
+          item.id === rt.id
+            ? {
+                ...item,
+                name: trimmed,
+                leaderName: chosenLeader?.fullName ?? item.leaderName,
+                leaderUserId: chosenLeader?.id ?? item.leaderUserId,
+              }
+            : item,
+        ),
+      );
+      if (chosenLeader) {
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === chosenLeader.id
+              ? {
+                  ...a,
+                  role: "ketua_rt",
+                  regionId: rt.id,
+                  regionLabel: trimmed,
+                  permissionDesc: `Verifikasi laporan ${trimmed}`,
+                }
+              : a,
+          ),
+        );
+      }
+      setEditingRtId(null);
+      setRtFeedback(`Data ${trimmed} berhasil diperbarui.`);
+      prependActivity(`memperbarui data wilayah ${trimmed}.`);
+    });
+  };
+
+  const handleToggleRtActive = (rt: AdminRtInfo) => {
+    const nextActive = !rt.isActive;
+    setRtFeedback(null);
+    startTransition(async () => {
+      const res = await saveRegion({
+        id: rt.id,
+        name: rt.name,
+        rw: rwNumber,
+        isActive: nextActive,
+      });
+      if (!res.success) {
+        setRtFeedback(res.error);
+        return;
+      }
+      setRtRegions((prev) =>
+        prev.map((item) =>
+          item.id === rt.id ? { ...item, isActive: nextActive } : item,
+        ),
+      );
+      setRtFeedback(
+        `Wilayah ${rt.name} ${nextActive ? "diaktifkan" : "dinonaktifkan"}.`,
+      );
+      prependActivity(
+        `${nextActive ? "mengaktifkan" : "menonaktifkan"} wilayah ${rt.name}.`,
+      );
+    });
+  };
+
+  const handleDeleteRt = (rt: AdminRtInfo) => {
+    if (rtRegions.length <= 1) {
+      setRtFeedback("Minimal harus ada 1 wilayah RT terdaftar.");
+      return;
+    }
+    setRtFeedback(null);
+    startTransition(async () => {
+      const res = await deleteRegion(rt.id);
+      if (!res.success) {
+        setRtFeedback(res.error);
+        return;
+      }
+      const remaining = rtRegions.filter((item) => item.id !== rt.id);
+      setRtRegions(remaining);
+      if (selectedRtId === rt.id && remaining[0]) {
+        setSelectedRtId(remaining[0].id);
+      }
+      setEditingRtId(null);
+      setRtFeedback(
+        `Wilayah ${rt.name} berhasil dihapus (data warga/laporan dipindahkan ke ${res.data.fallbackRegionName}).`,
+      );
+      prependActivity(`menghapus wilayah ${rt.name}.`);
+    });
+  };
+
+  const handleSaveRwSettings = () => {
+    const cleanRw = rwNumber.trim() || "06";
+    const cleanArea = rwAreaName.trim() || "Parakansaat, Bandung";
+    setRtFeedback(null);
+    startTransition(async () => {
+      const res = await updateRwSettings({
+        rwNumber: cleanRw,
+        rwAreaName: cleanArea,
+        rwLeaderUserId: rwLeaderUserId || null,
+      });
+      if (!res.success) {
+        setRtFeedback(res.error);
+        return;
+      }
+      setRwNumber(cleanRw);
+      setRwAreaName(cleanArea);
+      if (rwLeaderUserId) {
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === rwLeaderUserId
+              ? {
+                  ...a,
+                  role: "ketua_rw",
+                  regionLabel: `RW ${cleanRw}`,
+                  permissionDesc: "Tindak lanjut & penyelesaian",
+                }
+              : a,
+          ),
+        );
+      }
+      setEditingRw(false);
+      setRtFeedback(`Data RW ${cleanRw} (${cleanArea}) berhasil disimpan.`);
+      prependActivity(`memperbarui pengaturan wilayah RW ${cleanRw}.`);
+    });
   };
 
   const handleSaveCategory = () => {
     const trimmed = newCategoryName.trim();
     if (trimmed.length < 2) return;
+    setCategoryFeedback(null);
 
     const fd = new FormData();
     fd.set("name", trimmed);
@@ -473,15 +883,19 @@ export default function AdminDashboardClient({
             isActive: true,
           },
         ]);
+        setCategoryFeedback(`Kategori "${trimmed}" berhasil ditambahkan.`);
         prependActivity(`menambahkan kategori layanan "${trimmed}".`);
         setNewCategoryName("");
         setShowAddCategory(false);
+      } else {
+        setCategoryFeedback(res.error);
       }
     });
   };
 
   const handleToggleCategory = (cat: AdminCategorySummary) => {
     const nextState = !cat.isActive;
+    setCategoryFeedback(null);
     startTransition(async () => {
       const res = await setCategoryActive(cat.id, nextState);
       if (res.success) {
@@ -490,16 +904,97 @@ export default function AdminDashboardClient({
             c.id === cat.id ? { ...c, isActive: nextState } : c,
           ),
         );
+        setCategoryFeedback(
+          `Kategori "${cat.name}" berhasil ${nextState ? "diaktifkan" : "dinonaktifkan"}.`,
+        );
+        prependActivity(
+          `${nextState ? "mengaktifkan" : "menonaktifkan"} kategori layanan "${cat.name}".`,
+        );
+      } else {
+        setCategoryFeedback(res.error);
       }
+    });
+  };
+
+  const handleDeleteCategory = (cat: AdminCategorySummary) => {
+    const lower = cat.name.trim().toLowerCase();
+    if (lower === "lainnya" || lower === "layanan lainnya") {
+      setCategoryFeedback(
+        'Kategori "Lainnya" merupakan kategori penampung utama dan tidak dapat dihapus.',
+      );
+      return;
+    }
+    setCategoryFeedback(null);
+
+    startTransition(async () => {
+      const res = await deleteCategory(cat.id);
+      if (!res.success) {
+        setCategoryFeedback(res.error);
+        return;
+      }
+
+      const movedCount = Math.max(cat.reportCount, res.data.movedCount);
+      const fallbackName = res.data.fallbackCategoryName || "Layanan lainnya";
+
+      setCategories((prev) => {
+        const withoutTarget = prev.filter((c) => c.id !== cat.id);
+        const hasFallback = withoutTarget.some(
+          (c) =>
+            c.id === res.data.fallbackCategoryId ||
+            c.name.toLowerCase().includes("lainnya"),
+        );
+        if (hasFallback) {
+          return withoutTarget.map((c) =>
+            c.id === res.data.fallbackCategoryId ||
+            c.name.toLowerCase().includes("lainnya")
+              ? {
+                  ...c,
+                  isActive: true,
+                  reportCount: c.reportCount + cat.reportCount,
+                }
+              : c,
+          );
+        }
+        return [
+          ...withoutTarget,
+          {
+            id: res.data.fallbackCategoryId,
+            name: fallbackName,
+            reportCount: cat.reportCount,
+            isActive: true,
+          },
+        ];
+      });
+
+      if (movedCount > 0) {
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.categoryName.toLowerCase() === cat.name.toLowerCase()
+              ? { ...t, categoryName: fallbackName }
+              : t,
+          ),
+        );
+      }
+
+      setCategoryFeedback(
+        movedCount > 0
+          ? `Kategori "${cat.name}" dihapus. ${movedCount} laporan dipindahkan ke kategori "${fallbackName}".`
+          : `Kategori "${cat.name}" berhasil dihapus.`,
+      );
+      prependActivity(
+        movedCount > 0
+          ? `menghapus kategori "${cat.name}" dan memindahkan ${movedCount} laporan ke "${fallbackName}".`
+          : `menghapus kategori layanan "${cat.name}".`,
+      );
     });
   };
 
   const activeTargetStatus = selectedTicket
     ? (targetStatuses[selectedTicket.id] ?? "diproses_rw")
     : "diproses_rw";
-  const activeProof = selectedTicket
-    ? (proofFiles[selectedTicket.id] ?? null)
-    : null;
+  const activeProofs = selectedTicket
+    ? (proofFiles[selectedTicket.id] ?? [])
+    : [];
   const isTicketSaved = selectedTicket
     ? Boolean(savedTickets[selectedTicket.id])
     : false;
@@ -526,19 +1021,7 @@ export default function AdminDashboardClient({
             </p>
           </div>
 
-          <button
-            type="button"
-            disabled={downloadingRekap}
-            onClick={handleDownloadRekap}
-            className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-border bg-white px-4 py-2.5 text-xs font-semibold text-primary transition-colors hover:bg-surface disabled:opacity-50 sm:self-auto sm:text-sm"
-          >
-            {downloadingRekap ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Download size={15} />
-            )}
-            Unduh rekap
-          </button>
+          <RekapDownloadButton />
         </div>
 
         {/* Banner Kuning Notifikasi Operasional */}
@@ -615,14 +1098,29 @@ export default function AdminDashboardClient({
           id="pengaduan-lintas-wilayah"
           className="scroll-mt-20 rounded-2xl border border-border bg-white p-5 sm:p-6"
         >
-          <div>
-            <h2 className="text-base font-bold text-ink">
-              Pengaduan lintas wilayah
-            </h2>
-            <p className="mt-0.5 text-xs text-muted">
-              Admin dapat membuka, membantu penanganan, dan mengubah status
-              seluruh tiket.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-ink">
+                Pengaduan lintas wilayah
+              </h2>
+              <p className="mt-0.5 text-xs text-muted">
+                Admin dapat membuka, membantu penanganan, dan mengubah status
+                seluruh tiket.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRefreshTickets}
+              disabled={isRefreshing}
+              title="Muat ulang daftar & status tiket"
+              className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-blue-50 disabled:opacity-60"
+            >
+              <RefreshCw
+                size={13}
+                className={isRefreshing ? "animate-spin" : ""}
+              />
+              {isRefreshing ? "Memuat..." : "Refresh"}
+            </button>
           </div>
 
           {/* Pencarian & Filter */}
@@ -692,7 +1190,7 @@ export default function AdminDashboardClient({
                   <th className="rounded-l-lg px-3.5 py-2.5">Nomor Tiket</th>
                   <th className="px-3.5 py-2.5">Laporan / Wilayah</th>
                   <th className="px-3.5 py-2.5">Tanggal</th>
-                  <th className="px-3.5 py-2.5">Status</th>
+                  <th className="px-3.5 py-2.5">Status & Rating</th>
                   <th className="rounded-r-lg px-3.5 py-2.5">Aksi</th>
                 </tr>
               </thead>
@@ -733,7 +1231,24 @@ export default function AdminDashboardClient({
                           {ticket.dateShort}
                         </td>
                         <td className="px-3.5 py-3.5 align-middle">
-                          <Badge status={ticket.status} dot />
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge status={ticket.status} dot />
+                            {ticket.rating != null && (
+                              <span
+                                title={
+                                  ticket.ratingComment ||
+                                  `Penilaian warga: ${ticket.rating}/5`
+                                }
+                                className="inline-flex items-center gap-1 rounded-md border border-amber-200/80 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800"
+                              >
+                                <Star
+                                  size={11}
+                                  className="fill-amber-400 text-amber-400"
+                                />
+                                {ticket.rating}/5
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3.5 py-3.5 align-middle">
                           <button
@@ -811,6 +1326,37 @@ export default function AdminDashboardClient({
                 <p className="mt-3.5 text-xs leading-relaxed text-ink sm:text-[13px]">
                   {selectedTicket.statusContextNote}
                 </p>
+
+                {selectedTicket.rating != null && (
+                  <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-amber-900">
+                        Hasil Penilaian Warga
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            size={13}
+                            className={
+                              star <= (selectedTicket.rating ?? 0)
+                                ? "fill-amber-400 text-amber-400"
+                                : "text-slate-300"
+                            }
+                          />
+                        ))}
+                        <span className="ml-1 text-xs font-bold text-amber-900">
+                          {selectedTicket.rating}/5
+                        </span>
+                      </div>
+                    </div>
+                    {selectedTicket.ratingComment && (
+                      <p className="mt-1.5 text-xs italic text-amber-900/90">
+                        &ldquo;{selectedTicket.ratingComment}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-4 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/75 p-4">
                   <Info size={16} className="mt-0.5 shrink-0 text-primary" />
@@ -922,12 +1468,70 @@ export default function AdminDashboardClient({
                   />
                   <p className="mt-1.5 text-[11px] text-muted">
                     Untuk Ditolak: alasan wajib diisi. Untuk Selesai: unggah
-                    bukti penyelesaian.
+                    bukti penyelesaian (maksimal 3 foto).
                   </p>
                 </div>
 
+                {/* Daftar foto bukti penanganan terunggah (maks. 3 foto) */}
+                {activeProofs.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-ink">
+                      Foto bukti penanganan ({activeProofs.length}/3)
+                    </p>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {activeProofs.map((proof, idx) => (
+                        <div
+                          key={proof.id}
+                          className="overflow-hidden rounded-xl border border-border bg-surface/40"
+                        >
+                          {proof.previewUrl && (
+                            <div className="relative h-24 w-full bg-slate-900/5">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={proof.previewUrl}
+                                alt={proof.fileName}
+                                className="h-full w-full object-cover"
+                              />
+                              <span className="absolute left-2 top-2 rounded-md bg-slate-900/75 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                Bukti {idx + 1}/3
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[11px] font-semibold text-ink">
+                                {proof.fileName}
+                              </p>
+                              <p className="text-[10px] text-muted">
+                                {formatBytesMb(proof.sizeBytes)} • Terunggah
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleRemoveProof(selectedTicket.id, proof.id)
+                              }
+                              disabled={isPending || uploadingProof}
+                              className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              <Trash2 size={11} />
+                              Hapus
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2.5 pt-0.5">
-                  <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 text-xs font-semibold text-primary transition-colors hover:bg-surface sm:text-sm">
+                  <label
+                    className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 text-xs font-semibold text-primary transition-colors sm:text-sm ${
+                      uploadingProof || isPending || activeProofs.length >= 3
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer hover:bg-surface"
+                    }`}
+                  >
                     {uploadingProof ? (
                       <Loader2 size={15} className="animate-spin" />
                     ) : (
@@ -936,14 +1540,16 @@ export default function AdminDashboardClient({
                     <span>
                       {uploadingProof
                         ? "Mengunggah bukti..."
-                        : activeProof
-                          ? `Bukti terpilih: ${activeProof.fileName}`
-                          : "Unggah bukti penanganan"}
+                        : activeProofs.length >= 3
+                          ? "Batas maksimal 3 foto bukti tercapai"
+                          : `Unggah bukti penanganan • ${activeProofs.length} dari 3`}
                     </span>
                     <input
                       type="file"
                       accept="image/jpeg,image/png"
-                      disabled={uploadingProof || isPending}
+                      disabled={
+                        uploadingProof || isPending || activeProofs.length >= 3
+                      }
                       onChange={handleUploadProof}
                       className="hidden"
                     />
@@ -976,8 +1582,9 @@ export default function AdminDashboardClient({
           <div>
             <h2 className="text-base font-bold text-ink">Akun & hak akses</h2>
             <p className="mt-0.5 text-xs text-muted">
-              {initialData.residentTotal} akun warga •{" "}
-              {initialData.staffActiveTotal} akun pengurus aktif
+              {accounts.filter((a) => a.role === "warga").length} akun warga •{" "}
+              {accounts.filter((a) => a.role !== "warga" && a.isActive).length}{" "}
+              akun pengurus aktif
             </p>
           </div>
 
@@ -1007,7 +1614,7 @@ export default function AdminDashboardClient({
           </div>
 
           {accountFeedback && (
-            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs text-amber-800">
+            <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2 text-xs text-primary">
               {accountFeedback}
             </p>
           )}
@@ -1047,6 +1654,7 @@ export default function AdminDashboardClient({
                   defaultValue="ketua_rt"
                   className="w-full rounded-xl border border-border bg-white px-2.5 py-2 text-xs text-ink focus:border-primary focus:outline-none"
                 >
+                  <option value="warga">Warga</option>
                   <option value="ketua_rt">Ketua RT</option>
                   <option value="ketua_rw">Ketua RW</option>
                   <option value="admin">Admin</option>
@@ -1075,43 +1683,123 @@ export default function AdminDashboardClient({
 
           {/* Daftar Akun */}
           <div className="mt-4 divide-y divide-border/70">
-            {filteredAccounts.map((acc) => (
-              <div
-                key={acc.id}
-                className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="sm:w-56">
-                  <p className="text-xs font-bold text-ink sm:text-[13px]">
-                    {acc.fullName}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted">
-                    {roleLabelId(acc.role)} • {acc.regionLabel} •{" "}
-                    <span
-                      className={
-                        acc.isActive ? "text-muted" : "font-medium text-red-600"
-                      }
-                    >
-                      {acc.isActive ? "Aktif" : "Nonaktif"}
-                    </span>
-                  </p>
+            {filteredAccounts.map((acc) => {
+              const isEditingRole = editingRoleAccountId === acc.id;
+              return (
+                <div key={acc.id} className="py-3.5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="sm:w-64">
+                      <p className="text-xs font-bold text-ink sm:text-[13px]">
+                        {acc.fullName}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        {roleLabelId(acc.role)} • {acc.regionLabel} •{" "}
+                        <span
+                          className={
+                            acc.isActive
+                              ? "text-emerald-700 font-medium"
+                              : "font-medium text-red-600"
+                          }
+                        >
+                          {acc.isActive ? "Aktif" : "Nonaktif"}
+                        </span>
+                      </p>
+                    </div>
+
+                    <p className="flex-1 text-xs text-muted">
+                      {acc.permissionDesc}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleOpenRoleEditor(acc)}
+                        className="cursor-pointer text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                      >
+                        {isEditingRole ? "Tutup ubah peran" : "Ubah peran"}
+                      </button>
+                      <span className="text-border">•</span>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleToggleAccount(acc)}
+                        className={`cursor-pointer text-xs font-semibold hover:underline disabled:opacity-50 ${
+                          acc.isActive ? "text-red-600" : "text-emerald-600"
+                        }`}
+                      >
+                        {acc.isActive ? "Nonaktifkan" : "Aktifkan kembali"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isEditingRole && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-xl border border-blue-200/80 bg-blue-50/50 p-3">
+                      <span className="text-xs font-semibold text-ink">
+                        Peran baru:
+                      </span>
+                      <select
+                        value={draftRole}
+                        onChange={(e) =>
+                          setDraftRole(e.target.value as UserRole)
+                        }
+                        disabled={isPending}
+                        className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-ink focus:border-primary focus:outline-none"
+                      >
+                        <option value="warga">Warga</option>
+                        <option value="ketua_rt">Ketua RT</option>
+                        <option value="ketua_rw">Ketua RW</option>
+                        <option value="admin">Admin</option>
+                      </select>
+
+                      {(draftRole === "warga" || draftRole === "ketua_rt") && (
+                        <>
+                          <span className="text-xs font-semibold text-ink">
+                            Wilayah RT:
+                          </span>
+                          <select
+                            value={draftRegionId}
+                            onChange={(e) =>
+                              setDraftRegionId(Number(e.target.value))
+                            }
+                            disabled={isPending}
+                            className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-ink focus:border-primary focus:outline-none"
+                          >
+                            {rtRegions.map((rt) => (
+                              <option key={rt.id} value={rt.id}>
+                                {rt.name}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleSaveAccountRole(acc)}
+                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                        >
+                          {isPending && (
+                            <Loader2 size={12} className="animate-spin" />
+                          )}
+                          Simpan peran
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => setEditingRoleAccountId(null)}
+                          className="cursor-pointer rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-surface"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                <p className="flex-1 text-xs text-muted">
-                  {acc.permissionDesc}
-                </p>
-
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => handleToggleAccount(acc)}
-                  className="self-start cursor-pointer text-xs font-semibold text-primary hover:underline sm:self-auto"
-                >
-                  {acc.isActive
-                    ? "Ubah peran / Nonaktifkan"
-                    : "Aktifkan kembali"}
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -1122,37 +1810,101 @@ export default function AdminDashboardClient({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-ink">Data RT / RW</h2>
-                {editingRw ? (
-                  <div className="mt-1 flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={rwLabel}
-                      onChange={(e) => setRwLabel(e.target.value)}
-                      className="rounded-lg border border-border px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setEditingRw(false)}
-                      className="cursor-pointer text-xs font-semibold text-primary"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <p className="mt-0.5 text-xs text-muted">{rwLabel}</p>
-                )}
+                <p className="mt-0.5 text-xs text-muted">
+                  RW {rwNumber} • {rwAreaName} • Ketua RW:{" "}
+                  <span className="font-semibold text-ink">
+                    {accounts.find((a) => a.role === "ketua_rw")?.fullName ??
+                      "Belum ditetapkan"}
+                  </span>
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingRw((prev) => !prev)}
                 className="cursor-pointer text-xs font-semibold text-primary hover:underline"
               >
-                Kelola
+                {editingRw ? "Tutup" : "Kelola RW"}
               </button>
             </div>
 
+            {rtFeedback && (
+              <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs text-primary">
+                {rtFeedback}
+              </p>
+            )}
+
+            {/* Form Pengelolaan Data RW */}
+            {editingRw && (
+              <div className="mt-4 space-y-3 rounded-xl border border-border bg-surface p-3.5">
+                <p className="text-xs font-bold text-ink">
+                  Pengaturan Wilayah RW
+                </p>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted">
+                      Nomor RW
+                    </label>
+                    <input
+                      type="text"
+                      value={rwNumber}
+                      onChange={(e) => setRwNumber(e.target.value)}
+                      placeholder="06"
+                      className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted">
+                      Nama Wilayah / Kelurahan
+                    </label>
+                    <input
+                      type="text"
+                      value={rwAreaName}
+                      onChange={(e) => setRwAreaName(e.target.value)}
+                      placeholder="Parakansaat, Bandung"
+                      className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted">
+                    Ketua RW Aktif
+                  </label>
+                  <select
+                    value={rwLeaderUserId}
+                    onChange={(e) => setRwLeaderUserId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
+                  >
+                    <option value="">-- Pilih Ketua RW --</option>
+                    {accounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.fullName} ({roleLabelId(acc.role)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={handleSaveRwSettings}
+                    className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    Simpan data RW
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingRw(false)}
+                    className="cursor-pointer rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-surface"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+
             <p className="mt-4 text-xs font-semibold text-ink">
-              {rtRegions.length} wilayah RT terdaftar • Semua aktif
+              {rtRegions.length} wilayah RT terdaftar •{" "}
+              {rtRegions.filter((r) => r.isActive).length} aktif
             </p>
 
             {/* Chip Pilihan RT */}
@@ -1163,11 +1915,16 @@ export default function AdminDashboardClient({
                   <button
                     key={rt.id}
                     type="button"
-                    onClick={() => setSelectedRtId(rt.id)}
+                    onClick={() => {
+                      setSelectedRtId(rt.id);
+                      setEditingRtId(null);
+                    }}
                     className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                       isSelected
                         ? "border-primary bg-blue-50 text-primary"
-                        : "border-border bg-surface/60 text-ink hover:border-primary/40"
+                        : rt.isActive
+                          ? "border-border bg-surface/60 text-ink hover:border-primary/40"
+                          : "border-border bg-slate-100 text-muted line-through"
                     }`}
                   >
                     {rt.name}
@@ -1176,17 +1933,186 @@ export default function AdminDashboardClient({
               })}
             </div>
 
+            {/* Detail & Pengelolaan RT Terpilih */}
             {selectedRt && (
-              <p className="mt-4 text-xs text-muted">
-                {selectedRt.name} • {selectedRt.leaderName} •{" "}
-                {selectedRt.residentCount} akun warga
-              </p>
+              <div className="mt-4 rounded-xl border border-border bg-surface/50 p-3.5">
+                {editingRtId === selectedRt.id ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-ink">
+                      Ubah Data {selectedRt.name}
+                    </p>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted">
+                          Nama RT
+                        </label>
+                        <input
+                          type="text"
+                          value={editRtName}
+                          onChange={(e) => setEditRtName(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted">
+                          Ketua RT
+                        </label>
+                        <select
+                          value={editRtLeaderId}
+                          onChange={(e) => setEditRtLeaderId(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
+                        >
+                          <option value="">-- Pilih Ketua RT --</option>
+                          {accounts.map((acc) => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.fullName} ({roleLabelId(acc.role)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleSaveEditRt(selectedRt)}
+                        className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                      >
+                        Simpan RT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingRtId(null)}
+                        className="cursor-pointer rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-surface"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-ink">
+                          {selectedRt.name} / RW {rwNumber}
+                        </span>
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                            selectedRt.isActive
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-red-50 text-red-600"
+                          }`}
+                        >
+                          {selectedRt.isActive ? "Aktif" : "Nonaktif"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        Ketua RT:{" "}
+                        <span className="font-semibold text-ink">
+                          {selectedRt.leaderName}
+                        </span>{" "}
+                        • {selectedRt.residentCount} akun warga
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleStartEditRt(selectedRt)}
+                        className="cursor-pointer font-semibold text-primary hover:underline"
+                      >
+                        Edit RT
+                      </button>
+                      <span className="text-border">•</span>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleToggleRtActive(selectedRt)}
+                        className="cursor-pointer font-semibold text-amber-700 hover:underline"
+                      >
+                        {selectedRt.isActive ? "Nonaktifkan" : "Aktifkan"}
+                      </button>
+                      {rtRegions.length > 1 && (
+                        <>
+                          <span className="text-border">•</span>
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleDeleteRt(selectedRt)}
+                            className="cursor-pointer font-semibold text-red-600 hover:underline"
+                          >
+                            Hapus RT
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Form Tambah RT Baru */}
+            {showAddRtForm && (
+              <div className="mt-3 space-y-3 rounded-xl border border-blue-200/80 bg-blue-50/40 p-3.5">
+                <p className="text-xs font-bold text-ink">
+                  Tambah Wilayah RT Baru
+                </p>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted">
+                      Nama RT Baru
+                    </label>
+                    <input
+                      type="text"
+                      value={newRtName}
+                      onChange={(e) => setNewRtName(e.target.value)}
+                      placeholder="Contoh: RT 07"
+                      className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted">
+                      Ketua RT (Opsional)
+                    </label>
+                    <select
+                      value={newRtLeaderId}
+                      onChange={(e) => setNewRtLeaderId(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
+                    >
+                      <option value="">-- Belum ditetapkan --</option>
+                      {accounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.fullName} ({roleLabelId(acc.role)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={handleCreateRt}
+                    className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    Simpan RT baru
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRtForm(false)}
+                    className="cursor-pointer rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-surface"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2.5">
               <button
                 type="button"
-                onClick={handleAddRt}
+                onClick={handleOpenAddRt}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-white px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-surface"
               >
                 <Plus size={14} />
@@ -1194,7 +2120,7 @@ export default function AdminDashboardClient({
               </button>
               <button
                 type="button"
-                onClick={() => setEditingRw(true)}
+                onClick={() => setEditingRw((prev) => !prev)}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-white px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-surface"
               >
                 Ubah data RW
@@ -1213,7 +2139,7 @@ export default function AdminDashboardClient({
                   Kategori layanan
                 </h2>
                 <p className="mt-0.5 text-xs text-muted">
-                  {categories.filter((c) => c.isActive).length} kategori •{" "}
+                  {categories.filter((c) => c.isActive).length} kategori aktif •{" "}
                   {stats.total} pengaduan bulan ini
                 </p>
               </div>
@@ -1226,36 +2152,84 @@ export default function AdminDashboardClient({
               </button>
             </div>
 
+            {categoryFeedback && (
+              <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs text-primary">
+                {categoryFeedback}
+              </p>
+            )}
+
             <ul className="mt-4 space-y-2.5">
-              {categories.map((cat) => (
-                <li
-                  key={cat.id}
-                  className="flex items-center justify-between gap-3 text-xs"
-                >
-                  <span
-                    className={`font-medium ${
-                      cat.isActive ? "text-ink" : "text-muted line-through"
-                    }`}
+              {categories.map((cat) => {
+                const isFallbackLainnya =
+                  cat.name.trim().toLowerCase() === "lainnya" ||
+                  cat.name.trim().toLowerCase() === "layanan lainnya";
+                return (
+                  <li
+                    key={cat.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-transparent px-2 py-1.5 text-xs transition-colors hover:border-border/60 hover:bg-surface/40"
                   >
-                    {cat.name}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-muted">
-                      {cat.reportCount} laporan
-                    </span>
-                    {manageCategories && (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleCategory(cat)}
-                        className="cursor-pointer font-semibold text-primary hover:underline"
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`font-medium ${
+                          cat.isActive ? "text-ink" : "text-muted line-through"
+                        }`}
                       >
-                        {cat.isActive ? "Nonaktifkan" : "Aktifkan"}
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
+                        {cat.name}
+                      </span>
+                      {!cat.isActive && (
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+                          Nonaktif
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted">
+                        {cat.reportCount} laporan
+                      </span>
+                      {manageCategories && (
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleToggleCategory(cat)}
+                            className="cursor-pointer font-semibold text-primary hover:underline disabled:opacity-50"
+                          >
+                            {cat.isActive ? "Nonaktifkan" : "Aktifkan"}
+                          </button>
+                          {!isFallbackLainnya && (
+                            <>
+                              <span className="text-border">•</span>
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleDeleteCategory(cat)}
+                                title={
+                                  cat.reportCount > 0
+                                    ? `Hapus kategori dan pindahkan ${cat.reportCount} laporan ke Lainnya`
+                                    : "Hapus kategori"
+                                }
+                                className="inline-flex cursor-pointer items-center gap-1 font-semibold text-red-600 hover:underline disabled:opacity-50"
+                              >
+                                <Trash2 size={12} />
+                                Hapus
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
+
+            {manageCategories && (
+              <p className="mt-3 text-[11px] text-muted">
+                Menghapus kategori yang memiliki laporan akan otomatis
+                memindahkan laporannya ke kategori{" "}
+                <span className="font-semibold text-ink">Lainnya</span>.
+              </p>
+            )}
 
             {showAddCategory ? (
               <div className="mt-4 flex items-center gap-2">

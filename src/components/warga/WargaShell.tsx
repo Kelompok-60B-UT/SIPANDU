@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -31,6 +31,7 @@ type WargaShellProps = {
   roleLabel: string;
   regionLabel: string;
   unreadCount?: number;
+  avatarUrl?: string | null;
   children: ReactNode;
 };
 
@@ -75,11 +76,29 @@ export default function WargaShell({
   roleLabel,
   regionLabel,
   unreadCount = 0,
+  avatarUrl,
   children,
 }: WargaShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [clientAvatar, setClientAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncAvatar = () => {
+      try {
+        setClientAvatar(localStorage.getItem("sipandu_avatar_url"));
+      } catch {
+        // ignore
+      }
+    };
+    syncAvatar();
+    window.addEventListener("sipandu-avatar-change", syncAvatar);
+    return () =>
+      window.removeEventListener("sipandu-avatar-change", syncAvatar);
+  }, []);
+
+  const displayAvatar = avatarUrl || clientAvatar;
 
   const resolvedActive: WargaMenuKey =
     activeMenu ?? (pathname.startsWith("/profile") ? "profil" : "ringkasan");
@@ -231,9 +250,18 @@ export default function WargaShell({
                 onClick={() => setUserMenuOpen((prev) => !prev)}
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl px-1.5 py-1 transition-colors hover:bg-surface"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-primary">
-                  {initials}
-                </span>
+                {displayAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={displayAvatar}
+                    alt={fullName}
+                    className="h-9 w-9 shrink-0 rounded-full border border-border object-cover"
+                  />
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-primary">
+                    {initials}
+                  </span>
+                )}
                 <span className="hidden text-left leading-tight sm:block">
                   <span className="block text-xs font-semibold text-ink">
                     {fullName}

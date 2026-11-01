@@ -525,40 +525,48 @@ export default function CreateTicketForm({
 
             {/* Daftar Foto Terlampir */}
             {photos.length > 0 && (
-              <div className="mt-4 space-y-4">
+              <div
+                className={`mt-4 grid gap-4 ${
+                  photos.length === 1
+                    ? "grid-cols-1"
+                    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                }`}
+              >
                 {photos.map((photo, idx) => (
-                  <div key={photo.id}>
-                    {idx === 0 ? (
-                      <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-                        {photo.previewUrl.startsWith("/") ? (
-                          <Image
-                            src={photo.previewUrl}
-                            alt={photo.fileName}
-                            width={760}
-                            height={300}
-                            className="h-48 w-full scale-[1.02] object-cover sm:h-56"
-                          />
-                        ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={photo.previewUrl}
-                            alt={photo.fileName}
-                            className="h-48 w-full object-cover sm:h-56"
-                          />
-                        )}
-                      </div>
-                    ) : null}
+                  <div
+                    key={photo.id}
+                    className="overflow-hidden rounded-2xl border border-border bg-surface/40 p-2.5"
+                  >
+                    <div className="relative overflow-hidden rounded-xl border border-border bg-surface">
+                      {photo.previewUrl.startsWith("/") ? (
+                        <Image
+                          src={photo.previewUrl}
+                          alt={photo.fileName}
+                          width={760}
+                          height={300}
+                          className={`${
+                            photos.length === 1 ? "h-48 sm:h-56" : "h-36 sm:h-40"
+                          } w-full scale-[1.02] object-cover`}
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={photo.previewUrl}
+                          alt={photo.fileName}
+                          className={`${
+                            photos.length === 1 ? "h-48 sm:h-56" : "h-36 sm:h-40"
+                          } w-full object-cover`}
+                        />
+                      )}
+                      <span className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        Foto {idx + 1}/3
+                      </span>
+                    </div>
 
-                    <div
-                      className={`flex items-center justify-between gap-3 ${
-                        idx === 0
-                          ? "mt-3"
-                          : "rounded-xl border border-border bg-surface/50 px-3.5 py-2.5"
-                      }`}
-                    >
-                      <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="mt-2.5 flex items-center justify-between gap-2 px-1">
+                      <div className="flex min-w-0 items-center gap-2">
                         <ImageIcon
-                          size={16}
+                          size={15}
                           className="shrink-0 text-primary"
                         />
                         <div className="min-w-0">
@@ -566,8 +574,7 @@ export default function CreateTicketForm({
                             {photo.fileName}
                           </p>
                           <p className="text-[11px] text-muted">
-                            {formatBytesMb(photo.sizeBytes)} • Berhasil
-                            ditambahkan
+                            {formatBytesMb(photo.sizeBytes)} • Terunggah
                           </p>
                         </div>
                       </div>
@@ -595,7 +602,11 @@ export default function CreateTicketForm({
               }`}
             >
               <Upload size={15} />
-              <span>Tambah foto • {photos.length} dari 3</span>
+              <span>
+                {photos.length >= 3
+                  ? "Batas maksimal 3 foto tercapai (3 dari 3)"
+                  : `Unggah foto pendukung • ${photos.length} dari 3 terunggah`}
+              </span>
               <input
                 ref={fileInputRef}
                 type="file"
