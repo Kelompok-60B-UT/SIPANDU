@@ -26,14 +26,12 @@ import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
 import RekapDownloadButton from "@/components/common/RekapDownloadButton";
 import {
-  completeTicket,
-  processTicket,
-  rejectTicket,
-  verifyTicket,
+  adminUpdateTicketStatus,
+  deleteTicketByAdmin,
 } from "@/app/actions/tickets";
 import {
   deleteAttachment,
-  registerAttachment,
+  uploadAttachment,
 } from "@/app/actions/attachments";
 import {
   createStaff,
@@ -46,10 +44,10 @@ import {
   updateRwSettings,
   updateUserRole,
 } from "@/app/actions/admin";
-import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
+import { isSupabaseConfigured } from "@/utils/supabase/client";
 import { roleLabelId } from "@/utils/roles";
 import { statusLabelId } from "@/utils/transition";
-import { generateStoragePath, validateAttachment } from "@/utils/upload";
+import { validateAttachment } from "@/utils/upload";
 import type { TicketStatus, UserRole } from "@/types";
 import type {
   AdminAccountRow,
@@ -287,40 +285,31 @@ export default function AdminDashboardClient({
     if (isSupabaseConfigured()) {
       setUploadingProof(true);
       try {
-        const storagePath = generateStoragePath(
-          currentId,
-          "penyelesaian",
-          file.name,
-        );
-        const supabase = createClient();
-        const { error: upErr } = await supabase.storage
-          .from("ticket-attachments")
-          .upload(storagePath, file, { contentType: file.type });
-        if (upErr) throw new Error(upErr.message);
+        const fd = new FormData();
+        fd.set("ticket_id", String(currentId));
+        fd.set("type", "penyelesaian");
+        fd.set("file", file);
 
-        const regRes = await registerAttachment({
-          ticketId: currentId,
-          type: "penyelesaian",
-          storagePath,
-          fileName: file.name,
-          mimeType: file.type as "image/jpeg" | "image/png",
-          sizeBytes: file.size,
-        });
-        if (!regRes.success) throw new Error(regRes.error);
+        const uploadRes = await uploadAttachment(fd);
+        if (!uploadRes.success) throw new Error(uploadRes.error);
 
         const newItem: StaffAttachmentItem = {
-          id: regRes.data.id,
+          id: uploadRes.data.id,
           type: "penyelesaian",
           fileName: file.name,
           sizeBytes: file.size,
-          previewUrl: localUrl,
-          storagePath,
+          previewUrl: uploadRes.data.signedUrl || localUrl,
+          storagePath: uploadRes.data.storagePath,
         };
         setProofFiles((prev) => ({
           ...prev,
           [currentId]: [...(prev[currentId] ?? []), newItem],
         }));
         setSavedTickets((prev) => ({ ...prev, [currentId]: false }));
+        setStatusFeedback({
+          type: "success",
+          text: "Foto bukti penanganan berhasil diunggah.",
+        });
       } catch (errObj) {
         setStatusFeedback({
           type: "error",
@@ -402,33 +391,14 @@ export default function AdminDashboardClient({
     }
 
     startTransition(async () => {
-      if (nextStatus === "diverifikasi_rt" && prevStatus === "terkirim") {
-        const r = await verifyTicket(currentId, note);
-        if (!r.success) {
-          setStatusFeedback({ type: "error", text: r.error });
-          return;
-        }
-      } else if (nextStatus === "diproses_rw") {
-        const r = await processTicket(currentId, note);
-        if (!r.success) {
-          setStatusFeedback({ type: "error", text: r.error });
-          return;
-        }
-      } else if (nextStatus === "selesai") {
-        const r = await completeTicket(currentId, note);
-        if (!r.success) {
-          setStatusFeedback({ type: "error", text: r.error });
-          return;
-        }
-      } else if (nextStatus === "ditolak") {
-        const fd = new FormData();
-        fd.set("ticket_id", String(currentId));
-        fd.set("reason", note);
-        const r = await rejectTicket(fd);
-        if (!r.success) {
-          setStatusFeedback({ type: "error", text: r.error });
-          return;
-        }
+      const r = await adminUpdateTicketStatus({
+        ticketId: currentId,
+        status: nextStatus,
+        note,
+      });
+      if (!r.success) {
+        setStatusFeedback({ type: "error", text: r.error });
+        return;
       }
 
       setTickets((prev) =>
@@ -464,6 +434,45 @@ export default function AdminDashboardClient({
       setStatusFeedback({
         type: "success",
         text: `Status tiket ${selectedTicket.ticketNumber} berhasil diperbarui menjadi ${statusLabelId(nextStatus)}.`,
+      });
+    });
+  };
+
+  const handleDeleteTicket = (target: AdminTicketRow) => {
+    setStatusFeedback(null);
+    startTransition(async () => {
+      const res = await deleteTicketByAdmin(target.id);
+      if (!res.success) {
+        setStatusFeedback({ type: "error", text: res.error });
+        return;
+      }
+
+      const remaining = tickets.filter((t) => t.id !== target.id);
+      setTickets(remaining);
+      if (selectedTicketId === target.id) {
+        setSelectedTicketId(remaining[0]?.id ?? 0);
+      }
+
+      setStats((prev) => {
+        const copy = { ...prev, total: Math.max(0, prev.total - 1) };
+        if (target.status in copy) {
+          copy[target.status] = Math.max(0, copy[target.status] - 1);
+        }
+        return copy;
+      });
+
+      setCategories((prev) =>
+        prev.map((c) =>
+          c.name.toLowerCase() === target.categoryName.toLowerCase()
+            ? { ...c, reportCount: Math.max(0, c.reportCount - 1) }
+            : c,
+        ),
+      );
+
+      prependActivity(`menghapus tiket ${target.ticketNumber} (${target.title}).`);
+      setStatusFeedback({
+        type: "success",
+        text: `Tiket ${target.ticketNumber} berhasil dihapus permanen.`,
       });
     });
   };
@@ -1005,6 +1014,7 @@ export default function AdminDashboardClient({
       fullName={initialData.adminName}
       subHeaderLabel="RW 06 Parakansaat"
       unreadCount={initialData.unreadCount}
+      avatarUrl={initialData.avatarUrl}
     >
       <div id="ringkasan" className="scroll-mt-20 space-y-6">
         {/* Header Atas & Tombol Unduh Rekap */}
@@ -1251,17 +1261,32 @@ export default function AdminDashboardClient({
                           </div>
                         </td>
                         <td className="px-3.5 py-3.5 align-middle">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectTicket(ticket);
-                            }}
-                            className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary whitespace-nowrap hover:underline"
-                          >
-                            Kelola tiket
-                            <ArrowRight size={13} />
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectTicket(ticket);
+                              }}
+                              className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary whitespace-nowrap hover:underline"
+                            >
+                              Kelola tiket
+                              <ArrowRight size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTicket(ticket);
+                              }}
+                              title={`Hapus tiket ${ticket.ticketNumber}`}
+                              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                            >
+                              <Trash2 size={11} />
+                              Hapus
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1567,6 +1592,16 @@ export default function AdminDashboardClient({
                       <Save size={15} />
                     )}
                     Simpan perubahan status
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isPending || uploadingProof}
+                    onClick={() => handleDeleteTicket(selectedTicket)}
+                    className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    Hapus tiket {selectedTicket.ticketNumber}
                   </button>
                 </div>
               </div>

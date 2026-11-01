@@ -26,11 +26,11 @@ import RekapDownloadButton from "@/components/common/RekapDownloadButton";
 import { completeTicket, processTicket } from "@/app/actions/tickets";
 import {
   deleteAttachment,
-  registerAttachment,
+  uploadAttachment,
 } from "@/app/actions/attachments";
-import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
+import { isSupabaseConfigured } from "@/utils/supabase/client";
 import { statusLabelId } from "@/utils/transition";
-import { generateStoragePath, validateAttachment } from "@/utils/upload";
+import { validateAttachment } from "@/utils/upload";
 import type { TicketStatus } from "@/types";
 import type {
   StaffAttachmentItem,
@@ -222,36 +222,21 @@ export default function RwDashboardClient({
     if (isSupabaseConfigured()) {
       setUploadingPhoto(true);
       try {
-        const storagePath = generateStoragePath(
-          currentId,
-          "penyelesaian",
-          file.name,
-        );
-        const supabase = createClient();
-        const { error: uploadError } = await supabase.storage
-          .from("ticket-attachments")
-          .upload(storagePath, file, { contentType: file.type });
+        const fd = new FormData();
+        fd.set("ticket_id", String(currentId));
+        fd.set("type", "penyelesaian");
+        fd.set("file", file);
 
-        if (uploadError) throw new Error(uploadError.message);
-
-        const regRes = await registerAttachment({
-          ticketId: currentId,
-          type: "penyelesaian",
-          storagePath,
-          fileName: file.name,
-          mimeType: file.type as "image/jpeg" | "image/png",
-          sizeBytes: file.size,
-        });
-
-        if (!regRes.success) throw new Error(regRes.error);
+        const uploadRes = await uploadAttachment(fd);
+        if (!uploadRes.success) throw new Error(uploadRes.error);
 
         const newItem: StaffAttachmentItem = {
-          id: regRes.data.id,
+          id: uploadRes.data.id,
           type: "penyelesaian",
           fileName: file.name,
           sizeBytes: file.size,
-          previewUrl: localUrl,
-          storagePath,
+          previewUrl: uploadRes.data.signedUrl || localUrl,
+          storagePath: uploadRes.data.storagePath,
         };
 
         setProofFiles((prev) => ({
@@ -457,6 +442,7 @@ export default function RwDashboardClient({
       fullName={initialData.fullName}
       subHeaderLabel="RW 06 Parakansaat"
       unreadCount={initialData.unreadCount}
+      avatarUrl={initialData.avatarUrl}
     >
       <div id="ringkasan" className="scroll-mt-20 space-y-6">
         {/* Header Sapaan RW & Unduh Rekap */}

@@ -31,6 +31,7 @@ import Badge from "@/components/ui/Badge";
 import {
   completeTicket,
   deleteDraft,
+  deleteTicketByAdmin,
   processTicket,
   rateTicket,
   rejectTicket,
@@ -40,10 +41,10 @@ import {
 } from "@/app/actions/tickets";
 import {
   deleteAttachment,
-  registerAttachment,
+  uploadAttachment,
 } from "@/app/actions/attachments";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
-import { generateStoragePath, validateAttachment } from "@/utils/upload";
+import { validateAttachment } from "@/utils/upload";
 import type { TicketStatus } from "@/types";
 import type {
   TicketAttachmentView,
@@ -213,7 +214,62 @@ export default function TicketDetailClient({
   data: TicketDetailPageData;
 }) {
   const router = useRouter();
-  const { viewer, categories, regions } = data;
+  const { categories, regions } = data;
+  const [previewRole, setPreviewRole] = useState(data.viewer.role);
+
+  useEffect(() => {
+    const syncRole = () => {
+      if (!data.isPreview) return;
+      try {
+        const saved = localStorage.getItem("sipandu_last_role");
+        if (
+          saved === "admin" ||
+          saved === "ketua_rw" ||
+          saved === "ketua_rt" ||
+          saved === "warga"
+        ) {
+          setPreviewRole(saved);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    syncRole();
+    window.addEventListener("sipandu-profile-change", syncRole);
+    return () => window.removeEventListener("sipandu-profile-change", syncRole);
+  }, [data.isPreview]);
+
+  const viewer = useMemo(() => {
+    if (!data.isPreview) return data.viewer;
+    if (previewRole === "admin") {
+      return {
+        ...data.viewer,
+        fullName: "Rina Marlina",
+        role: "admin" as const,
+        roleLabel: "Admin",
+        regionLabel: "Seluruh Wilayah RW 06",
+      };
+    }
+    if (previewRole === "ketua_rw") {
+      return {
+        ...data.viewer,
+        fullName: "Bambang Heryana",
+        role: "ketua_rw" as const,
+        roleLabel: "Ketua RW",
+        regionLabel: "RW 06 Parakansaat",
+      };
+    }
+    if (previewRole === "ketua_rt") {
+      return {
+        ...data.viewer,
+        fullName: "Agus Setiawan",
+        role: "ketua_rt" as const,
+        roleLabel: "Ketua RT",
+        regionLabel: "RT 03 / RW 06",
+      };
+    }
+    return data.viewer;
+  }, [data.isPreview, data.viewer, previewRole]);
   const [ticket, setTicket] = useState<TicketDetailView | null>(data.ticket);
   const [prevDataTicket, setPrevDataTicket] = useState<TicketDetailView | null>(
     data.ticket,
@@ -303,6 +359,7 @@ export default function TicketDetailClient({
           fullName={viewer.fullName}
           subHeaderLabel={`${viewer.roleLabel} • ${viewer.regionLabel}`}
           unreadCount={viewer.unreadCount}
+          avatarUrl={viewer.avatarUrl}
         >
           {content}
         </StaffShell>
@@ -316,6 +373,7 @@ export default function TicketDetailClient({
         roleLabel={viewer.roleLabel}
         regionLabel={viewer.regionLabel}
         unreadCount={viewer.unreadCount}
+        avatarUrl={viewer.avatarUrl}
       >
         {content}
       </WargaShell>
@@ -418,47 +476,35 @@ export default function TicketDetailClient({
 
     setUploadingPhoto(true);
     try {
-      const storagePath = generateStoragePath(ticket.id, type, file.name);
+      let storagePath: string | null = null;
       let previewUrl = URL.createObjectURL(file);
+      let attachmentId = Date.now();
 
       if (isSupabaseConfigured()) {
-        const supabase = createClient();
-        const { error: uploadError } = await supabase.storage
-          .from("ticket-attachments")
-          .upload(storagePath, file, { contentType: file.type });
+        const fd = new FormData();
+        fd.set("ticket_id", String(ticket.id));
+        fd.set("type", type);
+        fd.set("file", file);
 
-        if (uploadError) {
-          throw new Error(uploadError.message);
-        }
-
-        const res = await registerAttachment({
-          ticketId: ticket.id,
-          type,
-          storagePath,
-          fileName: file.name,
-          mimeType: file.type as "image/jpeg" | "image/png",
-          sizeBytes: file.size,
-        });
-
+        const res = await uploadAttachment(fd);
         if (!res.success) {
           throw new Error(res.error);
         }
 
-        const { data: signed } = await supabase.storage
-          .from("ticket-attachments")
-          .createSignedUrl(storagePath, 3600);
-        if (signed?.signedUrl) {
-          previewUrl = signed.signedUrl;
+        attachmentId = res.data.id;
+        storagePath = res.data.storagePath;
+        if (res.data.signedUrl) {
+          previewUrl = res.data.signedUrl;
         }
       }
 
       const newAtt: TicketAttachmentView = {
-        id: Date.now(),
+        id: attachmentId,
         type,
         fileName: file.name,
         mimeType: file.type,
         sizeBytes: file.size,
-        storagePath: isSupabaseConfigured() ? storagePath : null,
+        storagePath,
         previewUrl,
         createdAt: new Date().toISOString(),
         uploaderName: viewer.fullName,
@@ -482,6 +528,18 @@ export default function TicketDetailClient({
     } finally {
       setUploadingPhoto(false);
     }
+  };
+
+  const handleDeleteTicketByAdmin = () => {
+    setFeedback(null);
+    startTransition(async () => {
+      const res = await deleteTicketByAdmin(ticket.id);
+      if (!res.success) {
+        setFeedback({ type: "error", message: res.error });
+        return;
+      }
+      router.push("/dashboard/admin");
+    });
   };
 
   const handleDeleteAttachment = (attachmentId: number) => {
@@ -1251,23 +1309,41 @@ export default function TicketDetailClient({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleCopyTicketNumber}
-          className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-border bg-white px-4 py-2.5 text-xs font-semibold text-primary shadow-2xs transition-colors hover:bg-surface"
-        >
-          {copied ? (
-            <>
-              <Check size={14} className="text-emerald-600" />
-              <span className="text-emerald-700">Nomor disalin</span>
-            </>
-          ) : (
-            <>
-              <Copy size={14} />
-              <span>Salin nomor tiket</span>
-            </>
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          <button
+            type="button"
+            onClick={handleCopyTicketNumber}
+            className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 text-xs font-semibold text-primary shadow-2xs transition-colors hover:bg-surface"
+          >
+            {copied ? (
+              <>
+                <Check size={14} className="text-emerald-600" />
+                <span className="text-emerald-700">Nomor disalin</span>
+              </>
+            ) : (
+              <>
+                <Copy size={14} />
+                <span>Salin nomor tiket</span>
+              </>
+            )}
+          </button>
+
+          {viewer.role === "admin" && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleDeleteTicketByAdmin}
+              className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 shadow-2xs transition-colors hover:bg-red-50 disabled:opacity-50"
+            >
+              {isPending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              <span>Hapus tiket</span>
+            </button>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Feedback Aksi (Error / Sukses) */}

@@ -57,6 +57,7 @@ export interface AdminActivityLog {
 export interface AdminDashboardData {
   isPreview: boolean
   adminName: string
+  avatarUrl?: string | null
   rwNumber?: string
   rwAreaName?: string
   unreadCount: number
@@ -549,6 +550,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       typeof user.user_metadata?.full_name === 'string'
         ? user.user_metadata.full_name
         : null
+    const avatarUrl =
+      typeof user.user_metadata?.avatar_url === 'string' &&
+      user.user_metadata.avatar_url.trim()
+        ? user.user_metadata.avatar_url.trim()
+        : null
     const rwNumber =
       regionsRes.data?.[0]?.rw ||
       (typeof user.user_metadata?.rw_number === 'string'
@@ -563,10 +569,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     return {
       isPreview: false,
       adminName:
-        profileRes.data?.full_name ??
-        metaAdminName ??
-        user.email?.split('@')[0] ??
+        profileRes.data?.full_name ||
+        metaAdminName ||
+        user.email?.split('@')[0] ||
         'Admin',
+      avatarUrl,
       rwNumber,
       rwAreaName,
       unreadCount: stats.terkirim,

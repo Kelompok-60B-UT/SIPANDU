@@ -280,20 +280,40 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
       PREVIEW_REGIONS.find((r) => r.id === profile.region_id) ??
       PREVIEW_REGIONS[2]
 
-    if (profile.region_id) {
+    const resolvedRegionId =
+      profile.region_id ??
+      (typeof meta.region_id === 'number' ? meta.region_id : 3)
+
+    if (resolvedRegionId) {
       const { data: regionRow } = await supabase
         .from('regions')
         .select('id, name, rw')
-        .eq('id', profile.region_id)
+        .eq('id', resolvedRegionId)
         .single()
       if (regionRow) region = regionRow
+    }
+
+    const mergedProfile: Profile = {
+      ...profile,
+      full_name:
+        profile.full_name ||
+        (typeof meta.full_name === 'string' && meta.full_name.trim()
+          ? meta.full_name.trim()
+          : user.email?.split('@')[0] ?? 'Pengguna'),
+      phone:
+        profile.phone ??
+        (typeof meta.phone === 'string' ? meta.phone : null),
+      address:
+        profile.address ??
+        (typeof meta.address === 'string' ? meta.address : null),
+      region_id: resolvedRegionId,
     }
 
     return {
       isPreview: false,
       email: user.email ?? '',
       role,
-      profile,
+      profile: mergedProfile,
       region,
       avatarUrl,
       kelurahan,

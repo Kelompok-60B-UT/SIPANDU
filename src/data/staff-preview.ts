@@ -46,6 +46,7 @@ export interface StaffTicketItem {
 export interface StaffContextData {
   isPreview: boolean
   fullName: string
+  avatarUrl?: string | null
   regionName: string
   rw: string
   unreadCount: number
@@ -608,11 +609,17 @@ export async function getStaffDashboardData(
       typeof user.user_metadata?.full_name === 'string'
         ? user.user_metadata.full_name
         : null
+    const avatarUrl =
+      typeof user.user_metadata?.avatar_url === 'string' &&
+      user.user_metadata.avatar_url.trim()
+        ? user.user_metadata.avatar_url.trim()
+        : null
 
     return {
       isPreview: false,
       fullName:
-        profile?.full_name ?? metaName ?? user.email?.split('@')[0] ?? 'Pengurus',
+        profile?.full_name || metaName || user.email?.split('@')[0] || 'Pengurus',
+      avatarUrl,
       regionName:
         targetRole === 'ketua_rt' ? regionObj.name : 'RW 06 Parakansaat',
       rw: regionObj.rw,

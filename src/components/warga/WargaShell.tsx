@@ -83,27 +83,68 @@ export default function WargaShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [clientAvatar, setClientAvatar] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string | null>(null);
+  const [clientRegionLabel, setClientRegionLabel] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
-    const syncAvatar = () => {
+    if (
+      pathname.startsWith("/dashboard/warga") ||
+      pathname.startsWith("/tickets/new")
+    ) {
+      try {
+        localStorage.setItem("sipandu_last_role", "warga");
+      } catch {
+        // ignore
+      }
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    const syncProfileAndAvatar = () => {
       try {
         setClientAvatar(localStorage.getItem("sipandu_avatar_url"));
+        const rawOverride =
+          localStorage.getItem("sipandu_profile_warga") ||
+          localStorage.getItem("sipandu_profile_override");
+        if (rawOverride) {
+          const parsed = JSON.parse(rawOverride) as {
+            fullName?: string;
+            regionName?: string;
+            rw?: string;
+            role?: string;
+          };
+          if (parsed.fullName && (!parsed.role || parsed.role === "warga")) {
+            setClientName(parsed.fullName);
+          }
+          if (parsed.regionName && (!parsed.role || parsed.role === "warga")) {
+            setClientRegionLabel(
+              `${parsed.regionName} / RW ${parsed.rw || "06"}`,
+            );
+          }
+        }
       } catch {
         // ignore
       }
     };
-    syncAvatar();
-    window.addEventListener("sipandu-avatar-change", syncAvatar);
-    return () =>
-      window.removeEventListener("sipandu-avatar-change", syncAvatar);
+    syncProfileAndAvatar();
+    window.addEventListener("sipandu-avatar-change", syncProfileAndAvatar);
+    window.addEventListener("sipandu-profile-change", syncProfileAndAvatar);
+    return () => {
+      window.removeEventListener("sipandu-avatar-change", syncProfileAndAvatar);
+      window.removeEventListener("sipandu-profile-change", syncProfileAndAvatar);
+    };
   }, []);
 
+  const displayName = clientName || fullName;
+  const displayRegionLabel = clientRegionLabel || regionLabel;
   const displayAvatar = avatarUrl || clientAvatar;
 
   const resolvedActive: WargaMenuKey =
     activeMenu ?? (pathname.startsWith("/profile") ? "profil" : "ringkasan");
 
-  const initials = getInitials(fullName);
+  const initials = getInitials(displayName);
 
   const sidebarContent = (
     <div className="flex h-full flex-col justify-between py-5">
@@ -227,7 +268,7 @@ export default function WargaShell({
                 Ruang layanan Warga
               </p>
               <p className="mt-0.5 text-[11px] text-muted">
-                {roleLabel} • {regionLabel}
+                {roleLabel} • {displayRegionLabel}
               </p>
             </div>
           </div>
@@ -254,7 +295,7 @@ export default function WargaShell({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={displayAvatar}
-                    alt={fullName}
+                    alt={displayName}
                     className="h-9 w-9 shrink-0 rounded-full border border-border object-cover"
                   />
                 ) : (
@@ -264,7 +305,7 @@ export default function WargaShell({
                 )}
                 <span className="hidden text-left leading-tight sm:block">
                   <span className="block text-xs font-semibold text-ink">
-                    {fullName}
+                    {displayName}
                   </span>
                   <span className="block text-[11px] text-muted">
                     {roleLabel}

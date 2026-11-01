@@ -19,9 +19,9 @@ import {
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import { createDraft, submitTicket } from "@/app/actions/tickets";
-import { registerAttachment } from "@/app/actions/attachments";
-import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
-import { generateStoragePath, validateAttachment } from "@/utils/upload";
+import { uploadAttachment } from "@/app/actions/attachments";
+import { isSupabaseConfigured } from "@/utils/supabase/client";
+import { validateAttachment } from "@/utils/upload";
 import type { CategoryOption, Profile, RegionOption } from "@/types";
 
 interface PhotoDraftItem {
@@ -198,40 +198,21 @@ export default function CreateTicketForm({
 
         const ticketId = draftRes.data.id;
 
-        // Unggah foto ke Supabase Storage bila terkonfigurasi & ada objek File
+        // Unggah foto ke Supabase Storage melalui server action agar aman dari RLS
         if (isSupabaseConfigured()) {
-          const supabase = createClient();
           for (const item of photos) {
             if (!item.file) continue;
-            const storagePath = generateStoragePath(
-              ticketId,
-              "laporan",
-              item.file.name,
-            );
-            const { error: uploadError } = await supabase.storage
-              .from("ticket-attachments")
-              .upload(storagePath, item.file, { contentType: item.file.type });
+            const fd = new FormData();
+            fd.set("ticket_id", String(ticketId));
+            fd.set("type", "laporan");
+            fd.set("file", item.file);
 
-            if (uploadError) {
+            const upRes = await uploadAttachment(fd);
+            if (!upRes.success) {
               setFeedback({
                 type: "error",
-                text: `Gagal mengunggah foto: ${uploadError.message}`,
+                text: `Gagal mengunggah foto: ${upRes.error}`,
               });
-              setActiveAction(null);
-              return;
-            }
-
-            const regRes = await registerAttachment({
-              ticketId,
-              type: "laporan",
-              storagePath,
-              fileName: item.file.name,
-              mimeType: item.file.type as "image/jpeg" | "image/png",
-              sizeBytes: item.file.size,
-            });
-
-            if (!regRes.success) {
-              setFeedback({ type: "error", text: regRes.error });
               setActiveAction(null);
               return;
             }

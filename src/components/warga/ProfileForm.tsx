@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { updateProfile, updateProfileAvatar } from "@/app/actions/profile";
-import type { Profile, RegionOption } from "@/types";
+import type { Profile, RegionOption, UserRole } from "@/types";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB sesuai desain
 
@@ -61,6 +61,8 @@ function fileToCompressedDataUrl(file: File): Promise<string> {
 export default function ProfileForm({
   profile,
   email,
+  role = "warga",
+  isPreview = false,
   regions,
   initialAvatarUrl,
   initialKelurahan,
@@ -68,6 +70,8 @@ export default function ProfileForm({
 }: {
   profile: Profile;
   email: string;
+  role?: UserRole;
+  isPreview?: boolean;
   regions: RegionOption[];
   initialAvatarUrl?: string | null;
   initialKelurahan?: string;
@@ -93,9 +97,28 @@ export default function ProfileForm({
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     initialAvatarUrl ?? null,
   );
+  const [prevProfileUpdatedAt, setPrevProfileUpdatedAt] = useState(
+    profile.updated_at,
+  );
   const [prevInitialAvatarUrl, setPrevInitialAvatarUrl] = useState<
     string | null | undefined
   >(initialAvatarUrl);
+
+  if (prevProfileUpdatedAt !== profile.updated_at) {
+    setPrevProfileUpdatedAt(profile.updated_at);
+    setFullName(profile.full_name);
+    setPhone(profile.phone ?? "");
+    setAddress(profile.address ?? "");
+    if (profile.region_id) {
+      setRegionId(profile.region_id);
+    }
+    if (initialKelurahan) {
+      setKelurahan(initialKelurahan);
+    }
+    if (initialCity) {
+      setCity(initialCity);
+    }
+  }
 
   if (prevInitialAvatarUrl !== initialAvatarUrl) {
     setPrevInitialAvatarUrl(initialAvatarUrl);
@@ -105,21 +128,48 @@ export default function ProfileForm({
   }
 
   useEffect(() => {
-    const syncAvatar = () => {
-      if (!initialAvatarUrl) {
-        try {
-          const saved = localStorage.getItem("sipandu_avatar_url");
-          if (saved) setAvatarUrl(saved);
-        } catch {
-          // ignore
+    const syncSavedProfile = () => {
+      try {
+        if (!initialAvatarUrl) {
+          const savedAvatar = localStorage.getItem("sipandu_avatar_url");
+          if (savedAvatar) setAvatarUrl(savedAvatar);
         }
+        const savedJson =
+          localStorage.getItem(`sipandu_profile_${role}`) ||
+          (isPreview ? localStorage.getItem("sipandu_profile_override") : null);
+        if (savedJson) {
+          const parsed = JSON.parse(savedJson) as {
+            userId?: string;
+            fullName?: string;
+            phone?: string;
+            address?: string;
+            regionId?: number;
+            rw?: string;
+            kelurahan?: string;
+            city?: string;
+          };
+          if (isPreview || !parsed.userId || parsed.userId === profile.id) {
+            if (parsed.fullName) setFullName(parsed.fullName);
+            if (parsed.phone !== undefined) setPhone(parsed.phone);
+            if (parsed.address !== undefined) setAddress(parsed.address);
+            if (parsed.regionId) setRegionId(parsed.regionId);
+            if (parsed.rw) setRw(parsed.rw);
+            if (parsed.kelurahan) setKelurahan(parsed.kelurahan);
+            if (parsed.city) setCity(parsed.city);
+          }
+        }
+      } catch {
+        // ignore
       }
     };
-    syncAvatar();
-    window.addEventListener("sipandu-avatar-change", syncAvatar);
-    return () =>
-      window.removeEventListener("sipandu-avatar-change", syncAvatar);
-  }, [initialAvatarUrl]);
+    syncSavedProfile();
+    window.addEventListener("sipandu-avatar-change", syncSavedProfile);
+    window.addEventListener("sipandu-profile-change", syncSavedProfile);
+    return () => {
+      window.removeEventListener("sipandu-avatar-change", syncSavedProfile);
+      window.removeEventListener("sipandu-profile-change", syncSavedProfile);
+    };
+  }, [initialAvatarUrl, isPreview, profile.id, role]);
 
   const [feedback, setFeedback] = useState<{
     error?: string;
@@ -226,14 +276,37 @@ export default function ProfileForm({
 
   const handleSubmit = (formData: FormData) => {
     setFeedback(null);
+    formData.set("full_name", fullName.trim());
+    formData.set("phone", phone.trim());
+    formData.set("address", address.trim());
     formData.set("region_id", String(regionId));
-    formData.set("kelurahan", kelurahan);
-    formData.set("city", city);
+    formData.set("kelurahan", kelurahan.trim());
+    formData.set("city", city.trim());
     startTransition(async () => {
       const res = await updateProfile(formData);
       if (!res.success) {
         setFeedback({ error: res.error });
       } else {
+        const selectedRegion = regions.find((r) => r.id === regionId);
+        const cachePayload = JSON.stringify({
+          userId: profile.id,
+          role,
+          fullName: fullName.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          regionId,
+          regionName: selectedRegion?.name ?? "RT 03",
+          rw,
+          kelurahan: kelurahan.trim(),
+          city: city.trim(),
+        });
+        try {
+          localStorage.setItem(`sipandu_profile_${role}`, cachePayload);
+          localStorage.setItem("sipandu_profile_override", cachePayload);
+          window.dispatchEvent(new Event("sipandu-profile-change"));
+        } catch {
+          // ignore
+        }
         setFeedback({ success: "Perubahan profil berhasil disimpan." });
         router.refresh();
       }

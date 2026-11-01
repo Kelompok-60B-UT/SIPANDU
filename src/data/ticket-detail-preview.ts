@@ -78,6 +78,7 @@ export interface TicketDetailPageData {
     roleLabel: string
     regionLabel: string
     unreadCount: number
+    avatarUrl?: string | null
   }
   ticket: TicketDetailView | null
   categories: CategoryOption[]
@@ -410,6 +411,18 @@ export async function getTicketDetailPageData(
   const unreadCount = unreadRes.success ? unreadRes.data.length : 0
 
   const viewerProfile = profileRes.data
+  const viewerAvatarUrl =
+    typeof user.user_metadata?.avatar_url === 'string' &&
+    user.user_metadata.avatar_url.trim()
+      ? user.user_metadata.avatar_url.trim()
+      : null
+  const viewerMetaName =
+    typeof user.user_metadata?.full_name === 'string' &&
+    user.user_metadata.full_name.trim()
+      ? user.user_metadata.full_name.trim()
+      : null
+  const viewerFullName =
+    viewerProfile?.full_name || viewerMetaName || user.email || 'Pengguna'
   const viewerRegion =
     regions.find((r) => r.id === viewerProfile?.region_id) ?? null
   const viewerRegionLabel = viewerRegion
@@ -439,11 +452,12 @@ export async function getTicketDetailPageData(
       isPreview: false,
       viewer: {
         userId: user.id,
-        fullName: viewerProfile?.full_name ?? user.email ?? 'Pengguna',
+        fullName: viewerFullName,
         role: viewerRole,
         roleLabel: roleLabelId(viewerRole),
         regionLabel: viewerRegionLabel,
         unreadCount,
+        avatarUrl: viewerAvatarUrl,
       },
       ticket: null,
       categories,
@@ -582,11 +596,12 @@ export async function getTicketDetailPageData(
     isPreview: false,
     viewer: {
       userId: user.id,
-      fullName: viewerProfile?.full_name ?? user.email ?? 'Pengguna',
+      fullName: viewerFullName,
       role: viewerRole,
       roleLabel: roleLabelId(viewerRole),
       regionLabel: viewerRegionLabel,
       unreadCount,
+      avatarUrl: viewerAvatarUrl,
     },
     ticket: {
       id: rawTicket.id,

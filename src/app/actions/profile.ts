@@ -90,6 +90,10 @@ export async function updateProfileAvatar(
 
     revalidatePath('/profile')
     revalidatePath('/dashboard/warga')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/', 'layout')
     return ok({ avatarUrl: null })
   }
 
@@ -142,6 +146,14 @@ export async function updateProfileAvatar(
           data: { publicUrl },
         } = admin.storage.from(AVATAR_BUCKET).getPublicUrl(newPath)
 
+        await admin.auth.admin.updateUserById(user.id, {
+          user_metadata: {
+            ...(user.user_metadata ?? {}),
+            avatar_url: publicUrl,
+            avatar_path: newPath,
+          },
+        })
+
         const { error: metaErr } = await supabase.auth.updateUser({
           data: { avatar_url: publicUrl, avatar_path: newPath },
         })
@@ -149,6 +161,10 @@ export async function updateProfileAvatar(
 
         revalidatePath('/profile')
         revalidatePath('/dashboard/warga')
+        revalidatePath('/dashboard/rt')
+        revalidatePath('/dashboard/rw')
+        revalidatePath('/dashboard/admin')
+        revalidatePath('/', 'layout')
         return ok({ avatarUrl: publicUrl })
       }
     } catch {
@@ -157,6 +173,19 @@ export async function updateProfileAvatar(
   }
 
   if (fallbackDataUrl) {
+    try {
+      const admin = createAdminClient()
+      await admin.auth.admin.updateUserById(user.id, {
+        user_metadata: {
+          ...(user.user_metadata ?? {}),
+          avatar_url: fallbackDataUrl,
+          avatar_path: null,
+        },
+      })
+    } catch {
+      // ignore if service role unavailable
+    }
+
     const { error: metaErr } = await supabase.auth.updateUser({
       data: { avatar_url: fallbackDataUrl, avatar_path: null },
     })
@@ -164,6 +193,10 @@ export async function updateProfileAvatar(
 
     revalidatePath('/profile')
     revalidatePath('/dashboard/warga')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/', 'layout')
     return ok({ avatarUrl: fallbackDataUrl })
   }
 
@@ -199,32 +232,62 @@ export async function updateProfile(
     regionRaw !== null && Number(regionRaw) > 0 ? Number(regionRaw) : undefined
   const kelurahan = String(formData.get('kelurahan') ?? '').trim() || undefined
   const city = String(formData.get('city') ?? '').trim() || undefined
+  const nowIso = new Date().toISOString()
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({
+  let updatedWithAdmin = false
+  try {
+    const admin = createAdminClient()
+    const upsertPayload: {
+      id: string
+      full_name: string
+      phone: string | null
+      address: string | null
+      updated_at: string
+      region_id?: number
+    } = {
+      id: user.id,
       full_name,
       phone: phone || null,
       address: address || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', user.id)
-
-  if (error) return err(supabaseErrorToMessage(error))
-
-  if (nextRegionId !== undefined) {
-    try {
-      const admin = createAdminClient()
-      await admin
-        .from('profiles')
-        .update({
-          region_id: nextRegionId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id)
-    } catch {
-      // Abaikan jika service role belum diset
+      updated_at: nowIso,
+      ...(nextRegionId !== undefined ? { region_id: nextRegionId } : {}),
     }
+
+    const { error: adminProfErr } = await admin
+      .from('profiles')
+      .upsert(upsertPayload, { onConflict: 'id' })
+
+    if (!adminProfErr) {
+      updatedWithAdmin = true
+    }
+
+    await admin.auth.admin.updateUserById(user.id, {
+      user_metadata: {
+        ...(user.user_metadata ?? {}),
+        full_name,
+        phone: phone || null,
+        address: address || null,
+        ...(nextRegionId !== undefined ? { region_id: nextRegionId } : {}),
+        ...(kelurahan ? { kelurahan } : {}),
+        ...(city ? { city } : {}),
+      },
+    })
+  } catch {
+    // Fallback ke client biasa bila service role belum tersedia
+  }
+
+  if (!updatedWithAdmin) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name,
+        phone: phone || null,
+        address: address || null,
+        updated_at: nowIso,
+      })
+      .eq('id', user.id)
+
+    if (error) return err(supabaseErrorToMessage(error))
   }
 
   await supabase.auth.updateUser({
@@ -240,7 +303,11 @@ export async function updateProfile(
 
   revalidatePath('/profile')
   revalidatePath('/dashboard/warga')
+  revalidatePath('/dashboard/rt')
+  revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/admin')
   revalidatePath('/tickets/new')
+  revalidatePath('/', 'layout')
   return okEmpty()
 }
 

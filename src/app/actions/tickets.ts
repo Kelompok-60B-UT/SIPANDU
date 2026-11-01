@@ -20,6 +20,7 @@ import {
   supabaseErrorToMessage,
   type ActionResult,
 } from '@/utils/action-result'
+import { getRoleFromJwt } from '@/utils/roles'
 import type { CategoryOption, PublicStats, RegionOption, Ticket } from '@/types'
 import type { TicketStatus } from '@/types/database.types'
 
@@ -305,6 +306,199 @@ export async function submitTicket(
   return okEmpty()
 }
 
+export async function adminUpdateTicketStatus(input: {
+  ticketId: number
+  status: TicketStatus
+  note?: string
+}): Promise<ActionResult<undefined>> {
+  const { ticketId, status } = input
+  const cleanNote = input.note?.trim() ?? ''
+
+  if (!isSupabaseConfigured()) return okEmpty()
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) return err('Sesi tidak ditemukan')
+
+  const role = getRoleFromJwt(user.app_metadata)
+  if (role !== 'admin') {
+    return err('Hanya Admin yang dapat mengubah status langsung')
+  }
+
+  try {
+    const admin = createAdminClient()
+    const { data: ticket, error: ticketErr } = await admin
+      .from('tickets')
+      .select('*')
+      .eq('id', ticketId)
+      .single()
+
+    if (ticketErr || !ticket) return err('Tiket tidak ditemukan')
+
+    if (status === 'selesai') {
+      const { count } = await admin
+        .from('ticket_attachments')
+        .select('*', { count: 'exact', head: true })
+        .eq('ticket_id', ticketId)
+        .eq('type', 'penyelesaian')
+
+      if ((count ?? 0) < 1) {
+        return err('Minimal satu foto bukti penyelesaian wajib diunggah')
+      }
+    }
+
+    if (status === 'ditolak' && cleanNote.length < 5) {
+      return err('Alasan penolakan wajib diisi minimal 5 karakter')
+    }
+
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const actorName =
+      profile?.full_name ||
+      (typeof user.user_metadata?.full_name === 'string'
+        ? user.user_metadata.full_name
+        : 'Admin SIPANDU')
+
+    const nowIso = new Date().toISOString()
+    const updatePayload: {
+      status: TicketStatus
+      updated_at: string
+      submitted_at?: string | null
+      verified_at?: string | null
+      processed_at?: string | null
+      completed_at?: string | null
+      rejected_at?: string | null
+      handler_rt_id?: string | null
+      handler_rw_id?: string | null
+      rejection_reason?: string | null
+    } = {
+      status,
+      updated_at: nowIso,
+    }
+    if (status === 'terkirim' && !ticket.submitted_at) {
+      updatePayload.submitted_at = nowIso
+    }
+    if (status === 'diverifikasi_rt') {
+      updatePayload.verified_at = nowIso
+      updatePayload.handler_rt_id = ticket.handler_rt_id ?? user.id
+    }
+    if (status === 'diproses_rw') {
+      updatePayload.processed_at = nowIso
+      updatePayload.handler_rw_id = ticket.handler_rw_id ?? user.id
+    }
+    if (status === 'selesai') {
+      updatePayload.completed_at = nowIso
+      updatePayload.handler_rw_id = ticket.handler_rw_id ?? user.id
+    }
+    if (status === 'ditolak') {
+      updatePayload.rejected_at = nowIso
+      updatePayload.rejection_reason = cleanNote
+    }
+
+    const { error: updateErr } = await admin
+      .from('tickets')
+      .update(updatePayload)
+      .eq('id', ticketId)
+    if (updateErr) return err(supabaseErrorToMessage(updateErr))
+
+    await admin.from('ticket_timeline').insert({
+      ticket_id: ticketId,
+      actor_id: user.id,
+      actor_name: actorName,
+      actor_role: 'admin',
+      from_status: ticket.status,
+      to_status: status,
+      note:
+        cleanNote ||
+        `Status tiket diperbarui oleh Admin menjadi ${status}.`,
+    })
+
+    if (ticket.user_id) {
+      await admin.from('notifications').insert({
+        user_id: ticket.user_id,
+        ticket_id: ticketId,
+        message: `Tiket #${ticket.ticket_number ?? ticketId} diperbarui oleh Admin menjadi ${status}.`,
+      })
+    }
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/warga')
+    revalidatePath(`/tickets/${ticketId}`)
+    return okEmpty()
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal memperbarui status tiket')
+  }
+}
+
+export async function deleteTicketByAdmin(
+  ticketId: number,
+): Promise<ActionResult<undefined>> {
+  if (!Number.isInteger(ticketId) || ticketId <= 0) {
+    return err('ID tiket tidak valid')
+  }
+
+  if (!isSupabaseConfigured()) return okEmpty()
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) return err('Sesi tidak ditemukan')
+
+  const role = getRoleFromJwt(user.app_metadata)
+  if (role !== 'admin') {
+    return err('Hanya Admin yang memiliki izin untuk menghapus tiket')
+  }
+
+  try {
+    const admin = createAdminClient()
+
+    const { data: attachments } = await admin
+      .from('ticket_attachments')
+      .select('storage_path')
+      .eq('ticket_id', ticketId)
+
+    const paths = (attachments ?? [])
+      .map((a) => a.storage_path)
+      .filter((p): p is string => Boolean(p))
+
+    if (paths.length > 0) {
+      await admin.storage.from('ticket-attachments').remove(paths)
+    }
+
+    await admin.from('notifications').delete().eq('ticket_id', ticketId)
+    await admin.from('ticket_timeline').delete().eq('ticket_id', ticketId)
+    await admin.from('ticket_attachments').delete().eq('ticket_id', ticketId)
+
+    const { error: delErr } = await admin
+      .from('tickets')
+      .delete()
+      .eq('id', ticketId)
+    if (delErr) return err(supabaseErrorToMessage(delErr))
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/warga')
+    revalidatePath(`/tickets/${ticketId}`)
+    return okEmpty()
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal menghapus tiket pengaduan')
+  }
+}
+
 export async function verifyTicket(
   ticketId: number,
   note?: string,
@@ -312,6 +506,19 @@ export async function verifyTicket(
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (getRoleFromJwt(user?.app_metadata) === 'admin') {
+    return adminUpdateTicketStatus({
+      ticketId,
+      status: 'diverifikasi_rt',
+      note:
+        note ||
+        'Laporan telah diverifikasi oleh Admin dan diteruskan ke RW untuk tindak lanjut.',
+    })
+  }
+
   const { error } = await supabase.rpc('verify_ticket', {
     p_ticket_id: ticketId,
   })
@@ -346,6 +553,17 @@ export async function rejectTicket(
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (getRoleFromJwt(user?.app_metadata) === 'admin') {
+    return adminUpdateTicketStatus({
+      ticketId: parsed.data.ticket_id,
+      status: 'ditolak',
+      note: parsed.data.reason,
+    })
+  }
+
   const { error } = await supabase.rpc('reject_ticket', {
     p_ticket_id: parsed.data.ticket_id,
     p_reason: parsed.data.reason,
@@ -366,6 +584,19 @@ export async function processTicket(
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (getRoleFromJwt(user?.app_metadata) === 'admin') {
+    return adminUpdateTicketStatus({
+      ticketId,
+      status: 'diproses_rw',
+      note:
+        note ||
+        'Laporan sedang ditindaklanjuti di lapangan melalui koordinasi Admin.',
+    })
+  }
+
   const { error } = await supabase.rpc('process_ticket', {
     p_ticket_id: ticketId,
   })
@@ -393,6 +624,19 @@ export async function completeTicket(
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (getRoleFromJwt(user?.app_metadata) === 'admin') {
+    return adminUpdateTicketStatus({
+      ticketId,
+      status: 'selesai',
+      note:
+        note ||
+        'Penanganan laporan telah selesai dilaksanakan.',
+    })
+  }
+
   const { error } = await supabase.rpc('complete_ticket', {
     p_ticket_id: ticketId,
   })

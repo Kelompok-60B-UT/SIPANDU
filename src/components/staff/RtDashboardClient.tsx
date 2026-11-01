@@ -325,6 +325,7 @@ export default function RtDashboardClient({
       fullName={initialData.fullName}
       subHeaderLabel={`${initialData.regionName} / RW ${initialData.rw}`}
       unreadCount={waitingTickets.length || initialData.unreadCount}
+      avatarUrl={initialData.avatarUrl}
     >
       <div id="ringkasan" className="scroll-mt-20 space-y-6">
         {/* Header Sapaan */}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Bell,
   ChevronDown,
@@ -28,6 +29,8 @@ type StaffShellProps = {
   fullName: string;
   subHeaderLabel: string;
   unreadCount?: number;
+  avatarUrl?: string | null;
+  activeMenu?: string;
   children: ReactNode;
 };
 
@@ -39,74 +42,107 @@ function getInitials(name: string): string {
 }
 
 const RT_MENUS = [
-  { key: "ringkasan", label: "Ringkasan", href: "#ringkasan", icon: LayoutGrid },
+  {
+    key: "ringkasan",
+    label: "Ringkasan",
+    href: "/dashboard/rt#ringkasan",
+    icon: LayoutGrid,
+  },
   {
     key: "verifikasi",
     label: "Verifikasi laporan",
-    href: "#antrean-verifikasi",
+    href: "/dashboard/rt#antrean-verifikasi",
     icon: ClipboardCheck,
   },
   {
     key: "riwayat",
     label: "Riwayat pengaduan",
-    href: "#antrean-verifikasi",
+    href: "/dashboard/rt#antrean-verifikasi",
     icon: History,
   },
   {
     key: "notifikasi",
     label: "Notifikasi",
-    href: "#batas-kewenangan",
+    href: "/dashboard/rt#batas-kewenangan",
     icon: Bell,
+  },
+  {
+    key: "profil",
+    label: "Profil saya",
+    href: "/profile",
+    icon: User,
   },
 ];
 
 const RW_MENUS = [
-  { key: "ringkasan", label: "Ringkasan", href: "#ringkasan", icon: LayoutGrid },
+  {
+    key: "ringkasan",
+    label: "Ringkasan",
+    href: "/dashboard/rw#ringkasan",
+    icon: LayoutGrid,
+  },
   {
     key: "tindak-lanjut",
     label: "Tindak lanjut",
-    href: "#perbarui-penanganan",
+    href: "/dashboard/rw#perbarui-penanganan",
     icon: Wrench,
   },
   {
     key: "seluruh",
     label: "Seluruh pengaduan",
-    href: "#antrean-tindak-lanjut",
+    href: "/dashboard/rw#antrean-tindak-lanjut",
     icon: ClipboardList,
   },
   {
     key: "notifikasi",
     label: "Notifikasi",
-    href: "#kabar-terbaru",
+    href: "/dashboard/rw#kabar-terbaru",
     icon: Bell,
+  },
+  {
+    key: "profil",
+    label: "Profil saya",
+    href: "/profile",
+    icon: User,
   },
 ];
 
 const ADMIN_MENUS = [
-  { key: "ringkasan", label: "Ringkasan", href: "#ringkasan", icon: LayoutGrid },
+  {
+    key: "ringkasan",
+    label: "Ringkasan",
+    href: "/dashboard/admin#ringkasan",
+    icon: LayoutGrid,
+  },
   {
     key: "seluruh",
     label: "Seluruh pengaduan",
-    href: "#pengaduan-lintas-wilayah",
+    href: "/dashboard/admin#pengaduan-lintas-wilayah",
     icon: ClipboardList,
   },
   {
     key: "akun",
     label: "Akun & hak akses",
-    href: "#akun-hak-akses",
+    href: "/dashboard/admin#akun-hak-akses",
     icon: Users,
   },
   {
     key: "kategori",
     label: "Kategori layanan",
-    href: "#kategori-layanan",
+    href: "/dashboard/admin#kategori-layanan",
     icon: Tag,
   },
   {
     key: "aktivitas",
     label: "Catatan aktivitas",
-    href: "#catatan-aktivitas",
+    href: "/dashboard/admin#catatan-aktivitas",
     icon: History,
+  },
+  {
+    key: "profil",
+    label: "Profil saya",
+    href: "/profile",
+    icon: User,
   },
 ];
 
@@ -115,11 +151,65 @@ export default function StaffShell({
   fullName,
   subHeaderLabel,
   unreadCount = 0,
+  avatarUrl,
+  activeMenu,
   children,
 }: StaffShellProps) {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [activeKey, setActiveKey] = useState("ringkasan");
+  const [activeKey, setActiveKey] = useState(
+    activeMenu ?? (pathname.startsWith("/profile") ? "profil" : "ringkasan"),
+  );
+  const [clientAvatar, setClientAvatar] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("sipandu_last_role", role);
+    } catch {
+      // ignore
+    }
+  }, [role]);
+
+  useEffect(() => {
+    const syncProfileAndAvatar = () => {
+      try {
+        setClientAvatar(localStorage.getItem("sipandu_avatar_url"));
+        const rawOverride = localStorage.getItem(
+          `sipandu_profile_${role}`,
+        ) || localStorage.getItem("sipandu_profile_override");
+        if (rawOverride) {
+          const parsed = JSON.parse(rawOverride) as {
+            fullName?: string;
+            role?: string;
+          };
+          if (
+            parsed.fullName &&
+            (!parsed.role || parsed.role === role)
+          ) {
+            setClientName(parsed.fullName);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    syncProfileAndAvatar();
+    window.addEventListener("sipandu-avatar-change", syncProfileAndAvatar);
+    window.addEventListener("sipandu-profile-change", syncProfileAndAvatar);
+    return () => {
+      window.removeEventListener("sipandu-avatar-change", syncProfileAndAvatar);
+      window.removeEventListener("sipandu-profile-change", syncProfileAndAvatar);
+    };
+  }, [role]);
+
+  const resolvedActiveKey = pathname.startsWith("/profile")
+    ? "profil"
+    : activeMenu ?? activeKey;
+
+  const displayName = clientName || fullName;
+  const displayAvatar = avatarUrl || clientAvatar;
 
   const roleLabel =
     role === "admin"
@@ -151,12 +241,12 @@ export default function StaffShell({
 
   const bellHref =
     role === "admin"
-      ? "#catatan-aktivitas"
+      ? "/dashboard/admin#catatan-aktivitas"
       : role === "ketua_rw"
-        ? "#kabar-terbaru"
-        : "#antrean-verifikasi";
+        ? "/dashboard/rw#kabar-terbaru"
+        : "/dashboard/rt#antrean-verifikasi";
 
-  const initials = getInitials(fullName);
+  const initials = getInitials(displayName);
 
   const sidebarContent = (
     <div className="flex h-full flex-col justify-between py-5">
@@ -194,9 +284,9 @@ export default function StaffShell({
         <nav className="space-y-1 px-3">
           {menus.map((item) => {
             const Icon = item.icon;
-            const isActive = activeKey === item.key;
+            const isActive = resolvedActiveKey === item.key;
             return (
-              <a
+              <Link
                 key={item.key}
                 href={item.href}
                 onClick={() => {
@@ -211,7 +301,7 @@ export default function StaffShell({
               >
                 <Icon size={16} className="shrink-0" />
                 <span>{item.label}</span>
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -287,7 +377,7 @@ export default function StaffShell({
           </div>
 
           <div className="flex items-center gap-3">
-            <a
+            <Link
               href={bellHref}
               aria-label="Notifikasi"
               className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-surface text-ink transition-colors hover:bg-slate-200/70"
@@ -296,7 +386,7 @@ export default function StaffShell({
               {unreadCount > 0 && (
                 <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" />
               )}
-            </a>
+            </Link>
 
             <div className="relative">
               <button
@@ -304,12 +394,21 @@ export default function StaffShell({
                 onClick={() => setUserMenuOpen((prev) => !prev)}
                 className="flex cursor-pointer items-center gap-2.5 rounded-xl px-1.5 py-1 transition-colors hover:bg-surface"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-primary">
-                  {initials}
-                </span>
+                {displayAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={displayAvatar}
+                    alt={displayName}
+                    className="h-9 w-9 shrink-0 rounded-full border border-border object-cover"
+                  />
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-primary">
+                    {initials}
+                  </span>
+                )}
                 <span className="hidden text-left leading-tight sm:block">
                   <span className="block text-xs font-semibold text-ink">
-                    {fullName}
+                    {displayName}
                   </span>
                   <span className="block text-[11px] text-muted">
                     {roleLabel}
@@ -325,6 +424,20 @@ export default function StaffShell({
                     onClick={() => setUserMenuOpen(false)}
                   />
                   <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-border bg-white p-1.5 shadow-lg">
+                    <Link
+                      href={
+                        role === "admin"
+                          ? "/dashboard/admin"
+                          : role === "ketua_rw"
+                            ? "/dashboard/rw"
+                            : "/dashboard/rt"
+                      }
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-ink hover:bg-surface"
+                    >
+                      <LayoutGrid size={14} className="text-muted" />
+                      Ringkasan
+                    </Link>
                     <Link
                       href="/profile"
                       onClick={() => setUserMenuOpen(false)}
