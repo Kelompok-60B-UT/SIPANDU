@@ -1,0 +1,23 @@
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import RwDashboardClient from "@/components/staff/RwDashboardClient";
+import { getStaffDashboardData, PREVIEW_RW_DATA } from "@/data/staff-preview";
+
+export const metadata: Metadata = {
+  title: "Ruang Layanan Ketua RW — SIPANDU RW 06 Parakansaat",
+  description:
+    "Koordinasi tindak lanjut dan penyelesaian pengaduan warga RW 06 Parakansaat.",
+};
+
+async function LiveRwDashboard() {
+  const data = await getStaffDashboardData("ketua_rw");
+  return <RwDashboardClient initialData={data} />;
+}
+
+export default function RwDashboardPage() {
+  return (
+    <Suspense fallback={<RwDashboardClient initialData={PREVIEW_RW_DATA} />}>
+      <LiveRwDashboard />
+    </Suspense>
+  );
+}

@@ -74,10 +74,14 @@ export async function getTicketById(ticketId: number) {
       categories (id, name),
       regions (id, name, rw),
       ticket_attachments (*),
-      ticket_timeline (* order by created_at asc)
+      ticket_timeline (*)
     `,
     )
     .eq('id', ticketId)
+    .order('created_at', {
+      referencedTable: 'ticket_timeline',
+      ascending: true,
+    })
     .single()
 
   if (error) return null
