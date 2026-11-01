@@ -7,6 +7,7 @@ import {
   createClient,
   isSupabaseConfigured,
 } from '@/utils/supabase/server'
+import { CreateStaffSchema, SaveCategorySchema } from '@/utils/validation'
 import {
   err,
   ok,
@@ -15,8 +16,6 @@ import {
   type ActionResult,
 } from '@/utils/action-result'
 import type { UserRole } from '@/types/database.types'
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 async function requireAdmin(): Promise<string | null> {
   const supabase = await createClient()
@@ -34,28 +33,26 @@ async function requireAdmin(): Promise<string | null> {
 
 export async function createStaff(
   formData: FormData,
-): Promise<ActionResult<{ id: string }>> {
-  const email = String(formData.get('email') ?? '').trim()
-  const full_name = String(formData.get('full_name') ?? '').trim()
-  const password = String(formData.get('password') ?? '')
-  const role = String(formData.get('role') ?? 'ketua_rt') as UserRole
+): Promise<ActionResult<{ id: string; user_id: string }>> {
   const regionRaw = formData.get('region_id')
-  const region_id = regionRaw ? Number(regionRaw) : null
+  const parsed = CreateStaffSchema.safeParse({
+    email: String(formData.get('email') ?? '').trim(),
+    full_name: String(formData.get('full_name') ?? '').trim(),
+    password: String(formData.get('password') ?? ''),
+    role: formData.get('role') ?? 'ketua_rt',
+    region_id: regionRaw ? Number(regionRaw) : undefined,
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
+  }
+
+  const { email, full_name, password, role, region_id } = parsed.data
   const phone = String(formData.get('phone') ?? '').trim() || null
   const address = String(formData.get('address') ?? '').trim() || null
 
-  if (full_name.length < 2) {
-    return err('Nama lengkap minimal 2 karakter')
-  }
-  if (!EMAIL_REGEX.test(email)) {
-    return err('Format email tidak valid')
-  }
-  if (password.length < 8) {
-    return err('Kata sandi minimal 8 karakter')
-  }
-
   if (!isSupabaseConfigured()) {
-    return ok({ id: `preview-${Date.now()}` })
+    const previewId = `preview-${Date.now()}`
+    return ok({ id: previewId, user_id: previewId })
   }
 
   const adminId = await requireAdmin()
@@ -83,7 +80,7 @@ export async function createStaff(
     .eq('id', data.user.id)
 
   revalidatePath('/dashboard/admin')
-  return ok({ id: data.user.id })
+  return ok({ id: data.user.id, user_id: data.user.id })
 }
 
 export async function setStaffActive(
@@ -122,13 +119,16 @@ export async function saveCategory(
   formData: FormData,
 ): Promise<ActionResult<{ id: number }>> {
   const idRaw = formData.get('id')
-  const id = idRaw ? Number(idRaw) : undefined
-  const name = String(formData.get('name') ?? '').trim()
-  const description = String(formData.get('description') ?? '').trim() || null
-
-  if (name.length < 2) {
-    return err('Nama kategori minimal 2 karakter')
+  const parsed = SaveCategorySchema.safeParse({
+    id: idRaw ? Number(idRaw) : undefined,
+    name: String(formData.get('name') ?? '').trim(),
+    description: String(formData.get('description') ?? '').trim() || undefined,
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
   }
+
+  const { id, name, description } = parsed.data
 
   if (!isSupabaseConfigured()) {
     return ok({ id: id ?? Date.now() })
@@ -138,11 +138,12 @@ export async function saveCategory(
   if (!adminId) return err('Anda tidak memiliki izin')
 
   const supabase = await createClient()
+  const payload = { name, description: description || null }
 
   if (id) {
     const { error } = await supabase
       .from('categories')
-      .update({ name, description })
+      .update(payload)
       .eq('id', id)
     if (error) return err(supabaseErrorToMessage(error))
     revalidatePath('/dashboard/admin')
@@ -151,7 +152,7 @@ export async function saveCategory(
 
   const { data, error } = await supabase
     .from('categories')
-    .insert({ name, description })
+    .insert(payload)
     .select('id')
     .single()
   if (error) return err(supabaseErrorToMessage(error))
@@ -182,11 +183,13 @@ export async function setCategoryActive(
 
 export async function verifyResident(
   userId: string,
-  isVerified = true,
+  param: boolean | number = true,
 ): Promise<ActionResult<undefined>> {
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
+  const isVerified = typeof param === 'boolean' ? param : true
+
   const { error } = await supabase.rpc('verify_resident', {
     p_user_id: userId,
     p_is_verified: isVerified,

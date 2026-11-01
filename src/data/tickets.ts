@@ -1,3 +1,5 @@
+import 'server-only'
+
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import type { Ticket, TicketStatus } from '@/types/database.types'
 

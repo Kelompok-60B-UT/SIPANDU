@@ -50,7 +50,10 @@ export function supabaseErrorToMessage(
     return 'Akses ditolak'
   }
   if (msg.includes('Tiket tidak ditemukan')) return 'Tiket tidak ditemukan'
-  if (msg.includes('Alasan penolakan wajib')) return 'Alasan penolakan wajib diisi'
+  if (msg.includes('Akses ditolak')) return 'Akses ditolak'
+  if (msg.includes('Alasan penolakan wajib')) {
+    return 'Alasan penolakan wajib diisi'
+  }
   if (msg.includes('Minimal satu foto')) {
     return 'Minimal satu foto bukti penyelesaian wajib diunggah'
   }

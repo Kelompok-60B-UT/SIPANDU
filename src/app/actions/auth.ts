@@ -2,26 +2,49 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { z } from 'zod'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { getRoleFromJwt, homePathForRole } from '@/utils/roles'
 import { supabaseErrorToMessage } from '@/utils/action-result'
+
+const LoginSchema = z.object({
+  email: z.string().email({ message: 'Format email tidak valid' }),
+  password: z.string().min(1, { message: 'Kata sandi wajib diisi' }),
+})
+
+const SignupSchema = z.object({
+  email: z.string().email({ message: 'Format email tidak valid' }),
+  password: z.string().min(8, { message: 'Kata sandi minimal 8 karakter' }),
+  full_name: z.string().min(2, { message: 'Nama lengkap minimal 2 karakter' }),
+  phone: z
+    .string()
+    .min(9, { message: 'Nomor WhatsApp tidak valid' })
+    .optional()
+    .or(z.literal('')),
+  address: z
+    .string()
+    .min(5, { message: 'Alamat tempat tinggal terlalu pendek' })
+    .optional()
+    .or(z.literal('')),
+  region_id: z.coerce
+    .number()
+    .int()
+    .positive({ message: 'Silakan pilih RT tempat tinggal Anda' }),
+})
 
 export type AuthResponse = {
   success?: string
   error?: string
 }
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
 export async function login(formData: FormData): Promise<AuthResponse | never> {
-  const email = String(formData.get('email') ?? '').trim()
-  const password = String(formData.get('password') ?? '')
+  const parsed = LoginSchema.safeParse({
+    email: String(formData.get('email') ?? '').trim(),
+    password: String(formData.get('password') ?? ''),
+  })
 
-  if (!EMAIL_REGEX.test(email)) {
-    return { error: 'Format email tidak valid' }
-  }
-  if (!password) {
-    return { error: 'Kata sandi wajib diisi' }
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }
   }
 
   if (!isSupabaseConfigured()) {
@@ -32,10 +55,7 @@ export async function login(formData: FormData): Promise<AuthResponse | never> {
   }
 
   const supabase = await createClient()
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
+  const { data, error } = await supabase.auth.signInWithPassword(parsed.data)
 
   if (error) {
     return { error: supabaseErrorToMessage(error) }
@@ -48,30 +68,17 @@ export async function login(formData: FormData): Promise<AuthResponse | never> {
 }
 
 export async function signup(formData: FormData): Promise<AuthResponse> {
-  const full_name = String(formData.get('full_name') ?? '').trim()
-  const phone = String(formData.get('phone') ?? '').trim()
-  const email = String(formData.get('email') ?? '').trim()
-  const address = String(formData.get('address') ?? '').trim()
-  const region_id = Number(formData.get('region_id'))
-  const password = String(formData.get('password') ?? '')
+  const parsed = SignupSchema.safeParse({
+    email: String(formData.get('email') ?? '').trim(),
+    password: String(formData.get('password') ?? ''),
+    full_name: String(formData.get('full_name') ?? '').trim(),
+    phone: String(formData.get('phone') ?? '').trim(),
+    address: String(formData.get('address') ?? '').trim(),
+    region_id: formData.get('region_id'),
+  })
 
-  if (full_name.length < 2) {
-    return { error: 'Nama lengkap minimal 2 karakter' }
-  }
-  if (phone && phone.replace(/\D/g, '').length < 9) {
-    return { error: 'Nomor WhatsApp tidak valid' }
-  }
-  if (!EMAIL_REGEX.test(email)) {
-    return { error: 'Format email tidak valid' }
-  }
-  if (address && address.length < 5) {
-    return { error: 'Alamat tempat tinggal terlalu pendek' }
-  }
-  if (!Number.isInteger(region_id) || region_id <= 0) {
-    return { error: 'Silakan pilih RT tempat tinggal Anda' }
-  }
-  if (password.length < 8) {
-    return { error: 'Kata sandi minimal 8 karakter' }
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }
   }
 
   if (!isSupabaseConfigured()) {
@@ -81,7 +88,9 @@ export async function signup(formData: FormData): Promise<AuthResponse> {
     }
   }
 
+  const { email, password, full_name, phone, address, region_id } = parsed.data
   const supabase = await createClient()
+
   const { error } = await supabase.auth.signUp({
     email,
     password,

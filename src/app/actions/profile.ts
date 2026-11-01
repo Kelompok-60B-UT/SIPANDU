@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
+import { UpdateProfileSchema, ChangePasswordSchema } from '@/utils/validation'
 import {
   err,
   ok,
@@ -36,18 +37,13 @@ export async function getProfile(): Promise<ActionResult<Profile>> {
 export async function updateProfile(
   formData: FormData,
 ): Promise<ActionResult<undefined>> {
-  const full_name = String(formData.get('full_name') ?? '').trim()
-  const phone = String(formData.get('phone') ?? '').trim()
-  const address = String(formData.get('address') ?? '').trim()
-
-  if (full_name.length < 2) {
-    return err('Nama lengkap minimal 2 karakter')
-  }
-  if (phone && phone.replace(/\D/g, '').length < 9) {
-    return err('Nomor telepon tidak valid')
-  }
-  if (address && address.length < 5) {
-    return err('Alamat lengkap terlalu pendek')
+  const parsed = UpdateProfileSchema.safeParse({
+    full_name: String(formData.get('full_name') ?? '').trim(),
+    phone: String(formData.get('phone') ?? '').trim(),
+    address: String(formData.get('address') ?? '').trim(),
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
   }
 
   if (!isSupabaseConfigured()) {
@@ -61,6 +57,7 @@ export async function updateProfile(
   } = await supabase.auth.getUser()
   if (authError || !user) return err('Sesi tidak ditemukan')
 
+  const { full_name, phone, address } = parsed.data
   const { error } = await supabase
     .from('profiles')
     .update({
@@ -84,13 +81,16 @@ export async function changePassword(
   const newPassword = String(
     formData.get('new_password') ?? formData.get('password') ?? '',
   )
-  const confirmPassword = formData.get('confirm_password')
+  const confirmRaw = formData.get('confirm_password')
+  const confirmPassword =
+    confirmRaw !== null ? String(confirmRaw) : newPassword
 
-  if (newPassword.length < 8) {
-    return err('Kata sandi baru minimal 8 karakter')
-  }
-  if (confirmPassword !== null && String(confirmPassword) !== newPassword) {
-    return err('Konfirmasi kata sandi tidak cocok')
+  const parsed = ChangePasswordSchema.safeParse({
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
   }
 
   if (!isSupabaseConfigured()) {
@@ -99,7 +99,7 @@ export async function changePassword(
 
   const supabase = await createClient()
   const { error } = await supabase.auth.updateUser({
-    password: newPassword,
+    password: parsed.data.new_password,
   })
 
   if (error) return err(supabaseErrorToMessage(error))

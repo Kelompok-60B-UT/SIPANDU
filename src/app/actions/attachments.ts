@@ -80,7 +80,7 @@ export async function deleteAttachment(
 
   const { data: attachment, error: fetchError } = await supabase
     .from('ticket_attachments')
-    .select('id, ticket_id, storage_path')
+    .select('id, ticket_id, storage_path, type')
     .eq('id', attachmentId)
     .single()
 

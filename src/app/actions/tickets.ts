@@ -4,13 +4,19 @@ import { revalidatePath } from 'next/cache'
 import { unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import {
+  CreateDraftSchema,
+  UpdateDraftSchema,
+  RejectTicketSchema,
+  RateTicketSchema,
+} from '@/utils/validation'
+import {
   err,
   ok,
   okEmpty,
   supabaseErrorToMessage,
   type ActionResult,
 } from '@/utils/action-result'
-import type { CategoryOption, PublicStats, RegionOption } from '@/types'
+import type { CategoryOption, PublicStats, RegionOption, Ticket } from '@/types'
 
 const FALLBACK_REGIONS: RegionOption[] = [
   { id: 1, name: 'RT 01', rw: '06' },
@@ -126,25 +132,15 @@ export async function getPublicStats(): Promise<ActionResult<PublicStats>> {
 export async function createDraft(
   formData: FormData,
 ): Promise<ActionResult<{ id: number }>> {
-  const title = String(formData.get('title') ?? '').trim()
-  const description = String(formData.get('description') ?? '').trim()
-  const category_id = Number(formData.get('category_id'))
-  const region_id = Number(formData.get('region_id'))
-  const location_landmark = String(
-    formData.get('location_landmark') ?? '',
-  ).trim()
-
-  if (title.length < 5 || title.length > 100) {
-    return err('Judul pengaduan harus antara 5 hingga 100 karakter')
-  }
-  if (description.length < 10 || description.length > 1000) {
-    return err('Detail keluhan harus antara 10 hingga 1000 karakter')
-  }
-  if (!Number.isInteger(category_id) || category_id <= 0) {
-    return err('Kategori wajib dipilih')
-  }
-  if (!Number.isInteger(region_id) || region_id <= 0) {
-    return err('RT lokasi kejadian wajib dipilih')
+  const parsed = CreateDraftSchema.safeParse({
+    title: String(formData.get('title') ?? '').trim(),
+    description: String(formData.get('description') ?? '').trim(),
+    category_id: formData.get('category_id'),
+    region_id: formData.get('region_id'),
+    location_landmark: String(formData.get('location_landmark') ?? '').trim(),
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
   }
 
   if (!isSupabaseConfigured()) {
@@ -157,6 +153,9 @@ export async function createDraft(
     error: authError,
   } = await supabase.auth.getUser()
   if (authError || !user) return err('Anda harus masuk untuk membuat pengaduan')
+
+  const { title, description, category_id, region_id, location_landmark } =
+    parsed.data
 
   const { data, error } = await supabase
     .from('tickets')
@@ -181,13 +180,22 @@ export async function updateDraft(
   ticketId: number,
   formData: FormData,
 ): Promise<ActionResult<undefined>> {
-  const title = String(formData.get('title') ?? '').trim()
-  const description = String(formData.get('description') ?? '').trim()
-  const category_id = Number(formData.get('category_id'))
-  const region_id = Number(formData.get('region_id'))
-  const location_landmark = String(
-    formData.get('location_landmark') ?? '',
-  ).trim()
+  const titleRaw = String(formData.get('title') ?? '').trim()
+  const descRaw = String(formData.get('description') ?? '').trim()
+  const catRaw = formData.get('category_id')
+  const regRaw = formData.get('region_id')
+  const landmarkRaw = String(formData.get('location_landmark') ?? '').trim()
+
+  const parsed = UpdateDraftSchema.safeParse({
+    ...(titleRaw ? { title: titleRaw } : {}),
+    ...(descRaw ? { description: descRaw } : {}),
+    ...(catRaw ? { category_id: catRaw } : {}),
+    ...(regRaw ? { region_id: regRaw } : {}),
+    location_landmark: landmarkRaw,
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
+  }
 
   if (!isSupabaseConfigured()) return okEmpty()
 
@@ -198,13 +206,11 @@ export async function updateDraft(
   } = await supabase.auth.getUser()
   if (authError || !user) return err('Sesi tidak ditemukan')
 
+  const { location_landmark, ...rest } = parsed.data
   const { error } = await supabase
     .from('tickets')
     .update({
-      ...(title ? { title } : {}),
-      ...(description ? { description } : {}),
-      ...(category_id > 0 ? { category_id } : {}),
-      ...(region_id > 0 ? { region_id } : {}),
+      ...rest,
       location_landmark: location_landmark || null,
       updated_at: new Date().toISOString(),
     })
@@ -247,6 +253,12 @@ export async function submitTicket(
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) return err('Sesi tidak ditemukan')
+
   const { error } = await supabase.rpc('submit_ticket', {
     p_ticket_id: ticketId,
   })
@@ -277,27 +289,25 @@ export async function verifyTicket(
 export async function rejectTicket(
   formData: FormData,
 ): Promise<ActionResult<undefined>> {
-  const ticketId = Number(formData.get('ticket_id'))
-  const reason = String(formData.get('reason') ?? '').trim()
-
-  if (!Number.isInteger(ticketId) || ticketId <= 0) {
-    return err('ID tiket tidak valid')
-  }
-  if (reason.length < 5 || reason.length > 500) {
-    return err('Alasan penolakan wajib diisi (minimal 5 karakter)')
+  const parsed = RejectTicketSchema.safeParse({
+    ticket_id: formData.get('ticket_id'),
+    reason: String(formData.get('reason') ?? '').trim(),
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
   }
 
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('reject_ticket', {
-    p_ticket_id: ticketId,
-    p_reason: reason,
+    p_ticket_id: parsed.data.ticket_id,
+    p_reason: parsed.data.reason,
   })
   if (error) return err(supabaseErrorToMessage(error))
 
   revalidatePath('/dashboard/rt')
-  revalidatePath(`/tickets/${ticketId}`)
+  revalidatePath(`/tickets/${parsed.data.ticket_id}`)
   return okEmpty()
 }
 
@@ -337,29 +347,123 @@ export async function completeTicket(
 export async function rateTicket(
   formData: FormData,
 ): Promise<ActionResult<undefined>> {
-  const ticketId = Number(formData.get('ticket_id'))
-  const rating = Number(formData.get('rating'))
-  const comment = String(
+  const commentRaw = String(
     formData.get('rating_comment') ?? formData.get('comment') ?? '',
   ).trim()
 
-  if (!Number.isInteger(ticketId) || ticketId <= 0) {
-    return err('ID tiket tidak valid')
-  }
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return err('Penilaian harus berupa angka 1 sampai 5')
+  const parsed = RateTicketSchema.safeParse({
+    ticket_id: formData.get('ticket_id'),
+    rating: formData.get('rating'),
+    comment: commentRaw,
+  })
+  if (!parsed.success) {
+    return err(parsed.error.issues[0]?.message ?? 'Data tidak valid')
   }
 
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('rate_ticket', {
-    p_ticket_id: ticketId,
-    p_rating: rating,
-    p_comment: comment || undefined,
+    p_ticket_id: parsed.data.ticket_id,
+    p_rating: parsed.data.rating,
+    p_comment: parsed.data.comment || undefined,
   })
   if (error) return err(supabaseErrorToMessage(error))
 
-  revalidatePath(`/tickets/${ticketId}`)
+  revalidatePath(`/tickets/${parsed.data.ticket_id}`)
   return okEmpty()
+}
+
+export type ListTicketsOptions = {
+  status?: string
+  page?: number
+  perPage?: number
+}
+
+export async function listTickets(
+  options: ListTicketsOptions = {},
+): Promise<ActionResult<Ticket[]>> {
+  if (!isSupabaseConfigured()) {
+    return ok([])
+  }
+
+  const { status, page = 1, perPage = 20 } = options
+  const from = (page - 1) * perPage
+  const to = from + perPage - 1
+
+  const supabase = await createClient()
+  let query = supabase
+    .from('tickets')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  if (status) {
+    query = query.eq('status', status as Ticket['status'])
+  }
+
+  const { data, error } = await query
+  if (error) return err(supabaseErrorToMessage(error))
+  return ok(data)
+}
+
+export async function getTicketDetail(ticketId: number): Promise<
+  ActionResult<
+    Ticket & {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ticket_attachments: any[]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ticket_timeline: any[]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      categories: any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      regions: any
+    }
+  >
+> {
+  if (!isSupabaseConfigured()) {
+    return err('Supabase belum dikonfigurasi')
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('tickets')
+    .select(
+      `
+      *,
+      ticket_attachments(*),
+      ticket_timeline(*),
+      categories(id, name),
+      regions(id, name, rw)
+    `,
+    )
+    .eq('id', ticketId)
+    .order('created_at', {
+      referencedTable: 'ticket_timeline',
+      ascending: true,
+    })
+    .single()
+
+  if (error) return err(supabaseErrorToMessage(error))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ok(data as any)
+}
+
+export async function getStatusCounts(): Promise<
+  ActionResult<Record<string, number>>
+> {
+  if (!isSupabaseConfigured()) {
+    return ok({})
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('tickets').select('status')
+
+  if (error) return err(supabaseErrorToMessage(error))
+
+  const counts: Record<string, number> = {}
+  for (const row of data) {
+    counts[row.status] = (counts[row.status] ?? 0) + 1
+  }
+  return ok(counts)
 }

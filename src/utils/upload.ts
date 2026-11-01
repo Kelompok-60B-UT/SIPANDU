@@ -1,7 +1,7 @@
+import { MAX_FILE_SIZE_BYTES, ALLOWED_MIME_TYPES } from '@/utils/validation'
 import type { AttachmentType } from '@/types/database.types'
 
-export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
-export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'] as const
+export { MAX_FILE_SIZE_BYTES, ALLOWED_MIME_TYPES }
 
 export function generateStoragePath(
   ticketId: number,
@@ -9,7 +9,8 @@ export function generateStoragePath(
   fileName: string,
 ): string {
   const sanitized = fileName.toLowerCase().replace(/[^a-z0-9._-]/g, '_')
-  return `${type}/${ticketId}/${Date.now()}_${sanitized}`
+  const timestamp = Date.now()
+  return `${type}/${ticketId}/${timestamp}_${sanitized}`
 }
 
 export function validateAttachment(file: { size: number; type: string }): {
