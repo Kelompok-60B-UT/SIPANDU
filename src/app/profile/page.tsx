@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import WargaShell from "@/components/warga/WargaShell";
 import ProfileForm from "@/components/warga/ProfileForm";
@@ -72,6 +73,8 @@ async function LiveProfilePage() {
       />
     );
   }
+
+  await connection();
 
   const [userCtx, optionsRes, unreadRes] = await Promise.all([
     getWargaUserContext(),

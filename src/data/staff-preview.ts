@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import type { TicketStatus } from '@/types/database.types'
 import type { DashboardStats } from '@/data/tickets'
@@ -511,7 +512,8 @@ export async function getStaffDashboardData(
       stats,
       tickets: mappedTickets,
     }
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
     return fallback
   }
 }

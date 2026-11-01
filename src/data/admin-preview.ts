@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { listUsers } from '@/app/actions/admin'
 import type { TicketStatus, UserRole } from '@/types/database.types'
@@ -429,7 +430,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       categories,
       activities,
     }
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
     return PREVIEW_ADMIN_DATA
   }
 }

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { connection } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import { ArrowUpRight, LayoutDashboard, LogOut } from "lucide-react";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/server";
 import { signOut } from "@/app/actions/auth";
@@ -8,11 +10,13 @@ export default async function AuthButtons() {
   let user = null;
 
   if (isSupabaseConfigured()) {
+    await connection();
     try {
       const supabase = await createClient();
       const { data } = await supabase.auth.getUser();
       user = data.user;
-    } catch {
+    } catch (error) {
+      unstable_rethrow(error);
       // Abaikan jika sesi belum tersedia
     }
   }

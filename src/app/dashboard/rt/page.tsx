@@ -1,7 +1,9 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import RtDashboardClient from "@/components/staff/RtDashboardClient";
 import { getStaffDashboardData, PREVIEW_RT_DATA } from "@/data/staff-preview";
+import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
   title: "Ruang Layanan Ketua RT — SIPANDU RW 06 Parakansaat",
@@ -10,6 +12,9 @@ export const metadata: Metadata = {
 };
 
 async function LiveRtDashboard() {
+  if (isSupabaseConfigured()) {
+    await connection();
+  }
   const data = await getStaffDashboardData("ketua_rt");
   return <RtDashboardClient initialData={data} />;
 }

@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -244,13 +246,21 @@ async function LiveWargaDashboard() {
     );
   }
 
+  await connection();
+
   const [userCtx, stats, ticketsRes, notifRes] = await Promise.all([
     getWargaUserContext(),
-    getDashboardStats().catch(() => PREVIEW_STATS),
-    getTickets({ limit: 50 }).catch(() => ({
-      tickets: PREVIEW_TICKETS,
-      total: PREVIEW_TICKETS.length,
-    })),
+    getDashboardStats().catch((err) => {
+      unstable_rethrow(err);
+      return PREVIEW_STATS;
+    }),
+    getTickets({ limit: 50 }).catch((err) => {
+      unstable_rethrow(err);
+      return {
+        tickets: PREVIEW_TICKETS,
+        total: PREVIEW_TICKETS.length,
+      };
+    }),
     listNotifications(),
   ]);
 

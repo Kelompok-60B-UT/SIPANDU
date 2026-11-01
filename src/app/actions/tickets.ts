@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import {
   err,
@@ -95,7 +96,8 @@ export async function getFormOptions(): Promise<
           ? categoriesRes.data
           : FALLBACK_CATEGORIES,
     })
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
     return ok({
       regions: FALLBACK_REGIONS,
       categories: FALLBACK_CATEGORIES,
@@ -115,7 +117,8 @@ export async function getPublicStats(): Promise<ActionResult<PublicStats>> {
       return err(supabaseErrorToMessage(error))
     }
     return ok(data as unknown as PublicStats)
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
     return err('Gagal memuat statistik publik')
   }
 }

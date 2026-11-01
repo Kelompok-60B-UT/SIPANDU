@@ -1,10 +1,12 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import AdminDashboardClient from "@/components/admin/AdminDashboardClient";
 import {
   getAdminDashboardData,
   PREVIEW_ADMIN_DATA,
 } from "@/data/admin-preview";
+import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
   title: "Ruang Layanan Admin — SIPANDU RW 06 Parakansaat",
@@ -13,6 +15,9 @@ export const metadata: Metadata = {
 };
 
 async function LiveAdminDashboard() {
+  if (isSupabaseConfigured()) {
+    await connection();
+  }
   const data = await getAdminDashboardData();
   return <AdminDashboardClient initialData={data} />;
 }

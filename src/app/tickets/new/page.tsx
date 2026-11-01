@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import WargaShell from "@/components/warga/WargaShell";
 import CreateTicketForm from "@/components/warga/CreateTicketForm";
@@ -71,6 +72,8 @@ async function LiveCreateTicketPage() {
       />
     );
   }
+
+  await connection();
 
   const [userCtx, optionsRes, unreadRes] = await Promise.all([
     getWargaUserContext(),

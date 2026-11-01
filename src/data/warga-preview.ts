@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { getRoleFromJwt } from '@/utils/roles'
 import type { Notification, Profile, UserRole } from '@/types/database.types'
@@ -254,7 +255,8 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
       profile,
       region,
     }
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
     return PREVIEW_USER
   }
 }

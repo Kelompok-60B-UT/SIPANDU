@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { unstable_rethrow } from 'next/navigation'
 import {
   createAdminClient,
   createClient,
@@ -257,7 +258,8 @@ export async function listUsers(
       .filter((u) => !role || u.role === role)
 
     return ok(users)
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
     return err('Service role key belum dikonfigurasi untuk daftar akun')
   }
 }

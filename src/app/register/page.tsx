@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import AuthShell from "@/components/auth/AuthShell";
 import RegisterForm from "@/components/auth/RegisterForm";
 import { getFormOptions } from "@/app/actions/tickets";
+import { isSupabaseConfigured } from "@/utils/supabase/server";
 import type { RegionOption } from "@/types";
 
 export const metadata: Metadata = {
@@ -23,6 +25,9 @@ const DEFAULT_REGIONS: RegionOption[] = [
 ];
 
 async function RegisterContent() {
+  if (isSupabaseConfigured()) {
+    await connection();
+  }
   const res = await getFormOptions();
   const regions = res.success ? res.data.regions : DEFAULT_REGIONS;
   return <RegisterForm regions={regions} />;

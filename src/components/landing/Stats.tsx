@@ -1,5 +1,7 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getPublicStats } from "@/app/actions/tickets";
+import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 const FALLBACK_ITEMS = [
   { value: "128", label: "Laporan terkirim" },
@@ -25,6 +27,9 @@ function StatsGrid({ items }: { items: Array<{ value: string; label: string }> }
 }
 
 async function LiveStats() {
+  if (isSupabaseConfigured()) {
+    await connection();
+  }
   const res = await getPublicStats();
   if (!res.success || res.data.total_tickets === 0) {
     return <StatsGrid items={FALLBACK_ITEMS} />;

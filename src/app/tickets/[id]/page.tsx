@@ -1,7 +1,9 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import TicketDetailClient from "@/components/tickets/TicketDetailClient";
 import { getTicketDetailPageData } from "@/data/ticket-detail-preview";
+import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
   title: "Pelacakan & Detail Tiket — SIPANDU RW 06",
@@ -14,6 +16,9 @@ async function TicketDetailContent({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  if (isSupabaseConfigured()) {
+    await connection();
+  }
   const { id } = await params;
   const data = await getTicketDetailPageData(id);
   const clientKey = data.ticket
