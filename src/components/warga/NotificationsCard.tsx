@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Bell, CheckCircle2, ClipboardCheck } from "lucide-react";
 import { markNotificationsRead } from "@/app/actions/profile";
 import type { Notification } from "@/types";
@@ -101,7 +102,16 @@ export default function NotificationsCard({
                   <Bell size={18} className="mt-0.5 shrink-0 text-primary" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-ink">{title}</p>
+                  {item.ticket_id ? (
+                    <Link
+                      href={`/tickets/${item.ticket_id}`}
+                      className="block text-xs font-semibold text-ink hover:text-primary hover:underline"
+                    >
+                      {title}
+                    </Link>
+                  ) : (
+                    <p className="text-xs font-semibold text-ink">{title}</p>
+                  )}
                   <p className="mt-0.5 text-[11px] text-muted">
                     {detail} • {formatNotifTime(item.created_at)}
                   </p>
