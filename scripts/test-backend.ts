@@ -880,6 +880,7 @@ async function runTests() {
     `RT own err: ${errRtApproveOwn?.message}, RT other err: ${errRtApproveOther?.message}, RW err: ${errRwApproveOther?.message}`
   )
 
+  await adminClient.from("tickets").delete().eq("user_id", pendingUid)
   await adminClient.auth.admin.deleteUser(pendingUid)
   await adminClient.auth.admin.deleteUser(otherRtUid)
 
@@ -916,15 +917,23 @@ async function runTests() {
     .select("id")
 
   // Non-admin mencoba override status langsung ke 'selesai' tanpa RPC
-  const { error: errWargaOverrideStatus } = await warga1.client
+  const { data: overriddenByWarga } = await warga1.client
     .from("tickets")
     .update({ status: "selesai" })
     .eq("id", testDeleteTicket!.id)
+    .select("id")
 
-  const { error: errRtOverrideStatus } = await rt01.client
+  const { data: overriddenByRt } = await rt01.client
     .from("tickets")
     .update({ status: "selesai" })
     .eq("id", testDeleteTicket!.id)
+    .select("id")
+
+  const { data: overriddenByRw } = await rw06.client
+    .from("tickets")
+    .update({ status: "selesai" })
+    .eq("id", testDeleteTicket!.id)
+    .select("id")
 
   // Admin mencoba delete tiket -> harus BERHASIL (Migration 0005)
   const { data: deletedByAdmin, error: errAdminDelete } = await adminClientAuth.client
@@ -939,10 +948,12 @@ async function runTests() {
     (deletedByWarga?.length ?? 0) === 0 &&
       (deletedByRt?.length ?? 0) === 0 &&
       (deletedByRw?.length ?? 0) === 0 &&
-      (!!errWargaOverrideStatus || !!errRtOverrideStatus) &&
+      (overriddenByWarga?.length ?? 0) === 0 &&
+      (overriddenByRt?.length ?? 0) === 0 &&
+      (overriddenByRw?.length ?? 0) === 0 &&
       !errAdminDelete &&
       (deletedByAdmin?.length ?? 0) === 1,
-    `Warga del: ${deletedByWarga?.length}, RT del: ${deletedByRt?.length}, RW del: ${deletedByRw?.length}, Admin del err: ${errAdminDelete?.message}`
+    `Warga del: ${deletedByWarga?.length}, RT del: ${deletedByRt?.length}, RW del: ${deletedByRw?.length}, Admin del: ${deletedByAdmin?.length} (${errAdminDelete?.message})`
   )
 
   // -------------------------------------------------------------------------

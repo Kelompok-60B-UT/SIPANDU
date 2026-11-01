@@ -80,7 +80,9 @@ BEGIN
 END;
 $$;
 
--- 5. Perbarui RPC verify_resident (Dukungan RT, RW, dan Admin untuk menyetujui WARGA)
+-- 5. Hapus fungsi lama verify_resident(uuid, bigint) dari 0001 (jika masih ada) dan perbarui RPC verify_resident(uuid, boolean)
+DROP FUNCTION IF EXISTS public.verify_resident(uuid, bigint);
+
 CREATE OR REPLACE FUNCTION public.verify_resident(p_user_id uuid, p_is_verified boolean DEFAULT true)
 RETURNS void
 LANGUAGE plpgsql
@@ -157,24 +159,18 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.verify_resident(uuid, boolean) TO authenticated;
 
--- 6. Perketat policy insert tickets agar hanya berlaku bagi role 'warga' yang belum disetujui
+-- 6. Perketat policy insert tickets agar warga wajib memiliki is_rt_verified = true
 DROP POLICY IF EXISTS "tickets_warga_insert" ON public.tickets;
 CREATE POLICY "tickets_warga_insert" ON public.tickets
   FOR INSERT TO authenticated
   WITH CHECK (
     public._is_caller_active()
-    AND (
-      -- Pengurus dapat insert draft tanpa batas verifikasi warga
-      (SELECT (auth.jwt()->'app_metadata'->>'sipandu_role')) <> 'warga'
-      OR (
-        (SELECT (auth.jwt()->'app_metadata'->>'sipandu_role')) = 'warga'
-        AND (SELECT auth.uid()) = user_id
-        AND status = 'draft'
-        AND EXISTS (
-          SELECT 1 FROM public.profiles
-          WHERE id = (SELECT auth.uid()) AND is_rt_verified = true
-        )
-      )
+    AND (SELECT (auth.jwt()->'app_metadata'->>'sipandu_role')) = 'warga'
+    AND (SELECT auth.uid()) = user_id
+    AND status = 'draft'
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = (SELECT auth.uid()) AND is_rt_verified = true
     )
   );
 
