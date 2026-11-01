@@ -1,5 +1,9 @@
-import { unstable_rethrow } from 'next/navigation'
-import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
+import { redirect, unstable_rethrow } from 'next/navigation'
+import {
+  createAdminClient,
+  createClient,
+  isSupabaseConfigured,
+} from '@/utils/supabase/server'
 import type { TicketStatus } from '@/types/database.types'
 import type { DashboardStats } from '@/data/tickets'
 import { PREVIEW_REGIONS } from '@/data/warga-preview'
@@ -43,6 +47,19 @@ export interface StaffTicketItem {
   timeline: StaffTimelineItem[]
 }
 
+export interface StaffPendingResidentItem {
+  id: string
+  fullName: string
+  phone: string | null
+  address: string | null
+  regionId: number | null
+  regionName: string
+  createdAt: string
+  dateShort: string
+  isVerified: boolean
+  isActive: boolean
+}
+
 export interface StaffContextData {
   isPreview: boolean
   fullName: string
@@ -52,6 +69,7 @@ export interface StaffContextData {
   unreadCount: number
   stats: DashboardStats
   tickets: StaffTicketItem[]
+  pendingResidents: StaffPendingResidentItem[]
 }
 
 export const PREVIEW_RT_DATA: StaffContextData = {
@@ -147,6 +165,44 @@ export const PREVIEW_RT_DATA: StaffContextData = {
           actorNote: 'Dedi Kurniawan mengirimkan pengaduan warga.',
         },
       ],
+    },
+  ],
+  pendingResidents: [
+    {
+      id: 'res-rt1-01',
+      fullName: 'Ahmad Fauzi',
+      phone: '0813 9988 7766',
+      address: 'Jl. Cisaranten No. 4',
+      regionId: 1,
+      regionName: 'RT 01',
+      createdAt: '2026-10-31T11:00:00Z',
+      dateShort: '31 Okt 2026',
+      isVerified: false,
+      isActive: true,
+    },
+    {
+      id: 'res-rt3-01',
+      fullName: 'Budi Santoso',
+      phone: '0812 3456 7801',
+      address: 'Jl. Parakansaat No. 14, Gang Melati',
+      regionId: 3,
+      regionName: 'RT 03',
+      createdAt: '2026-10-31T09:30:00Z',
+      dateShort: '31 Okt 2026',
+      isVerified: false,
+      isActive: true,
+    },
+    {
+      id: 'res-rt5-01',
+      fullName: 'Ratna Sari',
+      phone: '0821 5566 7788',
+      address: 'Gang Mawar No. 2',
+      regionId: 5,
+      regionName: 'RT 05',
+      createdAt: '2026-10-29T16:20:00Z',
+      dateShort: '29 Okt 2026',
+      isVerified: true,
+      isActive: true,
     },
   ],
 }
@@ -379,6 +435,44 @@ export const PREVIEW_RW_DATA: StaffContextData = {
       ],
     },
   ],
+  pendingResidents: [
+    {
+      id: 'res-rt1-01',
+      fullName: 'Ahmad Fauzi',
+      phone: '0813 9988 7766',
+      address: 'Jl. Cisaranten No. 4',
+      regionId: 1,
+      regionName: 'RT 01',
+      createdAt: '2026-10-31T11:00:00Z',
+      dateShort: '31 Okt 2026',
+      isVerified: false,
+      isActive: true,
+    },
+    {
+      id: 'res-rt3-01',
+      fullName: 'Budi Santoso',
+      phone: '0812 3456 7801',
+      address: 'Jl. Parakansaat No. 14, Gang Melati',
+      regionId: 3,
+      regionName: 'RT 03',
+      createdAt: '2026-10-31T09:30:00Z',
+      dateShort: '31 Okt 2026',
+      isVerified: false,
+      isActive: true,
+    },
+    {
+      id: 'res-rt5-01',
+      fullName: 'Ratna Sari',
+      phone: '0821 5566 7788',
+      address: 'Gang Mawar No. 2',
+      regionId: 5,
+      regionName: 'RT 05',
+      createdAt: '2026-10-29T16:20:00Z',
+      dateShort: '29 Okt 2026',
+      isVerified: true,
+      isActive: true,
+    },
+  ],
 }
 
 const MONTHS_SHORT = [
@@ -452,7 +546,9 @@ export async function getStaffDashboardData(
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) return fallback
+    if (!user) {
+      redirect('/login')
+    }
 
     const [profileRes, ticketsRes, unreadRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
@@ -481,17 +577,17 @@ export async function getStaffDashboardData(
         .eq('is_read', false),
     ])
 
-    if (ticketsRes.error || !ticketsRes.data) {
-      return fallback
-    }
+    const rawTickets = ticketsRes.data ?? []
 
     const profile = profileRes.data
     const regionObj =
       PREVIEW_REGIONS.find((r) => r.id === profile?.region_id) ??
-      PREVIEW_REGIONS[2]
+      (profile?.region_id
+        ? { id: profile.region_id, name: `RT 0${profile.region_id}`, rw: '06' }
+        : PREVIEW_REGIONS[2])
 
     // Ambil nama pelapor unik
-    const userIds = Array.from(new Set(ticketsRes.data.map((t) => t.user_id)))
+    const userIds = Array.from(new Set(rawTickets.map((t) => t.user_id)))
     const reporterMap = new Map<string, string>()
     if (userIds.length > 0) {
       const { data: reporters } = await supabase
@@ -504,7 +600,7 @@ export async function getStaffDashboardData(
     }
 
     const stats: DashboardStats = {
-      total: ticketsRes.data.length,
+      total: rawTickets.length,
       draft: 0,
       terkirim: 0,
       diverifikasi_rt: 0,
@@ -515,7 +611,7 @@ export async function getStaffDashboardData(
 
     const allStoragePaths: string[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const row of ticketsRes.data as any[]) {
+    for (const row of rawTickets as any[]) {
       const attachments = Array.isArray(row.ticket_attachments)
         ? row.ticket_attachments
         : []
@@ -539,7 +635,7 @@ export async function getStaffDashboardData(
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mappedTickets: StaffTicketItem[] = ticketsRes.data.map((row: any) => {
+    const mappedTickets: StaffTicketItem[] = rawTickets.map((row: any) => {
       if (row.status in stats) {
         stats[row.status as keyof DashboardStats]++
       }
@@ -615,6 +711,55 @@ export async function getStaffDashboardData(
         ? user.user_metadata.avatar_url.trim()
         : null
 
+    const staffUserIds = new Set<string>()
+    try {
+      const adminClient = createAdminClient()
+      const { data: userList } = await adminClient.auth.admin.listUsers({
+        perPage: 1000,
+      })
+      if (userList?.users) {
+        for (const u of userList.users) {
+          const uRole = (u.app_metadata as Record<string, string>)?.sipandu_role
+          if (uRole && uRole !== 'warga') {
+            staffUserIds.add(u.id)
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    let residentsQuery = supabase
+      .from('profiles')
+      .select('id, full_name, phone, address, region_id, is_rt_verified, is_active, created_at')
+      .order('created_at', { ascending: false })
+
+    if (targetRole === 'ketua_rt' && profile?.region_id) {
+      residentsQuery = residentsQuery.eq('region_id', profile.region_id)
+    }
+
+    const { data: residentsData } = await residentsQuery.limit(100)
+
+    const pendingResidents: StaffPendingResidentItem[] = (residentsData ?? [])
+      .filter((r) => !staffUserIds.has(r.id))
+      .map(
+        (r) => {
+          const reg = PREVIEW_REGIONS.find((p) => p.id === r.region_id)
+          return {
+            id: r.id,
+            fullName: r.full_name || 'Warga Baru',
+            phone: r.phone,
+            address: r.address,
+            regionId: r.region_id,
+            regionName: reg ? reg.name : r.region_id ? `RT 0${r.region_id}` : 'RW 06',
+            createdAt: r.created_at,
+            dateShort: formatShortDate(r.created_at),
+            isVerified: r.is_rt_verified ?? false,
+            isActive: r.is_active ?? true,
+          }
+        },
+      )
+
     return {
       isPreview: false,
       fullName:
@@ -626,9 +771,10 @@ export async function getStaffDashboardData(
       unreadCount: unreadRes.data?.length ?? 0,
       stats,
       tickets: mappedTickets,
+      pendingResidents,
     }
   } catch (error) {
     unstable_rethrow(error)
-    return fallback
+    throw error
   }
 }

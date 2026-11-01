@@ -1,4 +1,4 @@
-import { unstable_rethrow } from 'next/navigation'
+import { redirect, unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { listUsers } from '@/app/actions/admin'
 import type { TicketStatus, UserRole } from '@/types/database.types'
@@ -30,6 +30,8 @@ export interface AdminAccountRow {
   regionLabel: string
   permissionDesc: string
   isActive: boolean
+  isVerified: boolean
+  createdAt?: string
 }
 
 export interface AdminRtInfo {
@@ -181,18 +183,33 @@ export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
       fullName: 'Dewi Lestari',
       email: 'dewi.lestari@email.com',
       role: 'warga',
+      regionId: 3,
       regionLabel: 'RT 03',
       permissionDesc: 'Buat & pantau laporan sendiri',
       isActive: true,
+      isVerified: true,
+    },
+    {
+      id: 'acc-warga-pending-1',
+      fullName: 'Budi Santoso',
+      email: 'budi.santoso@email.com',
+      role: 'warga',
+      regionId: 3,
+      regionLabel: 'RT 03',
+      permissionDesc: 'Menunggu persetujuan pengurus',
+      isActive: true,
+      isVerified: false,
     },
     {
       id: 'acc-rt-3',
       fullName: 'Agus Setiawan',
       email: 'rt03@sipandu.test',
       role: 'ketua_rt',
+      regionId: 3,
       regionLabel: 'RT 03',
       permissionDesc: 'Verifikasi laporan RT 03',
       isActive: true,
+      isVerified: true,
     },
     {
       id: 'acc-rw-6',
@@ -202,6 +219,7 @@ export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
       regionLabel: 'RW 06',
       permissionDesc: 'Tindak lanjut & penyelesaian',
       isActive: true,
+      isVerified: true,
     },
     {
       id: 'acc-admin-1',
@@ -211,6 +229,7 @@ export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
       regionLabel: 'RW 06',
       permissionDesc: 'Kelola data & status langsung',
       isActive: true,
+      isVerified: true,
     },
   ],
   rtRegions: [
@@ -332,7 +351,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) return PREVIEW_ADMIN_DATA
+    if (!user) {
+      redirect('/login')
+    }
 
     const [profileRes, ticketsRes, regionsRes, categoriesRes, timelinesRes] =
       await Promise.all([
@@ -359,11 +380,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .limit(6),
       ])
 
-    if (ticketsRes.error || !ticketsRes.data) {
-      return PREVIEW_ADMIN_DATA
-    }
+    const rawTickets = ticketsRes.data ?? []
 
-    const userIds = Array.from(new Set(ticketsRes.data.map((t) => t.user_id)))
+    const userIds = Array.from(new Set(rawTickets.map((t) => t.user_id)))
     const reporterMap = new Map<string, string>()
     if (userIds.length > 0) {
       const { data: reporters } = await supabase
@@ -376,7 +395,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }
 
     const stats: DashboardStats = {
-      total: ticketsRes.data.length,
+      total: rawTickets.length,
       draft: 0,
       terkirim: 0,
       diverifikasi_rt: 0,
@@ -388,7 +407,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const catCount = new Map<number, number>()
     const allProofPaths: string[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const row of ticketsRes.data as any[]) {
+    for (const row of rawTickets as any[]) {
       if (row.status in stats) {
         stats[row.status as keyof DashboardStats]++
       }
@@ -420,7 +439,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tickets: AdminTicketRow[] = ticketsRes.data.map((row: any) => {
+    const tickets: AdminTicketRow[] = rawTickets.map((row: any) => {
       const repName = reporterMap.get(row.user_id) ?? 'Warga RW 06'
       const regName = row.regions?.name ?? 'RT -'
       const attachments = Array.isArray(row.ticket_attachments)
@@ -475,12 +494,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           regionLabel: regLabel,
           permissionDesc: permissionForRole(u.role, regLabel),
           isActive: u.is_active,
+          isVerified: u.role !== 'warga' ? true : u.is_rt_verified,
+          createdAt: u.created_at,
         }
       })
     } else {
       const { data: fallbackProfiles } = await supabase
         .from('profiles')
-        .select('id, full_name, region_id, is_active')
+        .select('id, full_name, region_id, is_active, is_rt_verified, created_at')
         .limit(200)
       accounts = (fallbackProfiles ?? []).map((p) => {
         const regLabel = p.region_id
@@ -496,6 +517,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           regionLabel: regLabel,
           permissionDesc: permissionForRole(role, regLabel),
           isActive: p.is_active,
+          isVerified: role !== 'warga' ? true : (p.is_rt_verified ?? false),
+          createdAt: p.created_at,
         }
       })
     }
@@ -588,6 +611,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }
   } catch (error) {
     unstable_rethrow(error)
-    return PREVIEW_ADMIN_DATA
+    throw error
   }
 }

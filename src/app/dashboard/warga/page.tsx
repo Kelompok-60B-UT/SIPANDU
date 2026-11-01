@@ -86,14 +86,51 @@ function DashboardView({
             isPreview={userCtx.isPreview}
           />
 
-          <Link
-            href="/tickets/new"
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover sm:self-auto sm:text-sm"
-          >
-            <Plus size={16} />
-            Buat pengaduan
-          </Link>
+          {userCtx.profile.is_rt_verified ? (
+            <Link
+              href="/tickets/new"
+              className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover sm:self-auto sm:text-sm"
+            >
+              <Plus size={16} />
+              Buat pengaduan
+            </Link>
+          ) : (
+            <div className="flex flex-col items-start gap-1 sm:items-end">
+              <Link
+                href="/tickets/new"
+                className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600 sm:self-auto sm:text-sm"
+              >
+                <Clock size={16} />
+                Menunggu persetujuan
+              </Link>
+              <span className="text-[11px] text-muted">
+                Persetujuan RT / RW / Admin diperlukan
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* Banner Akun Menunggu Persetujuan */}
+        {!userCtx.profile.is_rt_verified && (
+          <div className="flex flex-col items-start gap-3.5 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-amber-900 shadow-xs sm:flex-row">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <Clock size={20} className="animate-pulse" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold text-amber-950">
+                  Akun Menunggu Persetujuan Pengurus
+                </h3>
+                <span className="inline-flex items-center rounded-full bg-amber-200/90 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                  Pending Approval
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-amber-800">
+                Pendaftaran akun Anda di <strong>{regionLabel}</strong> telah tercatat dan saat ini sedang menunggu verifikasi dari <strong>Ketua RT {userCtx.region.name}</strong>, <strong>Ketua RW 06</strong>, atau <strong>Admin</strong>. Fitur pembuatan pengaduan baru akan otomatis terbuka setelah akun Anda disetujui.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Banner Hijau Pengaduan Selesai */}
         {latestCompleted && (

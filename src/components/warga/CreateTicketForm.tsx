@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   ChevronDown,
+  Clock,
   Image as ImageIcon,
   Info,
   Loader2,
@@ -21,7 +22,7 @@ import Badge from "@/components/ui/Badge";
 import { createDraft, submitTicket } from "@/app/actions/tickets";
 import { uploadAttachment } from "@/app/actions/attachments";
 import { isSupabaseConfigured } from "@/utils/supabase/client";
-import { validateAttachment } from "@/utils/upload";
+import { validateAttachment, compressImageFile } from "@/utils/upload";
 import type { CategoryOption, Profile, RegionOption } from "@/types";
 
 interface PhotoDraftItem {
@@ -104,6 +105,87 @@ export default function CreateTicketForm({
   );
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (!profile.is_rt_verified) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link
+            href="/dashboard/warga"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted transition-colors hover:text-ink"
+          >
+            <ArrowLeft size={14} />
+            Kembali ke ringkasan pengaduan
+          </Link>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
+            Buat pengaduan warga
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            Sampaikan permasalahan lingkungan Anda secara langsung ke pengurus.
+          </p>
+        </div>
+
+        {/* Card Status Menunggu Persetujuan */}
+        <div className="overflow-hidden rounded-2xl border border-amber-200 bg-white p-6 shadow-xs sm:p-8">
+          <div className="mx-auto flex max-w-xl flex-col items-center py-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 shadow-xs">
+              <Clock size={32} className="animate-pulse" />
+            </div>
+
+            <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+              Menunggu Persetujuan Akun
+            </span>
+
+            <h2 className="mt-3 text-xl font-bold text-ink sm:text-2xl">
+              Akun Anda Belum Disetujui Pengurus
+            </h2>
+
+            <p className="mt-2.5 text-xs leading-relaxed text-muted sm:text-sm">
+              Untuk menjaga ketertiban dan keabsahan laporan warga di RW 06 Parakansaat, setiap pendaftar baru wajib disetujui terlebih dahulu oleh <strong>Ketua RT {userRegion.name}</strong>, <strong>Ketua RW 06</strong>, atau <strong>Admin SIPANDU</strong>.
+            </p>
+
+            {/* Info Rincian Data Pendaftaran */}
+            <div className="mt-6 w-full rounded-xl border border-border bg-surface p-4 text-left">
+              <p className="mb-2 text-xs font-bold text-ink">Rincian Data Pendaftaran:</p>
+              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                <div>
+                  <span className="text-muted">Nama Lengkap:</span>
+                  <p className="font-semibold text-ink">{profile.full_name}</p>
+                </div>
+                <div>
+                  <span className="text-muted">Wilayah:</span>
+                  <p className="font-semibold text-ink">{userRegion.name} / RW {userRegion.rw}</p>
+                </div>
+                <div>
+                  <span className="text-muted">Nomor Telepon:</span>
+                  <p className="font-semibold text-ink">{profile.phone || '-'}</p>
+                </div>
+                <div>
+                  <span className="text-muted">Alamat Tinggal:</span>
+                  <p className="font-semibold text-ink">{profile.address || '-'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link
+                href="/dashboard/warga"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover sm:w-auto sm:text-sm"
+              >
+                Kembali ke Beranda
+              </Link>
+              <Link
+                href="/profile"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-5 py-2.5 text-xs font-semibold text-ink transition-colors hover:bg-surface sm:w-auto sm:text-sm"
+              >
+                Lihat Profil Saya
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleAddPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -202,10 +284,11 @@ export default function CreateTicketForm({
         if (isSupabaseConfigured()) {
           for (const item of photos) {
             if (!item.file) continue;
+            const fileToUpload = await compressImageFile(item.file);
             const fd = new FormData();
             fd.set("ticket_id", String(ticketId));
             fd.set("type", "laporan");
-            fd.set("file", item.file);
+            fd.set("file", fileToUpload);
 
             const upRes = await uploadAttachment(fd);
             if (!upRes.success) {

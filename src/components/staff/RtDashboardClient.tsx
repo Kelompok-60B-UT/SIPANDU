@@ -17,22 +17,27 @@ import {
   Search,
   Send,
   Star,
+  UserCheck,
+  Users,
   X,
   XCircle,
 } from "lucide-react";
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
+import RekapDownloadButton from "@/components/common/RekapDownloadButton";
 import {
   formatFriendlyUserName,
   useLocalTimeGreeting,
 } from "@/components/ui/LocalTimeGreeting";
 import { rejectTicket, verifyTicket } from "@/app/actions/tickets";
+import { verifyResident } from "@/app/actions/admin";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
 import { statusLabelId } from "@/utils/transition";
 import type { TicketStatus } from "@/types";
 import type {
   StaffAttachmentItem,
   StaffContextData,
+  StaffPendingResidentItem,
   StaffTicketItem,
 } from "@/data/staff-preview";
 
@@ -141,6 +146,9 @@ export default function RtDashboardClient({
     initialData.tickets,
   );
   const [stats, setStats] = useState(initialData.stats);
+  const [residents, setResidents] = useState<StaffPendingResidentItem[]>(
+    initialData.pendingResidents ?? [],
+  );
   const [prevInitialData, setPrevInitialData] = useState(initialData);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -148,13 +156,60 @@ export default function RtDashboardClient({
     setPrevInitialData(initialData);
     setTickets(initialData.tickets);
     setStats(initialData.stats);
+    setResidents(initialData.pendingResidents ?? []);
   }
+
+  const [residentFilter, setResidentFilter] = useState<
+    "pending" | "verified" | "semua"
+  >("pending");
+  const [residentSearch, setResidentSearch] = useState("");
+  const [residentFeedback, setResidentFeedback] = useState<{
+    id: string;
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     router.refresh();
     setTimeout(() => setIsRefreshing(false), 500);
   };
+
+  const handleVerifyResident = (residentId: string, isVerified: boolean) => {
+    setResidentFeedback(null);
+    startTransition(async () => {
+      setResidents((prev) =>
+        prev.map((r) => (r.id === residentId ? { ...r, isVerified } : r)),
+      );
+
+      const res = await verifyResident(residentId, isVerified);
+      if (!res.success) {
+        setResidents((prev) =>
+          prev.map((r) =>
+            r.id === residentId ? { ...r, isVerified: !isVerified } : r,
+          ),
+        );
+        setResidentFeedback({
+          id: residentId,
+          type: "error",
+          text: res.error || "Gagal mengubah status verifikasi warga.",
+        });
+      } else {
+        setResidentFeedback({
+          id: residentId,
+          type: "success",
+          text: isVerified
+            ? "Warga berhasil disetujui! Akun sekarang dapat mengajukan pengaduan."
+            : "Status verifikasi warga telah dibatalkan.",
+        });
+      }
+    });
+  };
+
+  const pendingResidentsCount = useMemo(
+    () => residents.filter((r) => !r.isVerified).length,
+    [residents],
+  );
 
   const [selectedId, setSelectedId] = useState<number>(
     initialData.tickets[0]?.id ?? 0,
@@ -207,6 +262,20 @@ export default function RtDashboardClient({
     () => tickets.filter((t) => t.status === "terkirim"),
     [tickets],
   );
+
+  const filteredResidents = useMemo(() => {
+    const q = residentSearch.trim().toLowerCase();
+    return residents.filter((r) => {
+      if (residentFilter === "pending" && r.isVerified) return false;
+      if (residentFilter === "verified" && !r.isVerified) return false;
+      if (!q) return true;
+      return (
+        r.fullName.toLowerCase().includes(q) ||
+        (r.phone && r.phone.toLowerCase().includes(q)) ||
+        (r.address && r.address.toLowerCase().includes(q))
+      );
+    });
+  }, [residents, residentFilter, residentSearch]);
 
   const handleSelectTicket = (ticket: StaffTicketItem) => {
     setSelectedId(ticket.id);
@@ -336,17 +405,21 @@ export default function RtDashboardClient({
       avatarUrl={initialData.avatarUrl}
     >
       <div id="ringkasan" className="scroll-mt-20 space-y-6">
-        {/* Header Sapaan */}
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-            WILAYAH {initialData.regionName} / RW {initialData.rw}
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
-            {greeting}, {greetingDisplayName}.
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            Pastikan laporan warga terverifikasi dan sampai ke pengurus RW.
-          </p>
+        {/* Header Sapaan & Unduh Rekap */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+              WILAYAH {initialData.regionName} / RW {initialData.rw}
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
+              {greeting}, {greetingDisplayName}.
+            </h1>
+            <p className="mt-1 text-sm text-muted">
+              Pastikan laporan warga terverifikasi dan sampai ke pengurus RW.
+            </p>
+          </div>
+
+          <RekapDownloadButton />
         </div>
 
         {/* Banner Informasi Laporan Baru */}
@@ -823,6 +896,189 @@ export default function RtDashboardClient({
             </div>
           </section>
         )}
+
+        {/* Kartu: Persetujuan Warga Baru RT */}
+        <section
+          id="persetujuan-warga"
+          className="scroll-mt-20 rounded-2xl border border-border bg-white p-5 shadow-xs sm:p-6"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-ink sm:text-lg">
+                  Persetujuan Warga Baru ({initialData.regionName})
+                </h2>
+                {pendingResidentsCount > 0 ? (
+                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                    {pendingResidentsCount} menunggu persetujuan
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                    Semua disetujui
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                Warga baru yang mendaftar di {initialData.regionName} membutuhkan
+                persetujuan pengurus sebelum dapat menyampaikan pengaduan.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">
+                Total: {residents.length} warga
+              </span>
+            </div>
+          </div>
+
+          {residentFeedback && (
+            <div
+              className={`mt-4 rounded-xl px-4 py-3 text-xs font-semibold ${
+                residentFeedback.type === "success"
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border border-red-200 bg-red-50 text-red-800"
+              }`}
+            >
+              {residentFeedback.text}
+            </div>
+          )}
+
+          {/* Filter & Pencarian Warga */}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setResidentFilter("pending")}
+                className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  residentFilter === "pending"
+                    ? "border border-amber-300 bg-amber-100 text-amber-900"
+                    : "border border-border bg-surface text-muted hover:text-ink"
+                }`}
+              >
+                Menunggu persetujuan ({pendingResidentsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setResidentFilter("verified")}
+                className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  residentFilter === "verified"
+                    ? "border border-emerald-300 bg-emerald-100 text-emerald-900"
+                    : "border border-border bg-surface text-muted hover:text-ink"
+                }`}
+              >
+                Terverifikasi ({residents.filter((r) => r.isVerified).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setResidentFilter("semua")}
+                className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  residentFilter === "semua"
+                    ? "bg-primary text-white"
+                    : "border border-border bg-surface text-muted hover:text-ink"
+                }`}
+              >
+                Semua ({residents.length})
+              </button>
+            </div>
+
+            <div className="relative sm:w-64">
+              <Search
+                size={14}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+              />
+              <input
+                type="search"
+                value={residentSearch}
+                onChange={(e) => setResidentSearch(e.target.value)}
+                placeholder="Cari nama, no. HP, alamat..."
+                className="w-full rounded-xl border border-border bg-white py-1.5 pr-3 pl-8 text-xs text-ink placeholder:text-muted focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Tabel / Daftar Warga */}
+          <div className="mt-4 overflow-x-auto">
+            {filteredResidents.length > 0 ? (
+              <table className="w-full min-w-[600px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-border/80 text-[11px] font-semibold text-muted">
+                    <th className="pb-2 pl-1">NAMA WARGA</th>
+                    <th className="pb-2">KONTAK & ALAMAT</th>
+                    <th className="pb-2">TANGGAL DAFTAR</th>
+                    <th className="pb-2">STATUS</th>
+                    <th className="pb-2 pr-1 text-right">AKSI</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60 text-xs">
+                  {filteredResidents.map((r) => (
+                    <tr
+                      key={r.id}
+                      className="transition-colors hover:bg-surface/50"
+                    >
+                      <td className="py-3 pl-1 font-semibold text-ink">
+                        {r.fullName}
+                      </td>
+                      <td className="py-3 text-muted">
+                        <div>{r.phone || "-"}</div>
+                        <div className="line-clamp-1 text-[11px] text-muted">
+                          {r.address || "-"}
+                        </div>
+                      </td>
+                      <td className="py-3 text-muted">{r.dateShort}</td>
+                      <td className="py-3">
+                        {r.isVerified ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                            <CheckCircle2 size={12} />
+                            Terverifikasi
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                            <Clock size={12} />
+                            Menunggu persetujuan
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-1 text-right">
+                        {r.isVerified ? (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleVerifyResident(r.id, false)}
+                            className="cursor-pointer text-xs font-semibold text-muted hover:text-red-600 hover:underline disabled:opacity-50"
+                          >
+                            Batal verifikasi
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleVerifyResident(r.id, true)}
+                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            <UserCheck size={14} />
+                            Setujui warga
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="py-8 text-center">
+                <Users size={32} className="mx-auto text-muted/60" />
+                <p className="mt-2 text-xs font-semibold text-ink">
+                  Tidak ada data warga yang cocok dengan kriteria filter.
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted">
+                  {residentFilter === "pending"
+                    ? "Seluruh warga yang mendaftar di wilayah ini telah disetujui."
+                    : "Coba ubah kata kunci pencarian atau ganti filter."}
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Banner Batas Kewenangan Ketua RT */}
         <div

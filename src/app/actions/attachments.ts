@@ -69,12 +69,6 @@ export async function uploadAttachment(
 
   const role = getRoleFromJwt(user.app_metadata) ?? 'warga'
 
-  if (type === 'penyelesaian' && role !== 'ketua_rw' && role !== 'admin') {
-    return err(
-      'Hanya Ketua RW atau Admin yang dapat mengunggah foto bukti penyelesaian',
-    )
-  }
-
   let dbClient = supabase
   try {
     dbClient = createAdminClient()
@@ -82,7 +76,24 @@ export async function uploadAttachment(
     dbClient = supabase
   }
 
-  // Periksa tiket & batas maksimal 3 foto per jenis lampiran
+  // 1. Cek profil pemanggil
+  const { data: profile, error: profileErr } = await dbClient
+    .from('profiles')
+    .select('id, is_active, is_rt_verified')
+    .eq('id', user.id)
+    .single()
+
+  if (profileErr || !profile) {
+    return err('Profil pengguna tidak ditemukan')
+  }
+  if (!profile.is_active) {
+    return err('Akun Anda sedang dinonaktifkan')
+  }
+  if (role === 'warga' && !profile.is_rt_verified) {
+    return err('Akun Anda belum disetujui oleh pengurus RT/RW')
+  }
+
+  // 2. Ambil data tiket
   const { data: ticket, error: ticketErr } = await dbClient
     .from('tickets')
     .select('id, user_id, status')
@@ -93,10 +104,30 @@ export async function uploadAttachment(
     return err('Tiket pengaduan tidak ditemukan')
   }
 
-  if (type === 'laporan' && role !== 'admin' && ticket.user_id !== user.id) {
-    return err('Anda hanya dapat mengunggah foto laporan pada tiket milik sendiri')
+  // 3. Validasi hak unggah berdasarkan type dan status tiket
+  if (type === 'laporan') {
+    if (role !== 'admin') {
+      if (ticket.user_id !== user.id) {
+        return err('Anda hanya dapat mengunggah foto laporan pada tiket milik sendiri')
+      }
+      if (ticket.status !== 'draft') {
+        return err('Foto laporan hanya dapat ditambahkan saat tiket berstatus draf')
+      }
+    }
+  } else if (type === 'penyelesaian') {
+    if (role !== 'ketua_rw' && role !== 'admin') {
+      return err(
+        'Hanya Ketua RW atau Admin yang dapat mengunggah foto bukti penyelesaian',
+      )
+    }
+    if (role === 'ketua_rw' && ticket.status !== 'diproses_rw') {
+      return err(
+        'Foto bukti penyelesaian hanya dapat diunggah saat tiket sedang diproses RW',
+      )
+    }
   }
 
+  // 4. Kuota maksimal 3 foto per jenis lampiran
   const { count: existingCount } = await dbClient
     .from('ticket_attachments')
     .select('*', { count: 'exact', head: true })
@@ -164,12 +195,20 @@ export async function registerAttachment(
 ): Promise<ActionResult<{ id: number }>> {
   const { ticketId, type, storagePath, fileName, mimeType, sizeBytes } = params
 
+  if (!Number.isInteger(ticketId) || ticketId <= 0) {
+    return err('ID tiket tidak valid')
+  }
+
   if (sizeBytes > MAX_FILE_SIZE_BYTES) {
     return err('Ukuran file tidak boleh melebihi 5 MB')
   }
 
   if (mimeType !== 'image/jpeg' && mimeType !== 'image/png') {
     return err('Format file hanya boleh berupa JPG atau PNG')
+  }
+
+  if (!storagePath.startsWith(`${type}/${ticketId}/`)) {
+    return err('Jalur penyimpanan file tidak valid')
   }
 
   if (!isSupabaseConfigured()) {
@@ -184,17 +223,78 @@ export async function registerAttachment(
   if (authError || !user) return err('Sesi tidak ditemukan')
 
   const role = getRoleFromJwt(user.app_metadata) ?? 'warga'
-  if (type === 'penyelesaian' && role !== 'ketua_rw' && role !== 'admin') {
-    return err(
-      'Hanya Ketua RW atau Admin yang dapat mengunggah foto bukti penyelesaian',
-    )
-  }
 
   let dbClient = supabase
   try {
     dbClient = createAdminClient()
   } catch {
     dbClient = supabase
+  }
+
+  // 1. Cek profil pemanggil
+  const { data: profile, error: profileErr } = await dbClient
+    .from('profiles')
+    .select('id, is_active, is_rt_verified')
+    .eq('id', user.id)
+    .single()
+
+  if (profileErr || !profile) {
+    return err('Profil pengguna tidak ditemukan')
+  }
+  if (!profile.is_active) {
+    return err('Akun Anda sedang dinonaktifkan')
+  }
+  if (role === 'warga' && !profile.is_rt_verified) {
+    return err('Akun Anda belum disetujui oleh pengurus RT/RW')
+  }
+
+  // 2. Ambil data tiket
+  const { data: ticket, error: ticketErr } = await dbClient
+    .from('tickets')
+    .select('id, user_id, status')
+    .eq('id', ticketId)
+    .single()
+
+  if (ticketErr || !ticket) {
+    return err('Tiket pengaduan tidak ditemukan')
+  }
+
+  // 3. Validasi hak unggah berdasarkan type dan status tiket
+  if (type === 'laporan') {
+    if (role !== 'admin') {
+      if (ticket.user_id !== user.id) {
+        return err('Anda hanya dapat mengunggah foto laporan pada tiket milik sendiri')
+      }
+      if (ticket.status !== 'draft') {
+        return err('Foto laporan hanya dapat ditambahkan saat tiket berstatus draf')
+      }
+    }
+  } else if (type === 'penyelesaian') {
+    if (role !== 'ketua_rw' && role !== 'admin') {
+      return err(
+        'Hanya Ketua RW atau Admin yang dapat mengunggah foto bukti penyelesaian',
+      )
+    }
+    if (role === 'ketua_rw' && ticket.status !== 'diproses_rw') {
+      return err(
+        'Foto bukti penyelesaian hanya dapat diunggah saat tiket sedang diproses RW',
+      )
+    }
+  }
+
+  // 4. Kuota maksimal 3 foto per jenis lampiran
+  const { count: existingCount } = await dbClient
+    .from('ticket_attachments')
+    .select('*', { count: 'exact', head: true })
+    .eq('ticket_id', ticketId)
+    .eq('type', type)
+
+  if ((existingCount ?? 0) >= 3) {
+    return err(
+      type === 'penyelesaian'
+        ? 'Maksimal 3 foto bukti penyelesaian yang dapat dilampirkan.'
+        : 'Maksimal 3 foto laporan yang dapat dilampirkan.',
+    )
   }
 
   const { data, error } = await dbClient
@@ -224,6 +324,10 @@ export async function registerAttachment(
 export async function deleteAttachment(
   attachmentId: number,
 ): Promise<ActionResult<undefined>> {
+  if (!Number.isInteger(attachmentId) || attachmentId <= 0) {
+    return err('ID lampiran tidak valid')
+  }
+
   if (!isSupabaseConfigured()) return okEmpty()
 
   const supabase = await createClient()
@@ -242,6 +346,24 @@ export async function deleteAttachment(
     dbClient = supabase
   }
 
+  // 1. Cek profil pemanggil
+  const { data: profile, error: profileErr } = await dbClient
+    .from('profiles')
+    .select('id, is_active, is_rt_verified')
+    .eq('id', user.id)
+    .single()
+
+  if (profileErr || !profile) {
+    return err('Profil pengguna tidak ditemukan')
+  }
+  if (!profile.is_active) {
+    return err('Akun Anda sedang dinonaktifkan')
+  }
+  if (role === 'warga' && !profile.is_rt_verified) {
+    return err('Akun Anda belum disetujui oleh pengurus RT/RW')
+  }
+
+  // 2. Ambil data lampiran
   const { data: attachment, error: fetchError } = await dbClient
     .from('ticket_attachments')
     .select('id, ticket_id, storage_path, type, uploaded_by')
@@ -252,11 +374,43 @@ export async function deleteAttachment(
     return err('Lampiran tidak ditemukan')
   }
 
-  if (
-    role !== 'admin' &&
-    role !== 'ketua_rw' &&
-    attachment.uploaded_by !== user.id
-  ) {
+  // 3. Ambil data status tiket induk dari tickets berdasarkan attachment.ticket_id
+  const { data: ticket, error: ticketErr } = await dbClient
+    .from('tickets')
+    .select('id, status')
+    .eq('id', attachment.ticket_id)
+    .single()
+
+  if (ticketErr || !ticket) {
+    return err('Tiket pengaduan tidak ditemukan')
+  }
+
+  // 4. Validasi izin hapus:
+  // - Jika role === 'warga': wajib attachment.uploaded_by === user.id && attachment.type === 'laporan' && ticket.status === 'draft'
+  // - Jika role === 'ketua_rw': wajib attachment.type === 'penyelesaian' && ticket.status === 'diproses_rw'
+  // - Jika role === 'admin': izinkan pada status apa pun
+  if (role === 'admin') {
+    // Diizinkan pada status apa pun
+  } else if (role === 'warga') {
+    if (
+      attachment.uploaded_by !== user.id ||
+      attachment.type !== 'laporan' ||
+      ticket.status !== 'draft'
+    ) {
+      return err(
+        'Warga hanya dapat menghapus foto laporan milik sendiri saat tiket berstatus draf',
+      )
+    }
+  } else if (role === 'ketua_rw') {
+    if (
+      attachment.type !== 'penyelesaian' ||
+      ticket.status !== 'diproses_rw'
+    ) {
+      return err(
+        'Ketua RW hanya dapat menghapus foto bukti penyelesaian saat tiket sedang diproses RW',
+      )
+    }
+  } else {
     return err('Anda tidak memiliki izin untuk menghapus lampiran ini')
   }
 

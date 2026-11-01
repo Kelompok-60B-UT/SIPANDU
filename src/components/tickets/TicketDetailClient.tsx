@@ -44,7 +44,7 @@ import {
   uploadAttachment,
 } from "@/app/actions/attachments";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
-import { validateAttachment } from "@/utils/upload";
+import { validateAttachment, compressImageFile } from "@/utils/upload";
 import type { TicketStatus } from "@/types";
 import type {
   TicketAttachmentView,
@@ -481,10 +481,11 @@ export default function TicketDetailClient({
       let attachmentId = Date.now();
 
       if (isSupabaseConfigured()) {
+        const fileToUpload = await compressImageFile(file);
         const fd = new FormData();
         fd.set("ticket_id", String(ticket.id));
         fd.set("type", type);
-        fd.set("file", file);
+        fd.set("file", fileToUpload);
 
         const res = await uploadAttachment(fd);
         if (!res.success) {

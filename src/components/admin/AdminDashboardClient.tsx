@@ -19,6 +19,7 @@ import {
   Star,
   Trash2,
   Upload,
+  UserCheck,
   UserPlus,
   Wrench,
 } from "lucide-react";
@@ -44,11 +45,12 @@ import {
   setStaffActive,
   updateRwSettings,
   updateUserRole,
+  verifyResident,
 } from "@/app/actions/admin";
 import { isSupabaseConfigured } from "@/utils/supabase/client";
 import { roleLabelId } from "@/utils/roles";
 import { statusLabelId } from "@/utils/transition";
-import { validateAttachment } from "@/utils/upload";
+import { validateAttachment, compressImageFile } from "@/utils/upload";
 import type { TicketStatus, UserRole } from "@/types";
 import type {
   AdminAccountRow,
@@ -164,6 +166,9 @@ export default function AdminDashboardClient({
 
   // State Akun & Hak Akses
   const [accountSearch, setAccountSearch] = useState("");
+  const [accountStatusFilter, setAccountStatusFilter] = useState<
+    "all" | "pending" | "verified" | "staff"
+  >("all");
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [accountFeedback, setAccountFeedback] = useState<string | null>(null);
   const [editingRoleAccountId, setEditingRoleAccountId] = useState<
@@ -227,16 +232,38 @@ export default function AdminDashboardClient({
     });
   }, [tickets, ticketSearch, ticketStatusFilter, ticketRtFilter]);
 
+  const pendingAccountsCount = useMemo(
+    () => accounts.filter((a) => a.role === "warga" && !a.isVerified).length,
+    [accounts],
+  );
+
   const filteredAccounts = useMemo(() => {
     const q = accountSearch.trim().toLowerCase();
-    if (!q) return accounts;
-    return accounts.filter(
-      (a) =>
+    return accounts.filter((a) => {
+      if (
+        accountStatusFilter === "pending" &&
+        (a.role !== "warga" || a.isVerified)
+      ) {
+        return false;
+      }
+      if (
+        accountStatusFilter === "verified" &&
+        (a.role !== "warga" || !a.isVerified)
+      ) {
+        return false;
+      }
+      if (accountStatusFilter === "staff" && a.role === "warga") {
+        return false;
+      }
+      if (!q) return true;
+      return (
         a.fullName.toLowerCase().includes(q) ||
         a.email.toLowerCase().includes(q) ||
-        roleLabelId(a.role).toLowerCase().includes(q),
-    );
-  }, [accounts, accountSearch]);
+        roleLabelId(a.role).toLowerCase().includes(q) ||
+        a.regionLabel.toLowerCase().includes(q)
+      );
+    });
+  }, [accounts, accountSearch, accountStatusFilter]);
 
   const selectedRt =
     rtRegions.find((r) => r.id === selectedRtId) ?? rtRegions[0];
@@ -289,10 +316,11 @@ export default function AdminDashboardClient({
     if (isSupabaseConfigured()) {
       setUploadingProof(true);
       try {
+        const fileToUpload = await compressImageFile(file);
         const fd = new FormData();
         fd.set("ticket_id", String(currentId));
         fd.set("type", "penyelesaian");
-        fd.set("file", file);
+        fd.set("file", fileToUpload);
 
         const uploadRes = await uploadAttachment(fd);
         if (!uploadRes.success) throw new Error(uploadRes.error);
@@ -514,6 +542,7 @@ export default function AdminDashboardClient({
                 ? "Tindak lanjut & penyelesaian"
                 : `Verifikasi laporan ${regName}`,
           isActive: true,
+          isVerified: true,
         },
         ...prev,
       ]);
@@ -654,6 +683,39 @@ export default function AdminDashboardClient({
       );
       prependActivity(
         `${nextActive ? "mengaktifkan" : "menonaktifkan"} akun ${acc.fullName}.`,
+      );
+    });
+  };
+
+  const handleVerifyAccount = (acc: AdminAccountRow, isVerified: boolean) => {
+    setAccountFeedback(null);
+    startTransition(async () => {
+      setAccounts((prev) =>
+        prev.map((item) =>
+          item.id === acc.id ? { ...item, isVerified } : item,
+        ),
+      );
+
+      const res = await verifyResident(acc.id, isVerified);
+      if (!res.success) {
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.id === acc.id ? { ...item, isVerified: !isVerified } : item,
+          ),
+        );
+        setAccountFeedback(
+          res.error || "Gagal mengubah status persetujuan warga.",
+        );
+        return;
+      }
+
+      prependActivity(
+        `${isVerified ? "menyetujui" : "membatalkan persetujuan"} akun warga ${acc.fullName}.`,
+      );
+      setAccountFeedback(
+        isVerified
+          ? `Berhasil menyetujui akun warga ${acc.fullName}. Warga sekarang dapat mengajukan pengaduan.`
+          : `Status persetujuan akun warga ${acc.fullName} berhasil dibatalkan.`,
       );
     });
   };
@@ -1670,12 +1732,68 @@ export default function AdminDashboardClient({
           className="scroll-mt-20 rounded-2xl border border-border bg-white p-5 sm:p-6"
         >
           <div>
-            <h2 className="text-base font-bold text-ink">Akun & hak akses</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-ink">Akun & hak akses</h2>
+              {pendingAccountsCount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                  {pendingAccountsCount} menunggu persetujuan
+                </span>
+              )}
+            </div>
             <p className="mt-0.5 text-xs text-muted">
               {accounts.filter((a) => a.role === "warga").length} akun warga •{" "}
               {accounts.filter((a) => a.role !== "warga" && a.isActive).length}{" "}
               akun pengurus aktif
             </p>
+          </div>
+
+          {/* Filter Status Akun */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setAccountStatusFilter("all")}
+              className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                accountStatusFilter === "all"
+                  ? "bg-primary text-white"
+                  : "border border-border bg-surface text-muted hover:text-ink"
+              }`}
+            >
+              Semua akun ({accounts.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountStatusFilter("pending")}
+              className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                accountStatusFilter === "pending"
+                  ? "border border-amber-300 bg-amber-100 text-amber-900"
+                  : "border border-border bg-surface text-muted hover:text-ink"
+              }`}
+            >
+              Menunggu persetujuan ({pendingAccountsCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountStatusFilter("verified")}
+              className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                accountStatusFilter === "verified"
+                  ? "border border-emerald-300 bg-emerald-100 text-emerald-900"
+                  : "border border-border bg-surface text-muted hover:text-ink"
+              }`}
+            >
+              Warga terverifikasi (
+              {accounts.filter((a) => a.role === "warga" && a.isVerified).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountStatusFilter("staff")}
+              className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                accountStatusFilter === "staff"
+                  ? "border border-blue-300 bg-blue-100 text-primary"
+                  : "border border-border bg-surface text-muted hover:text-ink"
+              }`}
+            >
+              Pengurus ({accounts.filter((a) => a.role !== "warga").length})
+            </button>
           </div>
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -1688,7 +1806,7 @@ export default function AdminDashboardClient({
                 type="search"
                 value={accountSearch}
                 onChange={(e) => setAccountSearch(e.target.value)}
-                placeholder="Cari nama atau email akun..."
+                placeholder="Cari nama, email, atau wilayah akun..."
                 className="w-full rounded-xl border border-border bg-white py-2.5 pr-3.5 pl-9 text-xs text-ink placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
@@ -1790,12 +1908,26 @@ export default function AdminDashboardClient({
                         <span
                           className={
                             acc.isActive
-                              ? "text-emerald-700 font-medium"
+                              ? "font-medium text-emerald-700"
                               : "font-medium text-red-600"
                           }
                         >
                           {acc.isActive ? "Aktif" : "Nonaktif"}
                         </span>
+                        {acc.role === "warga" && (
+                          <>
+                            {" "}•{" "}
+                            {acc.isVerified ? (
+                              <span className="font-semibold text-emerald-700">
+                                Disetujui
+                              </span>
+                            ) : (
+                              <span className="font-bold text-amber-800">
+                                Menunggu Persetujuan
+                              </span>
+                            )}
+                          </>
+                        )}
                       </p>
                     </div>
 
@@ -1804,6 +1936,31 @@ export default function AdminDashboardClient({
                     </p>
 
                     <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+                      {acc.role === "warga" && (
+                        <>
+                          {acc.isVerified ? (
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleVerifyAccount(acc, false)}
+                              className="cursor-pointer text-xs font-semibold text-muted hover:text-ink hover:underline disabled:opacity-50"
+                            >
+                              Batal setujui
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleVerifyAccount(acc, true)}
+                              className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              <UserCheck size={13} />
+                              Setujui warga
+                            </button>
+                          )}
+                          <span className="text-border">•</span>
+                        </>
+                      )}
                       <button
                         type="button"
                         disabled={isPending}

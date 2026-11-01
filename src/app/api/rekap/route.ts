@@ -183,7 +183,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const format = (searchParams.get('format') ?? 'json').toLowerCase()
   const todayIso = new Date().toISOString().slice(0, 10)
-  const baseFilename = `rekap-sipandu-rw06-${todayIso}`
+  let baseFilename = `rekap-sipandu-rw06-${todayIso}`
 
   let rawTickets: RawExportTicket[] = []
   let totalTickets = 0
@@ -192,6 +192,13 @@ export async function GET(request: Request) {
   let perCategory: Record<string, number> = {}
 
   if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Layanan basis data belum terkonfigurasi' },
+        { status: 500 },
+      )
+    }
+
     rawTickets = PREVIEW_TICKETS_RAW
     totalTickets = 128
     perStatus = {
@@ -232,37 +239,77 @@ export async function GET(request: Request) {
     }
 
     const role = getRoleFromJwt(user.app_metadata)
-    if (role !== 'ketua_rw' && role !== 'admin') {
+    if (role !== 'ketua_rt' && role !== 'ketua_rw' && role !== 'admin') {
       return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
     }
 
-    const [ticketsRes, profilesRes] = await Promise.all([
-      supabase
-        .from('tickets')
-        .select(
-          `
-          id,
-          ticket_number,
-          user_id,
-          title,
-          description,
-          location_landmark,
-          status,
-          rejection_reason,
-          rating,
-          rating_comment,
-          created_at,
-          submitted_at,
-          verified_at,
-          processed_at,
-          completed_at,
-          rejected_at,
-          categories (name),
-          regions (name, rw)
-        `,
+    const { data: callerProfile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('id, region_id, is_active, regions(name)')
+      .eq('id', user.id)
+      .single()
+
+    if (profileErr || !callerProfile) {
+      return NextResponse.json(
+        { error: 'Profil pengguna tidak ditemukan' },
+        { status: 403 },
+      )
+    }
+
+    if (!callerProfile.is_active) {
+      return NextResponse.json(
+        { error: 'Akun Anda sedang dinonaktifkan' },
+        { status: 403 },
+      )
+    }
+
+    if (role === 'ketua_rt') {
+      if (!callerProfile.region_id) {
+        return NextResponse.json(
+          { error: 'Wilayah RT belum diatur untuk akun Ketua RT ini' },
+          { status: 403 },
         )
-        .neq('status', 'draft')
-        .order('created_at', { ascending: false }),
+      }
+      const regionData = callerProfile.regions as { name: string } | null
+      const rtCode = (regionData?.name ?? `rt${callerProfile.region_id}`)
+        .toLowerCase()
+        .replace(/\s+/g, '')
+      baseFilename = `rekap-sipandu-${rtCode}-rw06-${todayIso}`
+    }
+
+    let ticketsQuery = supabase
+      .from('tickets')
+      .select(
+        `
+        id,
+        ticket_number,
+        user_id,
+        title,
+        description,
+        location_landmark,
+        status,
+        rejection_reason,
+        rating,
+        rating_comment,
+        created_at,
+        submitted_at,
+        verified_at,
+        processed_at,
+        completed_at,
+        rejected_at,
+        categories (name),
+        regions (name, rw)
+      `,
+      )
+      .neq('status', 'draft')
+      .order('created_at', { ascending: false })
+
+    if (role === 'ketua_rt' && callerProfile.region_id) {
+      ticketsQuery = ticketsQuery.eq('region_id', callerProfile.region_id)
+    }
+
+    const [ticketsRes, profilesRes] = await Promise.all([
+      ticketsQuery,
       supabase.from('profiles').select('id, full_name, phone'),
     ])
 

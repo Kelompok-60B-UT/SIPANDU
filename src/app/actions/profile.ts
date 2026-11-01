@@ -6,6 +6,7 @@ import {
   createClient,
   isSupabaseConfigured,
 } from '@/utils/supabase/server'
+import { getRoleFromJwt } from '@/utils/roles'
 import { UpdateProfileSchema, ChangePasswordSchema } from '@/utils/validation'
 import {
   err,
@@ -58,6 +59,20 @@ export async function updateProfileAvatar(
     error: authError,
   } = await supabase.auth.getUser()
   if (authError || !user) return err('Sesi tidak ditemukan')
+
+  const { data: currentProfile, error: profileError } = await supabase
+    .from('profiles')
+    .select('is_active, is_rt_verified, region_id')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !currentProfile) {
+    return err('Profil pengguna tidak ditemukan')
+  }
+
+  if (currentProfile.is_active === false) {
+    return err('Akun Anda sedang dinonaktifkan')
+  }
 
   const oldPath =
     typeof user.user_metadata?.avatar_path === 'string'
@@ -226,6 +241,21 @@ export async function updateProfile(
   } = await supabase.auth.getUser()
   if (authError || !user) return err('Sesi tidak ditemukan')
 
+  const { data: currentProfile, error: profileError } = await supabase
+    .from('profiles')
+    .select('is_active, is_rt_verified, region_id')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !currentProfile) {
+    return err('Profil pengguna tidak ditemukan')
+  }
+
+  if (currentProfile.is_active === false) {
+    return err('Akun Anda sedang dinonaktifkan')
+  }
+
+  const role = getRoleFromJwt(user.app_metadata) ?? 'warga'
   const { full_name, phone, address } = parsed.data
   const regionRaw = formData.get('region_id')
   const nextRegionId =
@@ -233,6 +263,17 @@ export async function updateProfile(
   const kelurahan = String(formData.get('kelurahan') ?? '').trim() || undefined
   const city = String(formData.get('city') ?? '').trim() || undefined
   const nowIso = new Date().toISOString()
+
+  // Hanya izinkan perubahan region_id jika Admin ATAU warga yang belum terverifikasi (pending)
+  const canChangeRegion =
+    role === 'admin' ||
+    (role === 'warga' && currentProfile.is_rt_verified === false)
+
+  const effectiveRegionId: number | null | undefined = canChangeRegion
+    ? nextRegionId !== undefined
+      ? nextRegionId
+      : currentProfile.region_id
+    : currentProfile.region_id
 
   let updatedWithAdmin = false
   try {
@@ -243,14 +284,16 @@ export async function updateProfile(
       phone: string | null
       address: string | null
       updated_at: string
-      region_id?: number
+      region_id?: number | null
     } = {
       id: user.id,
       full_name,
       phone: phone || null,
       address: address || null,
       updated_at: nowIso,
-      ...(nextRegionId !== undefined ? { region_id: nextRegionId } : {}),
+      ...(effectiveRegionId !== undefined
+        ? { region_id: effectiveRegionId }
+        : {}),
     }
 
     const { error: adminProfErr } = await admin
@@ -267,7 +310,9 @@ export async function updateProfile(
         full_name,
         phone: phone || null,
         address: address || null,
-        ...(nextRegionId !== undefined ? { region_id: nextRegionId } : {}),
+        ...(effectiveRegionId !== undefined
+          ? { region_id: effectiveRegionId }
+          : {}),
         ...(kelurahan ? { kelurahan } : {}),
         ...(city ? { city } : {}),
       },
@@ -284,6 +329,9 @@ export async function updateProfile(
         phone: phone || null,
         address: address || null,
         updated_at: nowIso,
+        ...(effectiveRegionId !== undefined
+          ? { region_id: effectiveRegionId }
+          : {}),
       })
       .eq('id', user.id)
 
@@ -295,7 +343,9 @@ export async function updateProfile(
       full_name,
       phone: phone || null,
       address: address || null,
-      ...(nextRegionId !== undefined ? { region_id: nextRegionId } : {}),
+      ...(effectiveRegionId !== undefined
+        ? { region_id: effectiveRegionId }
+        : {}),
       ...(kelurahan ? { kelurahan } : {}),
       ...(city ? { city } : {}),
     },

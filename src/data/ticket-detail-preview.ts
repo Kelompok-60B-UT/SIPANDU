@@ -1,3 +1,4 @@
+import { redirect, unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { getTicketById } from '@/data/tickets'
 import { getFormOptions } from '@/app/actions/tickets'
@@ -374,41 +375,26 @@ export async function getTicketDetailPageData(
     }
   }
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user) {
-    const unreadCount = PREVIEW_NOTIFICATIONS.filter((n) => !n.is_read).length
-    return {
-      isPreview: true,
-      viewer: {
-        userId: PREVIEW_USER.profile.id,
-        fullName: PREVIEW_USER.profile.full_name,
-        role: PREVIEW_USER.role,
-        roleLabel: roleLabelId(PREVIEW_USER.role),
-        regionLabel: `${PREVIEW_USER.region.name} / RW ${PREVIEW_USER.region.rw}`,
-        unreadCount,
-      },
-      ticket: buildPreviewTicketFromList(rawId),
-      categories: PREVIEW_CATEGORIES,
-      regions: PREVIEW_REGIONS,
+    if (!user) {
+      redirect('/login')
     }
-  }
 
-  const viewerRole = getRoleFromJwt(user.app_metadata) ?? 'warga'
-  const [profileRes, optionsRes, unreadRes] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    getFormOptions(),
-    listNotifications(true),
-  ])
+    const viewerRole = getRoleFromJwt(user.app_metadata) ?? 'warga'
+    const [profileRes, optionsRes, unreadRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', user.id).single(),
+      getFormOptions(),
+      listNotifications(true),
+    ])
 
-  const categories = optionsRes.success
-    ? optionsRes.data.categories
-    : PREVIEW_CATEGORIES
-  const regions = optionsRes.success ? optionsRes.data.regions : PREVIEW_REGIONS
-  const unreadCount = unreadRes.success ? unreadRes.data.length : 0
+    const categories = optionsRes.success ? optionsRes.data.categories : []
+    const regions = optionsRes.success ? optionsRes.data.regions : []
+    const unreadCount = unreadRes.success ? unreadRes.data.length : 0
 
   const viewerProfile = profileRes.data
   const viewerAvatarUrl =
@@ -636,5 +622,9 @@ export async function getTicketDetailPageData(
     },
     categories,
     regions,
+  }
+  } catch (error) {
+    unstable_rethrow(error)
+    throw error
   }
 }

@@ -1,4 +1,4 @@
-import { unstable_rethrow } from 'next/navigation'
+import { redirect, unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { getRoleFromJwt } from '@/utils/roles'
 import type { Notification, Profile, UserRole } from '@/types/database.types'
@@ -220,7 +220,9 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) return PREVIEW_USER
+    if (!user) {
+      redirect('/login')
+    }
 
     const role = getRoleFromJwt(user.app_metadata) ?? 'warga'
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>
@@ -265,7 +267,7 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
           address: typeof meta.address === 'string' ? meta.address : null,
           region_id: region.id,
           is_active: true,
-          is_rt_verified: false,
+          is_rt_verified: role !== 'warga',
           created_at: nowIso,
           updated_at: nowIso,
         },
@@ -295,6 +297,7 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
 
     const mergedProfile: Profile = {
       ...profile,
+      is_rt_verified: role !== 'warga' ? true : profile.is_rt_verified,
       full_name:
         profile.full_name ||
         (typeof meta.full_name === 'string' && meta.full_name.trim()
@@ -321,6 +324,6 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
     }
   } catch (error) {
     unstable_rethrow(error)
-    return PREVIEW_USER
+    throw error
   }
 }

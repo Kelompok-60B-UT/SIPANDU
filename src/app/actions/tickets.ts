@@ -191,6 +191,19 @@ export async function createDraft(
   } = await supabase.auth.getUser()
   if (authError || !user) return err('Anda harus masuk untuk membuat pengaduan')
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_rt_verified, is_active')
+    .eq('id', user.id)
+    .single()
+
+  const userRole = (user.app_metadata?.sipandu_role as string) || 'warga'
+  if (userRole === 'warga' && profile && !profile.is_rt_verified) {
+    return err(
+      'Akun Anda sedang menunggu persetujuan pengurus RT/RW/Admin. Anda baru dapat membuat pengaduan setelah akun disetujui.',
+    )
+  }
+
   const { title, description, category_id, region_id, location_landmark } =
     parsed.data
 
@@ -295,6 +308,19 @@ export async function submitTicket(
     error: authError,
   } = await supabase.auth.getUser()
   if (authError || !user) return err('Sesi tidak ditemukan')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_rt_verified, is_active')
+    .eq('id', user.id)
+    .single()
+
+  const userRole = (user.app_metadata?.sipandu_role as string) || 'warga'
+  if (userRole === 'warga' && profile && !profile.is_rt_verified) {
+    return err(
+      'Akun Anda belum disetujui oleh pengurus RT/RW atau Admin.',
+    )
+  }
 
   const { error } = await supabase.rpc('submit_ticket', {
     p_ticket_id: ticketId,

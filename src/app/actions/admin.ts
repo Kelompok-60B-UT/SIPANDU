@@ -76,6 +76,7 @@ export async function createStaff(
       region_id: region_id && region_id > 0 ? region_id : null,
       phone,
       address,
+      is_rt_verified: true,
     })
     .eq('id', data.user.id)
 
@@ -449,12 +450,21 @@ export async function updateUserRole(input: {
     )
     if (authErr) return err(supabaseErrorToMessage(authErr))
 
+    const profileUpdate: {
+      region_id: number | null
+      updated_at: string
+      is_rt_verified?: boolean
+    } = {
+      region_id: nextRegionId,
+      updated_at: new Date().toISOString(),
+    }
+    if (input.role !== 'warga') {
+      profileUpdate.is_rt_verified = true
+    }
+
     const { error: profErr } = await admin
       .from('profiles')
-      .update({
-        region_id: nextRegionId,
-        updated_at: new Date().toISOString(),
-      })
+      .update(profileUpdate)
       .eq('id', input.userId)
     if (profErr) return err(supabaseErrorToMessage(profErr))
 
@@ -677,6 +687,8 @@ export async function verifyResident(
 
   revalidatePath('/dashboard/admin')
   revalidatePath('/dashboard/rt')
+  revalidatePath('/dashboard/rw')
+  revalidatePath('/dashboard/warga')
   return okEmpty()
 }
 
@@ -687,6 +699,8 @@ export interface AdminUserItem {
   full_name: string
   region_id: number | null
   is_active: boolean
+  is_rt_verified: boolean
+  created_at?: string
 }
 
 export async function listUsers(
@@ -707,7 +721,7 @@ export async function listUsers(
     const supabase = await createClient()
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, full_name, region_id, is_active')
+      .select('id, full_name, region_id, is_active, is_rt_verified, created_at')
 
     const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]))
 
@@ -735,6 +749,9 @@ export async function listUsers(
           full_name: profile?.full_name ?? '',
           region_id: profile?.region_id ?? null,
           is_active: profile?.is_active ?? true,
+          is_rt_verified:
+            userRole !== 'warga' ? true : (profile?.is_rt_verified ?? false),
+          created_at: profile?.created_at,
         }
       })
       .filter((u) => !role || u.role === role)

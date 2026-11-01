@@ -55,6 +55,12 @@ const RT_MENUS = [
     icon: ClipboardCheck,
   },
   {
+    key: "persetujuan-warga",
+    label: "Persetujuan warga",
+    href: "/dashboard/rt#persetujuan-warga",
+    icon: Users,
+  },
+  {
     key: "riwayat",
     label: "Riwayat pengaduan",
     href: "/dashboard/rt#antrean-verifikasi",
@@ -92,6 +98,12 @@ const RW_MENUS = [
     label: "Seluruh pengaduan",
     href: "/dashboard/rw#antrean-tindak-lanjut",
     icon: ClipboardList,
+  },
+  {
+    key: "persetujuan-warga",
+    label: "Persetujuan warga",
+    href: "/dashboard/rw#persetujuan-warga",
+    icon: Users,
   },
   {
     key: "notifikasi",
