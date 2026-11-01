@@ -2,10 +2,8 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import AdminDashboardClient from "@/components/admin/AdminDashboardClient";
-import {
-  getAdminDashboardData,
-  PREVIEW_ADMIN_DATA,
-} from "@/data/admin-preview";
+import { AdminDashboardSkeleton } from "@/components/ui/Skeleton";
+import { getAdminDashboardData } from "@/data/admin-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
@@ -24,9 +22,7 @@ async function LiveAdminDashboard() {
 
 export default function AdminDashboardPage() {
   return (
-    <Suspense
-      fallback={<AdminDashboardClient initialData={PREVIEW_ADMIN_DATA} />}
-    >
+    <Suspense fallback={<AdminDashboardSkeleton />}>
       <LiveAdminDashboard />
     </Suspense>
   );

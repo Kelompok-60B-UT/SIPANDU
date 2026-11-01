@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import RtDashboardClient from "@/components/staff/RtDashboardClient";
-import { getStaffDashboardData, PREVIEW_RT_DATA } from "@/data/staff-preview";
+import { StaffDashboardSkeleton } from "@/components/ui/Skeleton";
+import { getStaffDashboardData } from "@/data/staff-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
@@ -21,7 +22,11 @@ async function LiveRtDashboard() {
 
 export default function RtDashboardPage() {
   return (
-    <Suspense fallback={<RtDashboardClient initialData={PREVIEW_RT_DATA} />}>
+    <Suspense
+      fallback={
+        <StaffDashboardSkeleton headerTitle="Ruang layanan Ketua RT" />
+      }
+    >
       <LiveRtDashboard />
     </Suspense>
   );

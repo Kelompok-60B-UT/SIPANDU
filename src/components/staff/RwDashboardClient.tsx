@@ -116,9 +116,16 @@ export default function RwDashboardClient({
     text: string;
   } | null>(null);
 
-  const [latestCompletedMsg, setLatestCompletedMsg] = useState(
-    "Tiket #0261 selesai pada 30 Oktober pukul 15.30. Bukti pembersihan saluran sudah tersedia untuk warga.",
-  );
+  const [latestCompletedMsg, setLatestCompletedMsg] = useState(() => {
+    if (initialData.isPreview) {
+      return "Tiket #0261 selesai pada 30 Oktober pukul 15.30. Bukti pembersihan saluran sudah tersedia untuk warga.";
+    }
+    const latestDone = initialData.tickets.find((t) => t.status === "selesai");
+    if (latestDone) {
+      return `Tiket ${shortTicketCode(latestDone.ticketNumber)} (${latestDone.title}) telah selesai ditangani.`;
+    }
+    return "Belum ada laporan yang diselesaikan baru-baru ini.";
+  });
 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [isPending, startTransition] = useTransition();

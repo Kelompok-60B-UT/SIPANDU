@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import type { Metadata } from "next";
 import WargaShell from "@/components/warga/WargaShell";
 import ProfileForm from "@/components/warga/ProfileForm";
+import { ProfileSkeleton } from "@/components/ui/Skeleton";
 import { listNotifications } from "@/app/actions/profile";
 import { getFormOptions } from "@/app/actions/tickets";
 import {
@@ -100,15 +101,7 @@ async function LiveProfilePage() {
 
 export default function ProfilePage() {
   return (
-    <Suspense
-      fallback={
-        <ProfileView
-          userCtx={PREVIEW_USER}
-          regions={PREVIEW_REGIONS}
-          unreadCount={PREVIEW_NOTIFICATIONS.filter((n) => !n.is_read).length}
-        />
-      }
-    >
+    <Suspense fallback={<ProfileSkeleton />}>
       <LiveProfilePage />
     </Suspense>
   );

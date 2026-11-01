@@ -361,22 +361,43 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     )
 
     const usersRes = await listUsers()
-    const accounts: AdminAccountRow[] = usersRes.success
-      ? usersRes.data.map((u) => {
-          const regLabel = u.region_id
-            ? (regionMap.get(u.region_id) ?? 'RW 06')
-            : 'RW 06'
-          return {
-            id: u.id,
-            fullName: u.full_name || u.email,
-            email: u.email,
-            role: u.role,
-            regionLabel: regLabel,
-            permissionDesc: permissionForRole(u.role, regLabel),
-            isActive: u.is_active,
-          }
-        })
-      : PREVIEW_ADMIN_DATA.accounts
+    let accounts: AdminAccountRow[] = []
+    if (usersRes.success) {
+      accounts = usersRes.data.map((u) => {
+        const regLabel = u.region_id
+          ? (regionMap.get(u.region_id) ?? 'RW 06')
+          : 'RW 06'
+        return {
+          id: u.id,
+          fullName: u.full_name || u.email,
+          email: u.email,
+          role: u.role,
+          regionLabel: regLabel,
+          permissionDesc: permissionForRole(u.role, regLabel),
+          isActive: u.is_active,
+        }
+      })
+    } else {
+      const { data: fallbackProfiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, region_id, is_active')
+        .limit(200)
+      accounts = (fallbackProfiles ?? []).map((p) => {
+        const regLabel = p.region_id
+          ? (regionMap.get(p.region_id) ?? 'RW 06')
+          : 'RW 06'
+        const role: UserRole = p.id === user.id ? 'admin' : 'warga'
+        return {
+          id: p.id,
+          fullName: p.full_name || 'Pengguna SIPANDU',
+          email: p.id === user.id ? (user.email ?? '-') : '-',
+          role,
+          regionLabel: regLabel,
+          permissionDesc: permissionForRole(role, regLabel),
+          isActive: p.is_active,
+        }
+      })
+    }
 
     const residentTotal = accounts.filter((a) => a.role === 'warga').length
     const staffActiveTotal = accounts.filter(
@@ -397,7 +418,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
             ).length,
             isActive: r.is_active,
           }))
-        : PREVIEW_ADMIN_DATA.rtRegions
+        : []
 
     const categories: AdminCategorySummary[] =
       categoriesRes.data && categoriesRes.data.length > 0
@@ -407,19 +428,27 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
             reportCount: catCount.get(c.id) ?? 0,
             isActive: c.is_active,
           }))
-        : PREVIEW_ADMIN_DATA.categories
+        : []
 
-    const activities: AdminActivityLog[] =
-      timelinesRes.data && timelinesRes.data.length > 0
-        ? timelinesRes.data.map((tl) => ({
-            id: tl.id,
-            text: `${formatActivityTime(tl.created_at)} • ${tl.actor_name} mengubah status tiket #${tl.ticket_id} menjadi ${tl.to_status}.`,
-          }))
-        : PREVIEW_ADMIN_DATA.activities
+    const activities: AdminActivityLog[] = (timelinesRes.data ?? []).map(
+      (tl) => ({
+        id: tl.id,
+        text: `${formatActivityTime(tl.created_at)} • ${tl.actor_name} mengubah status tiket #${tl.ticket_id} menjadi ${tl.to_status}.`,
+      }),
+    )
+
+    const metaAdminName =
+      typeof user.user_metadata?.full_name === 'string'
+        ? user.user_metadata.full_name
+        : null
 
     return {
       isPreview: false,
-      adminName: profileRes.data?.full_name ?? PREVIEW_ADMIN_DATA.adminName,
+      adminName:
+        profileRes.data?.full_name ??
+        metaAdminName ??
+        user.email?.split('@')[0] ??
+        'Admin',
       unreadCount: stats.terkirim,
       residentTotal,
       staffActiveTotal,

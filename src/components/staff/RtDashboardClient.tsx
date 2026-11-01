@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import {
   AlertCircle,
@@ -23,7 +23,11 @@ import { rejectTicket, verifyTicket } from "@/app/actions/tickets";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
 import { statusLabelId } from "@/utils/transition";
 import type { TicketStatus } from "@/types";
-import type { StaffContextData, StaffTicketItem } from "@/data/staff-preview";
+import type {
+  StaffAttachmentItem,
+  StaffContextData,
+  StaffTicketItem,
+} from "@/data/staff-preview";
 
 const STATUS_FILTER_OPTIONS: TicketStatus[] = [
   "terkirim",
@@ -41,6 +45,83 @@ function formatBytesMb(bytes: number): string {
 function shortTicketCode(ticketNumber: string): string {
   const parts = ticketNumber.split("-");
   return `#${parts[parts.length - 1] ?? ticketNumber}`;
+}
+
+function StaffAttachmentThumb({
+  attachment,
+  onOpen,
+}: {
+  attachment: StaffAttachmentItem;
+  onOpen: (url: string, fileName: string) => void;
+}) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const resolvedUrl = attachment.previewUrl || signedUrl;
+
+  useEffect(() => {
+    if (
+      attachment.previewUrl ||
+      !attachment.storagePath ||
+      !isSupabaseConfigured()
+    ) {
+      return;
+    }
+    let active = true;
+    const supabase = createClient();
+    supabase.storage
+      .from("ticket-attachments")
+      .createSignedUrl(attachment.storagePath, 3600)
+      .then(({ data }) => {
+        if (active && data?.signedUrl) {
+          setSignedUrl(data.signedUrl);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [attachment.previewUrl, attachment.storagePath]);
+
+  return (
+    <div className="mt-4 flex items-center gap-3.5">
+      {resolvedUrl ? (
+        <button
+          type="button"
+          onClick={() => onOpen(resolvedUrl, attachment.fileName)}
+          className="h-16 w-24 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-surface"
+        >
+          <Image
+            src={resolvedUrl}
+            alt={attachment.fileName}
+            width={120}
+            height={84}
+            unoptimized={!resolvedUrl.startsWith("/")}
+            className="h-full w-full scale-[1.05] object-cover"
+          />
+        </button>
+      ) : (
+        <div
+          aria-busy="true"
+          className="h-16 w-24 shrink-0 animate-pulse rounded-xl bg-slate-200/80"
+        />
+      )}
+      <div>
+        <p className="text-xs font-bold text-ink">{attachment.fileName}</p>
+        <p className="mt-0.5 text-[11px] text-muted">
+          {formatBytesMb(attachment.sizeBytes)}
+        </p>
+        {resolvedUrl ? (
+          <button
+            type="button"
+            onClick={() => onOpen(resolvedUrl, attachment.fileName)}
+            className="mt-1 inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            Lihat foto lengkap →
+          </button>
+        ) : (
+          <div className="mt-1.5 h-3.5 w-28 animate-pulse rounded bg-slate-200/80" />
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function RtDashboardClient({
@@ -111,28 +192,6 @@ export default function RtDashboardClient({
       behavior: "smooth",
       block: "nearest",
     });
-  };
-
-  const handleOpenPhoto = async (
-    previewUrl: string,
-    fileName: string,
-    storagePath?: string,
-  ) => {
-    if (storagePath && isSupabaseConfigured()) {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase.storage
-          .from("ticket-attachments")
-          .createSignedUrl(storagePath, 3600);
-        if (data?.signedUrl) {
-          setLightbox({ url: data.signedUrl, fileName });
-          return;
-        }
-      } catch {
-        // Fallback ke preview lokal
-      }
-    }
-    setLightbox({ url: previewUrl, fileName });
   };
 
   // Eksekusi langsung tanpa dialog konfirmasi (sesuai instruksi)
@@ -224,13 +283,17 @@ export default function RtDashboardClient({
 
   const greetingFirstName =
     initialData.fullName.trim().split(/\s+/)[0] || "Pengurus";
-  const attachment = selectedTicket?.reportAttachments[0] ?? {
-    id: 0,
-    type: "laporan" as const,
-    fileName: "kondisi-gang-melati.jpg",
-    sizeBytes: Math.round(1.8 * 1024 * 1024),
-    previewUrl: "/dummysampah.jpg",
-  };
+  const attachment =
+    selectedTicket?.reportAttachments[0] ??
+    (initialData.isPreview
+      ? {
+          id: 0,
+          type: "laporan" as const,
+          fileName: "kondisi-gang-melati.jpg",
+          sizeBytes: Math.round(1.8 * 1024 * 1024),
+          previewUrl: "/dummysampah.jpg",
+        }
+      : null);
 
   return (
     <StaffShell
@@ -511,49 +574,16 @@ export default function RtDashboardClient({
                 </p>
 
                 {/* Lampiran Foto */}
-                <div className="mt-4 flex items-center gap-3.5">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleOpenPhoto(
-                        attachment.previewUrl,
-                        attachment.fileName,
-                        attachment.storagePath,
-                      )
-                    }
-                    className="h-16 w-24 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-surface"
-                  >
-                    <Image
-                      src={attachment.previewUrl}
-                      alt={attachment.fileName}
-                      width={120}
-                      height={84}
-                      className="h-full w-full scale-[1.05] object-cover"
-                    />
-                  </button>
-                  <div>
-                    <p className="text-xs font-bold text-ink">
-                      {attachment.fileName}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-muted">
-                      {Math.max(1, selectedTicket.reportAttachments.length)} foto
-                      • {formatBytesMb(attachment.sizeBytes)}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleOpenPhoto(
-                          attachment.previewUrl,
-                          attachment.fileName,
-                          attachment.storagePath,
-                        )
-                      }
-                      className="mt-1 inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                    >
-                      Lihat foto lengkap →
-                    </button>
-                  </div>
-                </div>
+                {attachment ? (
+                  <StaffAttachmentThumb
+                    attachment={attachment}
+                    onOpen={(url, fileName) => setLightbox({ url, fileName })}
+                  />
+                ) : (
+                  <p className="mt-4 rounded-xl bg-surface px-3.5 py-2.5 text-xs text-muted">
+                    Tidak ada foto lampiran pada laporan ini.
+                  </p>
+                )}
 
                 {selectedTicket.status === "ditolak" &&
                   selectedTicket.rejectionReason && (

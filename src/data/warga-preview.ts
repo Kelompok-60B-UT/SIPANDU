@@ -227,11 +227,33 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
       .single()
 
     if (!profile) {
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+      const fallbackName =
+        typeof meta.full_name === 'string' && meta.full_name.trim()
+          ? meta.full_name.trim()
+          : (user.email?.split('@')[0] ?? 'Warga')
+      const metaRegionId =
+        typeof meta.region_id === 'number' ? meta.region_id : 3
+      const region =
+        PREVIEW_REGIONS.find((r) => r.id === metaRegionId) ?? PREVIEW_REGIONS[2]
+      const nowIso = new Date().toISOString()
+
       return {
-        ...PREVIEW_USER,
         isPreview: false,
-        email: user.email ?? PREVIEW_USER.email,
+        email: user.email ?? '',
         role,
+        profile: {
+          id: user.id,
+          full_name: fallbackName,
+          phone: typeof meta.phone === 'string' ? meta.phone : null,
+          address: typeof meta.address === 'string' ? meta.address : null,
+          region_id: region.id,
+          is_active: true,
+          is_rt_verified: false,
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        region,
       }
     }
 

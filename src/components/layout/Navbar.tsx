@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { MessageSquareText } from "lucide-react";
 import AuthButtons from "@/components/layout/AuthButtons";
+import { AuthButtonsSkeleton } from "@/components/ui/Skeleton";
 
 const menu = [
   { label: "Beranda", href: "#beranda" },
@@ -43,7 +44,7 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <Suspense fallback={<div className="h-9 w-36 sm:w-44" />}>
+        <Suspense fallback={<AuthButtonsSkeleton />}>
           <AuthButtons />
         </Suspense>
       </div>

@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import type { Metadata } from "next";
 import AuthShell from "@/components/auth/AuthShell";
 import RegisterForm from "@/components/auth/RegisterForm";
+import { RegisterFormSkeleton } from "@/components/ui/Skeleton";
 import { getFormOptions } from "@/app/actions/tickets";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
 import type { RegionOption } from "@/types";
@@ -44,7 +45,7 @@ export default function RegisterPage() {
         </>
       }
     >
-      <Suspense fallback={<RegisterForm regions={DEFAULT_REGIONS} />}>
+      <Suspense fallback={<RegisterFormSkeleton />}>
         <RegisterContent />
       </Suspense>
     </AuthShell>

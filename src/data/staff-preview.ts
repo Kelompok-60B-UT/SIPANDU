@@ -475,7 +475,7 @@ export async function getStaffDashboardData(
             type: 'laporan' as const,
             fileName: a.file_name,
             sizeBytes: a.size_bytes,
-            previewUrl: '/dummysampah.jpg',
+            previewUrl: '',
             storagePath: a.storage_path,
           })),
         proofAttachments: attachments
@@ -487,7 +487,7 @@ export async function getStaffDashboardData(
             type: 'penyelesaian' as const,
             fileName: a.file_name,
             sizeBytes: a.size_bytes,
-            previewUrl: '/dummysampah.jpg',
+            previewUrl: '',
             storagePath: a.storage_path,
           })),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -502,9 +502,15 @@ export async function getStaffDashboardData(
       }
     })
 
+    const metaName =
+      typeof user.user_metadata?.full_name === 'string'
+        ? user.user_metadata.full_name
+        : null
+
     return {
       isPreview: false,
-      fullName: profile?.full_name ?? fallback.fullName,
+      fullName:
+        profile?.full_name ?? metaName ?? user.email?.split('@')[0] ?? 'Pengurus',
       regionName:
         targetRole === 'ketua_rt' ? regionObj.name : 'RW 06 Parakansaat',
       rw: regionObj.rw,

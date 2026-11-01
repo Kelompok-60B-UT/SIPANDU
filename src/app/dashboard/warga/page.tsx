@@ -15,6 +15,7 @@ import {
 import WargaShell from "@/components/warga/WargaShell";
 import WargaTicketsCard from "@/components/warga/WargaTicketsCard";
 import NotificationsCard from "@/components/warga/NotificationsCard";
+import { WargaDashboardSkeleton } from "@/components/ui/Skeleton";
 import { listNotifications } from "@/app/actions/profile";
 import {
   getDashboardStats,
@@ -63,6 +64,16 @@ const MONTHS_ID = [
   "NOVEMBER",
   "DESEMBER",
 ];
+
+const EMPTY_STATS: DashboardStats = {
+  total: 0,
+  draft: 0,
+  terkirim: 0,
+  diverifikasi_rt: 0,
+  diproses_rw: 0,
+  selesai: 0,
+  ditolak: 0,
+};
 
 function formatBannerDate(isPreview: boolean): string {
   if (isPreview) return "SABTU, 31 OKTOBER 2026";
@@ -252,13 +263,13 @@ async function LiveWargaDashboard() {
     getWargaUserContext(),
     getDashboardStats().catch((err) => {
       unstable_rethrow(err);
-      return PREVIEW_STATS;
+      return EMPTY_STATS;
     }),
     getTickets({ limit: 50 }).catch((err) => {
       unstable_rethrow(err);
       return {
-        tickets: PREVIEW_TICKETS,
-        total: PREVIEW_TICKETS.length,
+        tickets: [] as TicketListItem[],
+        total: 0,
       };
     }),
     listNotifications(),
@@ -287,16 +298,7 @@ async function LiveWargaDashboard() {
 
 export default function WargaDashboardPage() {
   return (
-    <Suspense
-      fallback={
-        <DashboardView
-          userCtx={PREVIEW_USER}
-          stats={PREVIEW_STATS}
-          tickets={PREVIEW_TICKETS}
-          notifications={PREVIEW_NOTIFICATIONS}
-        />
-      }
-    >
+    <Suspense fallback={<WargaDashboardSkeleton />}>
       <LiveWargaDashboard />
     </Suspense>
   );

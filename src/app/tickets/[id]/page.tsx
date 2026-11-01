@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import TicketDetailClient from "@/components/tickets/TicketDetailClient";
+import { TicketDetailSkeleton } from "@/components/ui/Skeleton";
 import { getTicketDetailPageData } from "@/data/ticket-detail-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
 
@@ -33,13 +34,7 @@ export default function TicketDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-surface text-xs text-muted">
-          Memuat pelacakan tiket...
-        </div>
-      }
-    >
+    <Suspense fallback={<TicketDetailSkeleton />}>
       <TicketDetailContent params={params} />
     </Suspense>
   );

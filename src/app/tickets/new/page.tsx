@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import type { Metadata } from "next";
 import WargaShell from "@/components/warga/WargaShell";
 import CreateTicketForm from "@/components/warga/CreateTicketForm";
+import { CreateTicketSkeleton } from "@/components/ui/Skeleton";
 import { listNotifications } from "@/app/actions/profile";
 import { getFormOptions } from "@/app/actions/tickets";
 import {
@@ -105,16 +106,7 @@ async function LiveCreateTicketPage() {
 
 export default function NewTicketPage() {
   return (
-    <Suspense
-      fallback={
-        <CreateTicketView
-          userCtx={PREVIEW_USER}
-          regions={PREVIEW_REGIONS}
-          categories={PREVIEW_CATEGORIES}
-          unreadCount={PREVIEW_NOTIFICATIONS.filter((n) => !n.is_read).length}
-        />
-      }
-    >
+    <Suspense fallback={<CreateTicketSkeleton />}>
       <LiveCreateTicketPage />
     </Suspense>
   );
