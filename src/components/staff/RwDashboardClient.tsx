@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
+import {
+  formatFriendlyUserName,
+  useLocalTimeGreeting,
+} from "@/components/ui/LocalTimeGreeting";
 import RekapDownloadButton from "@/components/common/RekapDownloadButton";
 import { completeTicket, processTicket } from "@/app/actions/tickets";
 import {
@@ -425,8 +429,12 @@ export default function RwDashboardClient({
     });
   };
 
+  const { greeting, monthYearUpper } = useLocalTimeGreeting();
   const greetingFirstName =
     initialData.fullName.trim().split(/\s+/)[0] || "Pengurus";
+  const greetingDisplayName = initialData.isPreview
+    ? `Pak ${greetingFirstName}`
+    : formatFriendlyUserName(initialData.fullName, "Pengurus");
   const activeTargetStatus = selectedTicket
     ? (targetStatuses[selectedTicket.id] ??
       (selectedTicket.status === "diverifikasi_rt" ? "diproses_rw" : "selesai"))
@@ -449,13 +457,14 @@ export default function RwDashboardClient({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-              RW 06 PARAKANSAAT • OKTOBER 2026
+              RW {initialData.rw} PARAKANSAAT •{" "}
+              {monthYearUpper ?? "OKTOBER 2026"}
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
               Dari laporan, jadi tindakan.
             </h1>
             <p className="mt-1 text-sm text-muted">
-              Selamat pagi, Pak {greetingFirstName}. Koordinasikan tindak lanjut
+              {greeting}, {greetingDisplayName}. Koordinasikan tindak lanjut
               laporan yang sudah diverifikasi RT.
             </p>
           </div>

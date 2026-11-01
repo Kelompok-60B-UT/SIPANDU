@@ -15,6 +15,7 @@ import {
 import WargaShell from "@/components/warga/WargaShell";
 import WargaTicketsCard from "@/components/warga/WargaTicketsCard";
 import NotificationsCard from "@/components/warga/NotificationsCard";
+import { WargaGreetingHeader } from "@/components/ui/LocalTimeGreeting";
 import { WargaDashboardSkeleton } from "@/components/ui/Skeleton";
 import { listNotifications } from "@/app/actions/profile";
 import {
@@ -40,31 +41,6 @@ export const metadata: Metadata = {
   description: "Ringkasan dan pemantauan pengaduan warga RW 06 Parakansaat.",
 };
 
-const DAYS_ID = [
-  "MINGGU",
-  "SENIN",
-  "SELASA",
-  "RABU",
-  "KAMIS",
-  "JUMAT",
-  "SABTU",
-];
-
-const MONTHS_ID = [
-  "JANUARI",
-  "FEBRUARI",
-  "MARET",
-  "APRIL",
-  "MEI",
-  "JUNI",
-  "JULI",
-  "AGUSTUS",
-  "SEPTEMBER",
-  "OKTOBER",
-  "NOVEMBER",
-  "DESEMBER",
-];
-
 const EMPTY_STATS: DashboardStats = {
   total: 0,
   draft: 0,
@@ -74,18 +50,6 @@ const EMPTY_STATS: DashboardStats = {
   selesai: 0,
   ditolak: 0,
 };
-
-function formatBannerDate(isPreview: boolean): string {
-  if (isPreview) return "SABTU, 31 OKTOBER 2026";
-  const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
-  return `${DAYS_ID[now.getUTCDay()]}, ${now.getUTCDate()} ${MONTHS_ID[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
-}
-
-function formatGreeting(fullName: string, isPreview: boolean): string {
-  if (isPreview) return "Selamat pagi, Bu Dewi 👋";
-  const firstName = fullName.trim().split(/\s+/)[0] || "Warga";
-  return `Selamat pagi, ${firstName} 👋`;
-}
 
 function DashboardView({
   userCtx,
@@ -117,17 +81,10 @@ function DashboardView({
       <div className="space-y-6">
         {/* Baris Sapaan & Tombol Buat Pengaduan */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-              {formatBannerDate(userCtx.isPreview)}
-            </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
-              {formatGreeting(userCtx.profile.full_name, userCtx.isPreview)}
-            </h1>
-            <p className="mt-1 text-sm text-muted">
-              Terima kasih sudah ikut menjaga lingkungan kita.
-            </p>
-          </div>
+          <WargaGreetingHeader
+            fullName={userCtx.profile.full_name}
+            isPreview={userCtx.isPreview}
+          />
 
           <Link
             href="/tickets/new"

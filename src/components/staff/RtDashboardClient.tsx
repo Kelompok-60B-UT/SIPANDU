@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
+import {
+  formatFriendlyUserName,
+  useLocalTimeGreeting,
+} from "@/components/ui/LocalTimeGreeting";
 import { rejectTicket, verifyTicket } from "@/app/actions/tickets";
 import { createClient, isSupabaseConfigured } from "@/utils/supabase/client";
 import { statusLabelId } from "@/utils/transition";
@@ -302,8 +306,12 @@ export default function RtDashboardClient({
     });
   };
 
+  const { greeting } = useLocalTimeGreeting();
   const greetingFirstName =
     initialData.fullName.trim().split(/\s+/)[0] || "Pengurus";
+  const greetingDisplayName = initialData.isPreview
+    ? `Pak ${greetingFirstName}`
+    : formatFriendlyUserName(initialData.fullName, "Pengurus");
   const reportAttachmentsList =
     selectedTicket && selectedTicket.reportAttachments.length > 0
       ? selectedTicket.reportAttachments
@@ -334,7 +342,7 @@ export default function RtDashboardClient({
             WILAYAH {initialData.regionName} / RW {initialData.rw}
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
-            Selamat pagi, Pak {greetingFirstName}.
+            {greeting}, {greetingDisplayName}.
           </h1>
           <p className="mt-1 text-sm text-muted">
             Pastikan laporan warga terverifikasi dan sampai ke pengurus RW.

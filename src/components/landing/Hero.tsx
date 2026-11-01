@@ -1,7 +1,148 @@
+import { Suspense } from "react";
+import { connection } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2, MapPin, Plus, ShieldCheck } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import { getPublicStats } from "@/app/actions/tickets";
+import {
+  createAdminClient,
+  createClient,
+  isSupabaseConfigured,
+} from "@/utils/supabase/server";
+import type { TicketStatus } from "@/types";
+
+interface HeroCardData {
+  summaryText: string;
+  ticketTitle: string;
+  ticketStatus: TicketStatus;
+}
+
+const PREVIEW_HERO_CARD: HeroCardData = {
+  summaryText: "68 laporan warga telah selesai ditangani",
+  ticketTitle: "Saluran air Gang Melati",
+  ticketStatus: "selesai",
+};
+
+function HeroHighlightCard({
+  summaryText,
+  ticketTitle,
+  ticketStatus,
+}: HeroCardData) {
+  return (
+    <div className="absolute bottom-0 left-1/2 w-[88%] -translate-x-1/2 rounded-xl bg-white p-4 shadow-lg sm:w-[85%]">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 size={22} className="mt-0.5 shrink-0 text-green-600" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">
+            Lingkungan lebih baik, bersama.
+          </p>
+          <p className="text-xs text-muted">{summaryText}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="truncate text-[11px] text-muted">{ticketTitle}</span>
+        <Badge status={ticketStatus} />
+      </div>
+    </div>
+  );
+}
+
+async function fetchHeroCardData(): Promise<HeroCardData> {
+  if (!isSupabaseConfigured()) {
+    return PREVIEW_HERO_CARD;
+  }
+
+  await connection();
+
+  // Ambil angka resmi yang sama persis dengan Stats.tsx (public_stats RPC)
+  const statsRes = await getPublicStats();
+  const selesaiCount = statsRes.success ? statsRes.data.selesai : 0;
+  const totalCount = statsRes.success ? statsRes.data.total_tickets : 0;
+  const diprosesCount = statsRes.success ? statsRes.data.diproses : 0;
+
+  const summaryText = `${selesaiCount} laporan warga telah selesai ditangani`;
+
+  // Ambil judul & status tiket terbaru untuk baris highlight bawah
+  let featured: { title: string; status: TicketStatus } | null = null;
+
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const admin = createAdminClient();
+      const [latestDoneRes, latestAnyRes] = await Promise.all([
+        admin
+          .from("tickets")
+          .select("title, status")
+          .eq("status", "selesai")
+          .order("completed_at", { ascending: false, nullsFirst: false })
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        admin
+          .from("tickets")
+          .select("title, status")
+          .neq("status", "draft")
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      featured = latestDoneRes.data ?? latestAnyRes.data;
+    } catch (error) {
+      unstable_rethrow(error);
+    }
+  } else {
+    try {
+      const supabase = await createClient();
+      const { data: visibleDone } = await supabase
+        .from("tickets")
+        .select("title, status")
+        .eq("status", "selesai")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (visibleDone) {
+        featured = visibleDone;
+      } else {
+        const { data: visibleAny } = await supabase
+          .from("tickets")
+          .select("title, status")
+          .neq("status", "draft")
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        featured = visibleAny;
+      }
+    } catch (error) {
+      unstable_rethrow(error);
+    }
+  }
+
+  const fallbackStatus: TicketStatus =
+    selesaiCount > 0
+      ? "selesai"
+      : diprosesCount > 0
+        ? "diproses_rw"
+        : "terkirim";
+
+  const fallbackTitle =
+    totalCount > 0
+      ? "Pantauan pengaduan warga RW 06"
+      : "Belum ada pengaduan warga terbaru";
+
+  return {
+    summaryText,
+    ticketTitle: featured?.title ?? fallbackTitle,
+    ticketStatus: featured?.status ?? fallbackStatus,
+  };
+}
+
+async function LiveHeroHighlightCard() {
+  const data = await fetchHeroCardData();
+  return <HeroHighlightCard {...data} />;
+}
 
 export default function Hero() {
   return (
@@ -55,25 +196,9 @@ export default function Hero() {
             priority
             className="h-80 w-full rounded-3xl object-cover sm:h-90 md:h-100"
           />
-          <div className="absolute bottom-0 left-1/2 w-[88%] -translate-x-1/2 rounded-xl bg-white p-4 shadow-lg sm:w-[85%]">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 size={22} className="mt-0.5 shrink-0 text-green-600" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-ink">
-                  Lingkungan lebih baik, bersama.
-                </p>
-                <p className="text-xs text-muted">
-                  68 laporan telah ditangani bulan ini
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-muted">
-                Saluran air Gang Melati
-              </span>
-              <Badge status="selesai" />
-            </div>
-          </div>
+          <Suspense fallback={<HeroHighlightCard {...PREVIEW_HERO_CARD} />}>
+            <LiveHeroHighlightCard />
+          </Suspense>
         </div>
       </div>
     </section>
