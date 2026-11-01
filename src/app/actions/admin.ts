@@ -115,6 +115,120 @@ export async function setStaffActive(
   return okEmpty()
 }
 
+export async function deleteUserByAdmin(
+  userId: string,
+): Promise<ActionResult<undefined>> {
+  const cleanUserId = userId.trim()
+  if (!cleanUserId) {
+    return err('ID pengguna tidak valid')
+  }
+
+  if (!isSupabaseConfigured()) return okEmpty()
+
+  const adminId = await requireAdmin()
+  if (!adminId) return err('Anda tidak memiliki izin')
+  if (adminId === cleanUserId) {
+    return err('Tidak dapat menghapus akun Admin yang sedang digunakan')
+  }
+
+  try {
+    const admin = createAdminClient()
+
+    // 1. Bersihkan file foto profil user pada bucket avatars (jika ada)
+    try {
+      const { data: avatarFiles } = await admin.storage
+        .from('avatars')
+        .list(cleanUserId)
+      const avatarPaths = (avatarFiles ?? []).map(
+        (f) => `${cleanUserId}/${f.name}`,
+      )
+      if (avatarPaths.length > 0) {
+        await admin.storage.from('avatars').remove(avatarPaths)
+      }
+    } catch {
+      // Abaikan bila bucket avatars belum ada
+    }
+
+    // 2. Lepas referensi handler RT/RW dan actor_id pada timeline tiket warga lain
+    await admin
+      .from('tickets')
+      .update({ handler_rt_id: null })
+      .eq('handler_rt_id', cleanUserId)
+
+    await admin
+      .from('tickets')
+      .update({ handler_rw_id: null })
+      .eq('handler_rw_id', cleanUserId)
+
+    await admin
+      .from('ticket_timeline')
+      .update({ actor_id: null })
+      .eq('actor_id', cleanUserId)
+
+    // 3. Cari seluruh tiket milik user ini untuk dibersihkan lampirannya
+    const { data: userTickets } = await admin
+      .from('tickets')
+      .select('id')
+      .eq('user_id', cleanUserId)
+
+    const userTicketIds = (userTickets ?? []).map((t) => t.id)
+
+    if (userTicketIds.length > 0) {
+      const { data: ticketAttachments } = await admin
+        .from('ticket_attachments')
+        .select('storage_path')
+        .in('ticket_id', userTicketIds)
+
+      const storagePaths = (ticketAttachments ?? [])
+        .map((a) => a.storage_path)
+        .filter((p): p is string => Boolean(p))
+
+      if (storagePaths.length > 0) {
+        await admin.storage.from('ticket-attachments').remove(storagePaths)
+      }
+
+      await admin
+        .from('notifications')
+        .delete()
+        .in('ticket_id', userTicketIds)
+      await admin
+        .from('ticket_timeline')
+        .delete()
+        .in('ticket_id', userTicketIds)
+      await admin
+        .from('ticket_attachments')
+        .delete()
+        .in('ticket_id', userTicketIds)
+      await admin.from('tickets').delete().in('id', userTicketIds)
+    }
+
+    // 4. Jika user pernah mengunggah bukti pada tiket milik orang lain, alihkan uploaded_by ke Admin agar bukti tiket tidak hilang
+    await admin
+      .from('ticket_attachments')
+      .update({ uploaded_by: adminId })
+      .eq('uploaded_by', cleanUserId)
+
+    // 5. Hapus notifikasi, profil, dan akun Auth pengguna
+    await admin.from('notifications').delete().eq('user_id', cleanUserId)
+    await admin.from('profiles').delete().eq('id', cleanUserId)
+
+    const { error: authDelErr } =
+      await admin.auth.admin.deleteUser(cleanUserId)
+    if (authDelErr) {
+      return err(supabaseErrorToMessage(authDelErr))
+    }
+
+    revalidatePath('/dashboard/admin')
+    revalidatePath('/dashboard/rt')
+    revalidatePath('/dashboard/rw')
+    revalidatePath('/dashboard/warga')
+    return okEmpty()
+  } catch (error) {
+    unstable_rethrow(error)
+    return err('Gagal menghapus akun pengguna')
+  }
+}
+
 export async function saveCategory(
   formData: FormData,
 ): Promise<ActionResult<{ id: number }>> {

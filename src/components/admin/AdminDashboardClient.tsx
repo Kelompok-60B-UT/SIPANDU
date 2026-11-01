@@ -37,6 +37,7 @@ import {
   createStaff,
   deleteCategory,
   deleteRegion,
+  deleteUserByAdmin,
   saveCategory,
   saveRegion,
   setCategoryActive,
@@ -166,6 +167,9 @@ export default function AdminDashboardClient({
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [accountFeedback, setAccountFeedback] = useState<string | null>(null);
   const [editingRoleAccountId, setEditingRoleAccountId] = useState<
+    string | null
+  >(null);
+  const [confirmDeleteAccountId, setConfirmDeleteAccountId] = useState<
     string | null
   >(null);
   const [draftRole, setDraftRole] = useState<UserRole>("warga");
@@ -650,6 +654,57 @@ export default function AdminDashboardClient({
       );
       prependActivity(
         `${nextActive ? "mengaktifkan" : "menonaktifkan"} akun ${acc.fullName}.`,
+      );
+    });
+  };
+
+  const handleDeleteAccount = (acc: AdminAccountRow) => {
+    if (acc.role === "admin" && acc.fullName === initialData.adminName) {
+      setAccountFeedback(
+        "Akun Admin yang sedang digunakan tidak dapat dihapus.",
+      );
+      return;
+    }
+    setAccountFeedback(null);
+
+    startTransition(async () => {
+      const res = await deleteUserByAdmin(acc.id);
+      if (!res.success) {
+        setAccountFeedback(res.error);
+        return;
+      }
+
+      setAccounts((prev) => prev.filter((item) => item.id !== acc.id));
+
+      if (acc.role === "ketua_rt") {
+        setRtRegions((prev) =>
+          prev.map((rt) =>
+            rt.leaderUserId === acc.id || rt.leaderName === acc.fullName
+              ? { ...rt, leaderName: "Belum ditetapkan", leaderUserId: null }
+              : rt,
+          ),
+        );
+      } else if (acc.role === "warga") {
+        setRtRegions((prev) =>
+          prev.map((rt) =>
+            rt.id === acc.regionId || rt.name === acc.regionLabel
+              ? { ...rt, residentCount: Math.max(0, rt.residentCount - 1) }
+              : rt,
+          ),
+        );
+      }
+
+      if (rwLeaderUserId === acc.id) {
+        setRwLeaderUserId("");
+      }
+
+      setConfirmDeleteAccountId(null);
+      setEditingRoleAccountId(null);
+      setAccountFeedback(
+        `Akun ${acc.fullName} (${roleLabelId(acc.role)}) berhasil dihapus permanen.`,
+      );
+      prependActivity(
+        `menghapus akun ${acc.fullName} (${roleLabelId(acc.role)}).`,
       );
     });
   };
@@ -1720,6 +1775,9 @@ export default function AdminDashboardClient({
           <div className="mt-4 divide-y divide-border/70">
             {filteredAccounts.map((acc) => {
               const isEditingRole = editingRoleAccountId === acc.id;
+              const isConfirmingDelete = confirmDeleteAccountId === acc.id;
+              const isSelfAdmin =
+                acc.role === "admin" && acc.fullName === initialData.adminName;
               return (
                 <div key={acc.id} className="py-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1749,7 +1807,10 @@ export default function AdminDashboardClient({
                       <button
                         type="button"
                         disabled={isPending}
-                        onClick={() => handleOpenRoleEditor(acc)}
+                        onClick={() => {
+                          setConfirmDeleteAccountId(null);
+                          handleOpenRoleEditor(acc);
+                        }}
                         className="cursor-pointer text-xs font-semibold text-primary hover:underline disabled:opacity-50"
                       >
                         {isEditingRole ? "Tutup ubah peran" : "Ubah peran"}
@@ -1760,13 +1821,65 @@ export default function AdminDashboardClient({
                         disabled={isPending}
                         onClick={() => handleToggleAccount(acc)}
                         className={`cursor-pointer text-xs font-semibold hover:underline disabled:opacity-50 ${
-                          acc.isActive ? "text-red-600" : "text-emerald-600"
+                          acc.isActive ? "text-amber-700" : "text-emerald-600"
                         }`}
                       >
                         {acc.isActive ? "Nonaktifkan" : "Aktifkan kembali"}
                       </button>
+                      {!isSelfAdmin && (
+                        <>
+                          <span className="text-border">•</span>
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => {
+                              setEditingRoleAccountId(null);
+                              setConfirmDeleteAccountId(
+                                isConfirmingDelete ? null : acc.id,
+                              );
+                            }}
+                            className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                          >
+                            <Trash2 size={12} />
+                            Hapus akun
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
+
+                  {isConfirmingDelete && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-red-200 bg-red-50/70 p-3">
+                      <p className="text-xs text-red-800">
+                        Hapus permanen akun{" "}
+                        <span className="font-bold">{acc.fullName}</span> (
+                        {roleLabelId(acc.role)}) beserta seluruh aksesnya?
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleDeleteAccount(acc)}
+                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {isPending ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={12} />
+                          )}
+                          Ya, hapus permanen
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => setConfirmDeleteAccountId(null)}
+                          className="cursor-pointer rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-surface"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {isEditingRole && (
                     <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-xl border border-blue-200/80 bg-blue-50/50 p-3">
