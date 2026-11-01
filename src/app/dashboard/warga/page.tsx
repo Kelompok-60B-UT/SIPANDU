@@ -117,7 +117,7 @@ function DashboardView({
           </div>
 
           <Link
-            href="#pengaduan-saya"
+            href="/tickets/new"
             className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover sm:self-auto sm:text-sm"
           >
             <Plus size={16} />

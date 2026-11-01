@@ -13,13 +13,15 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
+  Tag,
   User,
+  Users,
   Wrench,
   X,
 } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 
-export type StaffRoleType = "ketua_rt" | "ketua_rw";
+export type StaffRoleType = "ketua_rt" | "ketua_rw" | "admin";
 
 type StaffShellProps = {
   role: StaffRoleType;
@@ -80,6 +82,34 @@ const RW_MENUS = [
   },
 ];
 
+const ADMIN_MENUS = [
+  { key: "ringkasan", label: "Ringkasan", href: "#ringkasan", icon: LayoutGrid },
+  {
+    key: "seluruh",
+    label: "Seluruh pengaduan",
+    href: "#pengaduan-lintas-wilayah",
+    icon: ClipboardList,
+  },
+  {
+    key: "akun",
+    label: "Akun & hak akses",
+    href: "#akun-hak-akses",
+    icon: Users,
+  },
+  {
+    key: "kategori",
+    label: "Kategori layanan",
+    href: "#kategori-layanan",
+    icon: Tag,
+  },
+  {
+    key: "aktivitas",
+    label: "Catatan aktivitas",
+    href: "#catatan-aktivitas",
+    icon: History,
+  },
+];
+
 export default function StaffShell({
   role,
   fullName,
@@ -91,13 +121,41 @@ export default function StaffShell({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [activeKey, setActiveKey] = useState("ringkasan");
 
-  const isRt = role === "ketua_rt";
-  const roleLabel = isRt ? "Ketua RT" : "Ketua RW";
-  const menuHeading = isRt ? "MENU KETUA RT" : "MENU KETUA RW";
-  const headerTitle = isRt
-    ? "Ruang layanan Ketua RT"
-    : "Ruang layanan Ketua RW";
-  const menus = isRt ? RT_MENUS : RW_MENUS;
+  const roleLabel =
+    role === "admin"
+      ? "Admin"
+      : role === "ketua_rw"
+        ? "Ketua RW"
+        : "Ketua RT";
+
+  const menuHeading =
+    role === "admin"
+      ? "MENU ADMIN"
+      : role === "ketua_rw"
+        ? "MENU KETUA RW"
+        : "MENU KETUA RT";
+
+  const headerTitle =
+    role === "admin"
+      ? "Ruang layanan Admin"
+      : role === "ketua_rw"
+        ? "Ruang layanan Ketua RW"
+        : "Ruang layanan Ketua RT";
+
+  const menus =
+    role === "admin"
+      ? ADMIN_MENUS
+      : role === "ketua_rw"
+        ? RW_MENUS
+        : RT_MENUS;
+
+  const bellHref =
+    role === "admin"
+      ? "#catatan-aktivitas"
+      : role === "ketua_rw"
+        ? "#kabar-terbaru"
+        : "#antrean-verifikasi";
+
   const initials = getInitials(fullName);
 
   const sidebarContent = (
@@ -230,7 +288,7 @@ export default function StaffShell({
 
           <div className="flex items-center gap-3">
             <a
-              href={isRt ? "#antrean-verifikasi" : "#kabar-terbaru"}
+              href={bellHref}
               aria-label="Notifikasi"
               className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-surface text-ink transition-colors hover:bg-slate-200/70"
             >

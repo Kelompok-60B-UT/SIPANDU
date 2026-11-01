@@ -57,7 +57,7 @@ const MENU_ITEMS: Array<{
   {
     key: "buat",
     label: "Buat pengaduan",
-    href: "/dashboard/warga#pengaduan-saya",
+    href: "/tickets/new",
     icon: PlusCircle,
   },
   {
