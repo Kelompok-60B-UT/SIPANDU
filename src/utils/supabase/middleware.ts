@@ -3,6 +3,17 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getRoleFromJwt, homePathForRole } from '@/utils/roles'
 import { isSupabaseConfigured } from '@/utils/supabase/client'
 
+function redirectWithCookies(
+  url: URL | string,
+  sourceResponse: NextResponse,
+): NextResponse {
+  const redirectResponse = NextResponse.redirect(url)
+  sourceResponse.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie)
+  })
+  return redirectResponse
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -48,7 +59,7 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = homePathForRole(role)
     url.search = ''
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   const isProtectedRoute =
@@ -60,14 +71,14 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', pathname)
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   if (user) {
     if (pathname.startsWith('/dashboard/admin') && role !== 'admin') {
       const url = request.nextUrl.clone()
       url.pathname = homePathForRole(role)
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
     if (
       pathname.startsWith('/dashboard/rw') &&
@@ -76,7 +87,7 @@ export async function updateSession(request: NextRequest) {
     ) {
       const url = request.nextUrl.clone()
       url.pathname = homePathForRole(role)
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
     if (
       pathname.startsWith('/dashboard/rt') &&
@@ -85,7 +96,7 @@ export async function updateSession(request: NextRequest) {
     ) {
       const url = request.nextUrl.clone()
       url.pathname = homePathForRole(role)
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
   }
 
