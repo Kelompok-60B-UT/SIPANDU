@@ -12,10 +12,11 @@ import {
   PREVIEW_USER,
 } from "@/data/warga-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Profil Saya — SIPANDU RW 06 Parakan Saat",
-  description: "Kelola informasi pribadi dan alamat domisili warga SIPANDU.",
+  title: `Profil Saya — ${siteConfig.appName} ${siteConfig.rwLabel}`,
+  description: `Kelola informasi pribadi dan alamat domisili warga ${siteConfig.appName}.`,
 };
 
 async function LiveProfilePage() {

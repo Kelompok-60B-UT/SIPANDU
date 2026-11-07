@@ -26,6 +26,7 @@ import {
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
 import RekapDownloadButton from "@/components/common/RekapDownloadButton";
+import { siteConfig } from "@/config/site";
 import {
   adminUpdateTicketStatus,
   deleteTicketByAdmin,
@@ -184,10 +185,7 @@ export default function AdminDashboardClient({
   const [selectedRtId, setSelectedRtId] = useState<number>(
     initialData.rtRegions[2]?.id ?? initialData.rtRegions[0]?.id ?? 3,
   );
-  const [rwNumber, setRwNumber] = useState(initialData.rwNumber || "06");
-  const [rwAreaName, setRwAreaName] = useState(
-    initialData.rwAreaName || "Parakan Saat, Bandung",
-  );
+  const rwNumber = siteConfig.rwNumber;
   const [rwLeaderUserId, setRwLeaderUserId] = useState<string>(() => {
     const rwAcc = initialData.accounts.find((a) => a.role === "ketua_rw");
     return rwAcc?.id ?? "";
@@ -959,21 +957,15 @@ export default function AdminDashboardClient({
   };
 
   const handleSaveRwSettings = () => {
-    const cleanRw = rwNumber.trim() || "06";
-    const cleanArea = rwAreaName.trim() || "Parakan Saat, Bandung";
     setRtFeedback(null);
     startTransition(async () => {
       const res = await updateRwSettings({
-        rwNumber: cleanRw,
-        rwAreaName: cleanArea,
         rwLeaderUserId: rwLeaderUserId || null,
       });
       if (!res.success) {
         setRtFeedback(res.error);
         return;
       }
-      setRwNumber(cleanRw);
-      setRwAreaName(cleanArea);
       if (rwLeaderUserId) {
         setAccounts((prev) =>
           prev.map((a) =>
@@ -981,7 +973,7 @@ export default function AdminDashboardClient({
               ? {
                   ...a,
                   role: "ketua_rw",
-                  regionLabel: `RW ${cleanRw}`,
+                  regionLabel: siteConfig.rwShortLabel,
                   permissionDesc: "Tindak lanjut & penyelesaian",
                 }
               : a,
@@ -989,8 +981,8 @@ export default function AdminDashboardClient({
         );
       }
       setEditingRw(false);
-      setRtFeedback(`Data RW ${cleanRw} (${cleanArea}) berhasil disimpan.`);
-      prependActivity(`memperbarui pengaturan wilayah RW ${cleanRw}.`);
+      setRtFeedback(`Penetapan Ketua RW berhasil disimpan.`);
+      prependActivity(`memperbarui penetapan Ketua RW.`);
     });
   };
 
@@ -1134,7 +1126,7 @@ export default function AdminDashboardClient({
     <StaffShell
       role="admin"
       fullName={initialData.adminName}
-      subHeaderLabel="RW 06 Parakan Saat"
+      subHeaderLabel={siteConfig.subHeaderLabel}
       unreadCount={initialData.unreadCount}
       avatarUrl={initialData.avatarUrl}
     >
@@ -1143,7 +1135,7 @@ export default function AdminDashboardClient({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-              ADMINISTRASI RW 06 PARAKANSAAT
+              ADMINISTRASI {siteConfig.rwShortLabel.toUpperCase()}
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
               Layanan tertata, warga terbantu.
@@ -1427,7 +1419,7 @@ export default function AdminDashboardClient({
 
           <div className="mt-3 border-t border-border/70 pt-3.5 text-xs text-muted">
             {filteredTickets.length} dari {stats.total} pengaduan •{" "}
-            {ticketRtFilter || "Semua RT"} di RW 06
+            {ticketRtFilter || "Semua RT"} di {siteConfig.rwShortLabel}
           </div>
         </section>
 
@@ -2162,9 +2154,9 @@ export default function AdminDashboardClient({
           <section className="rounded-2xl border border-border bg-white p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-bold text-ink">Data RT / RW</h2>
+                <h2 className="text-base font-bold text-ink">Data Wilayah & Kepengurusan RW</h2>
                 <p className="mt-0.5 text-xs text-muted">
-                  RW {rwNumber} • {rwAreaName} • Ketua RW:{" "}
+                  {siteConfig.rwLabel} • Ketua RW:{" "}
                   <span className="font-semibold text-ink">
                     {accounts.find((a) => a.role === "ketua_rw")?.fullName ??
                       "Belum ditetapkan"}
@@ -2176,7 +2168,7 @@ export default function AdminDashboardClient({
                 onClick={() => setEditingRw((prev) => !prev)}
                 className="cursor-pointer text-xs font-semibold text-primary hover:underline"
               >
-                {editingRw ? "Tutup" : "Kelola RW"}
+                {editingRw ? "Tutup" : "Kelola Ketua RW"}
               </button>
             </div>
 
@@ -2186,38 +2178,43 @@ export default function AdminDashboardClient({
               </p>
             )}
 
-            {/* Form Pengelolaan Data RW */}
+            {/* Form Penetapan Kepengurusan RW */}
             {editingRw && (
               <div className="mt-4 space-y-3 rounded-xl border border-border bg-surface p-3.5">
-                <p className="text-xs font-bold text-ink">
-                  Pengaturan Wilayah RW
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-ink">
+                    Penetapan Kepengurusan RW
+                  </p>
+                  <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[10px] font-medium text-muted">
+                    Single-Tenant
+                  </span>
+                </div>
+
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   <div>
-                    <label className="block text-[11px] font-semibold text-muted">
+                    <span className="block text-[11px] font-semibold text-muted">
                       Nomor RW
-                    </label>
-                    <input
-                      type="text"
-                      value={rwNumber}
-                      onChange={(e) => setRwNumber(e.target.value)}
-                      placeholder="06"
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
-                    />
+                    </span>
+                    <div className="mt-1 flex items-center justify-between rounded-lg border border-border bg-white/70 px-2.5 py-1.5 text-xs font-semibold text-ink">
+                      <span>{siteConfig.rwShortLabel}</span>
+                      <span className="text-[10px] font-normal text-muted">Terkunci</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-muted">
-                      Nama Wilayah / Kelurahan
-                    </label>
-                    <input
-                      type="text"
-                      value={rwAreaName}
-                      onChange={(e) => setRwAreaName(e.target.value)}
-                      placeholder="Parakan Saat, Bandung"
-                      className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
-                    />
+                    <span className="block text-[11px] font-semibold text-muted">
+                      Nama Wilayah
+                    </span>
+                    <div className="mt-1 flex items-center justify-between rounded-lg border border-border bg-white/70 px-2.5 py-1.5 text-xs font-semibold text-ink">
+                      <span className="truncate">{siteConfig.areaName}</span>
+                      <span className="text-[10px] font-normal text-muted">Terkunci</span>
+                    </div>
                   </div>
                 </div>
+
+                <p className="text-[11px] leading-relaxed text-muted">
+                  Nomor RW dan nama wilayah dikelola melalui konfigurasi server (deployment environment) dan berlaku untuk seluruh sistem.
+                </p>
+
                 <div>
                   <label className="block text-[11px] font-semibold text-muted">
                     Ketua RW Aktif
@@ -2242,7 +2239,7 @@ export default function AdminDashboardClient({
                     onClick={handleSaveRwSettings}
                     className="cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                   >
-                    Simpan data RW
+                    Simpan penetapan Ketua RW
                   </button>
                   <button
                     type="button"

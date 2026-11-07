@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
+import { siteConfig } from "@/config/site";
 
 export type StaffRoleType = "ketua_rt" | "ketua_rw" | "admin";
 
@@ -344,7 +345,7 @@ export default function StaffShell({
                 SIPANDU
               </span>
               <span className="block text-[10px] text-muted">
-                RW 06 Parakan Saat, Bandung
+                {siteConfig.rwLabel}
               </span>
             </span>
           </Link>
@@ -550,7 +551,7 @@ export default function StaffShell({
           <div className="mx-auto max-w-6xl">
             {children}
             <footer className="mt-8 text-[11px] text-muted">
-              SIPANDU • Layanan warga RW 06 Parakan Saat, Bandung
+              {siteConfig.appName} • Layanan warga {siteConfig.rwLabel}
             </footer>
           </div>
         </main>

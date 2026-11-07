@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, MessageSquareText, ShieldCheck } from "lucide-react";
+import { siteConfig } from "@/config/site";
 
 type AuthShellProps = {
   headline: ReactNode;
@@ -23,7 +24,7 @@ export default function AuthShell({ headline, children }: AuthShellProps) {
                 SIPANDU
               </span>
               <span className="block text-[11px] text-blue-100/80">
-                RW 06 Parakan Saat, Bandung
+                {siteConfig.rwLabel}
               </span>
             </span>
           </Link>
@@ -33,14 +34,14 @@ export default function AuthShell({ headline, children }: AuthShellProps) {
           </h2>
 
           <p className="mt-3 max-w-md text-sm leading-relaxed text-blue-100/80 lg:mt-4">
-            Suara Anda berarti. Bersama RT dan RW, wujudkan Parakan Saat yang
+            Suara Anda berarti. Bersama RT dan RW, wujudkan lingkungan {siteConfig.rwShortLabel} yang
             lebih nyaman untuk semua.
           </p>
 
           <div className="mt-8 hidden overflow-hidden rounded-2xl lg:block">
             <Image
               src="/loginhero.jpg"
-              alt="Warga RW 06 Parakan Saat merawat lingkungan bersama"
+              alt={`Warga ${siteConfig.rwLabel} merawat lingkungan bersama`}
               width={640}
               height={420}
               priority
@@ -87,7 +88,7 @@ export default function AuthShell({ headline, children }: AuthShellProps) {
         </div>
 
         <footer className="mx-auto w-full max-w-[500px] text-[11px] leading-relaxed text-muted lg:mx-0">
-          <p>© 2026 SIPANDU • RW 06 Parakan Saat, Bandung</p>
+          <p>© 2026 {siteConfig.appName} • {siteConfig.rwLabel}</p>
           <p>Privasi Anda adalah bagian dari layanan kami.</p>
         </footer>
       </main>

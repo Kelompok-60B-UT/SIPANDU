@@ -15,11 +15,12 @@ import {
 } from "@/data/warga-preview";
 import { roleLabelId } from "@/utils/roles";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 import type { CategoryOption, RegionOption } from "@/types";
 
 export const metadata: Metadata = {
-  title: "Buat Pengaduan — SIPANDU RW 06 Parakan Saat",
-  description: "Sampaikan pengaduan warga wilayah RW 06 Parakan Saat, Bandung.",
+  title: `Buat Pengaduan — ${siteConfig.appName} ${siteConfig.rwLabel}`,
+  description: `Sampaikan pengaduan warga wilayah ${siteConfig.rwLabel}.`,
 };
 
 const PREVIEW_CATEGORIES: CategoryOption[] = [

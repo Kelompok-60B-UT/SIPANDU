@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Clock, Headset, MapPin, MessageSquareText, PhoneCall } from "lucide-react";
+import { siteConfig } from "@/config/site";
 
 export default function Footer() {
   return (
@@ -13,21 +14,27 @@ export default function Footer() {
                 <MessageSquareText size={18} />
               </span>
               <span className="text-base font-bold text-ink">
-                SIPANDU RW 06 Parakan Saat
+                {siteConfig.appName} {siteConfig.rwLabel}
               </span>
             </div>
             <p className="mt-3 max-w-md text-xs leading-relaxed text-muted">
-              Sistem Informasi Layanan Publik dan Pengaduan Warga RW 06
-              Parakan Saat, Kelurahan Cisaranten Endah, Kota Bandung. Wadah
+              {siteConfig.appFullName} {siteConfig.rwLabel}. Wadah
               transparan dan terintegrasi untuk menghubungkan warga dengan
               pengurus RT dan RW.
             </p>
 
             <div className="mt-5 space-y-2 text-xs text-muted">
-              <div className="flex items-center gap-2">
-                <MapPin size={14} className="shrink-0 text-primary" />
-                <span>Sekretariat Balai Warga RW 06 Parakan Saat, Bandung</span>
-              </div>
+              {siteConfig.contactAddress ? (
+                <div className="flex items-center gap-2">
+                  <MapPin size={14} className="shrink-0 text-primary" />
+                  <span>{siteConfig.contactAddress}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-muted/70">
+                  <MapPin size={14} className="shrink-0 text-muted/50" />
+                  <span>Alamat sekretariat belum dikonfigurasi</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Clock size={14} className="shrink-0 text-primary" />
                 <span>Senin – Jumat: 08.00 – 16.00 WIB • Sabtu: 08.00 – 12.00 WIB</span>
@@ -47,14 +54,21 @@ export default function Footer() {
                 </h3>
                 <p className="mt-1 text-xs leading-relaxed text-muted">
                   Memerlukan bantuan verifikasi akun, perbaikan data wilayah, atau pendampingan pengaduan?
-                  Pengurus RT di wilayah Anda dan sekretariat RW 06 siap membantu.
+                  Pengurus RT di wilayah Anda dan sekretariat {siteConfig.rwShortLabel} siap membantu.
                 </p>
 
                 <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-semibold">
-                  <div className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-ink">
-                    <PhoneCall size={13} className="text-primary" />
-                    <span>Sekretariat RW 06: (022) 720-8906</span>
-                  </div>
+                  {siteConfig.contactPhone ? (
+                    <div className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-ink">
+                      <PhoneCall size={13} className="text-primary" />
+                      <span>Sekretariat {siteConfig.rwShortLabel}: {siteConfig.contactPhone}</span>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-muted">
+                      <PhoneCall size={13} className="text-muted/60" />
+                      <span>Kontak belum tersedia</span>
+                    </div>
+                  )}
                   <Link
                     href="/login"
                     className="cursor-pointer text-primary hover:underline"
@@ -75,7 +89,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 border-t border-border/70 pt-5 text-center text-[11px] text-muted">
-          © 2026 SIPANDU • RW 06 Parakan Saat, Bandung. Privasi Anda adalah bagian
+          © 2026 {siteConfig.appName} • {siteConfig.rwLabel}. Privasi Anda adalah bagian
           dari integritas layanan kami.
         </div>
       </div>

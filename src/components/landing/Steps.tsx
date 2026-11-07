@@ -1,10 +1,11 @@
 import SectionHeading from "@/components/ui/SectionHeading";
+import { siteConfig } from "@/config/site";
 
 const steps = [
   {
     no: "01",
     title: "Daftar dan masuk",
-    text: "Gunakan data warga dan pilih RT tempat tinggal Anda di RW 06.",
+    text: `Gunakan data warga dan pilih RT tempat tinggal Anda di ${siteConfig.rwShortLabel}.`,
   },
   {
     no: "02",

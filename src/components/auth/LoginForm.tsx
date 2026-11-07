@@ -17,6 +17,7 @@ import {
 import { login } from "@/app/actions/auth";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import { siteConfig } from "@/config/site";
 
 export default function LoginForm() {
   const [isPending, startTransition] = useTransition();
@@ -125,7 +126,7 @@ export default function LoginForm() {
             type="button"
             onClick={() =>
               setMessage({
-                info: "Untuk mengatur ulang kata sandi, silakan hubungi pengurus RT atau Admin sekretariat RW 06.",
+                info: `Untuk mengatur ulang kata sandi, silakan hubungi pengurus RT atau Admin sekretariat ${siteConfig.rwShortLabel}.`,
               })
             }
             className="cursor-pointer text-xs font-semibold text-primary hover:underline"
@@ -167,7 +168,7 @@ export default function LoginForm() {
             Kesulitan masuk ke akun?
           </p>
           <p className="mt-0.5 text-xs text-muted">
-            Hubungi pengurus RT atau sekretariat RW 06.
+            Hubungi pengurus RT atau sekretariat {siteConfig.rwShortLabel}.
           </p>
         </div>
       </div>

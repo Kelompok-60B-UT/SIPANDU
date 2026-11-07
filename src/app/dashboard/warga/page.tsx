@@ -34,11 +34,12 @@ import {
 } from "@/data/warga-preview";
 import { roleLabelId } from "@/utils/roles";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 import type { Notification } from "@/types";
 
 export const metadata: Metadata = {
-  title: "Ruang Layanan Warga — SIPANDU RW 06 Parakan Saat",
-  description: "Ringkasan dan pemantauan pengaduan warga RW 06 Parakan Saat.",
+  title: `Ruang Layanan Warga — ${siteConfig.appName} ${siteConfig.rwLabel}`,
+  description: `Ringkasan dan pemantauan pengaduan warga ${siteConfig.rwLabel}.`,
 };
 
 const EMPTY_STATS: DashboardStats = {
@@ -126,7 +127,7 @@ function DashboardView({
                 </span>
               </div>
               <p className="text-xs leading-relaxed text-amber-800">
-                Pendaftaran akun Anda di <strong>{regionLabel}</strong> telah tercatat dan saat ini sedang menunggu verifikasi dari <strong>Ketua RT {userCtx.region.name}</strong>, <strong>Ketua RW 06</strong>, atau <strong>Admin</strong>. Fitur pembuatan pengaduan baru akan otomatis terbuka setelah akun Anda disetujui.
+                Pendaftaran akun Anda di <strong>{regionLabel}</strong> telah tercatat dan saat ini sedang menunggu verifikasi dari <strong>Ketua RT {userCtx.region.name}</strong>, <strong>Ketua {siteConfig.rwShortLabel}</strong>, atau <strong>Admin</strong>. Fitur pembuatan pengaduan baru akan otomatis terbuka setelah akun Anda disetujui.
               </p>
             </div>
           </div>

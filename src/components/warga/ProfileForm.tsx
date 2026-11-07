@@ -21,6 +21,7 @@ import {
   updateProfileAvatar,
 } from "@/app/actions/profile";
 import type { Profile, RegionOption, UserRole } from "@/types";
+import { siteConfig } from "@/config/site";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB sesuai desain
 
@@ -96,7 +97,7 @@ export default function ProfileForm({
   const [regionId, setRegionId] = useState<number>(
     profile.region_id ?? regions[2]?.id ?? regions[0]?.id ?? 3,
   );
-  const [rw, setRw] = useState("06");
+  const [rw, setRw] = useState(siteConfig.rwNumber);
   const [kelurahan, setKelurahan] = useState(
     initialKelurahan || "Cisaranten Endah",
   );
@@ -283,7 +284,7 @@ export default function ProfileForm({
     setPhone(profile.phone ?? "");
     setAddress(profile.address ?? "");
     setRegionId(profile.region_id ?? regions[2]?.id ?? regions[0]?.id ?? 3);
-    setRw("06");
+    setRw(siteConfig.rwNumber);
     setKelurahan(initialKelurahan || "Cisaranten Endah");
     setCity(initialCity || "Bandung");
     setFeedback(null);
@@ -577,7 +578,7 @@ export default function ProfileForm({
                   onChange={(e) => setRw(e.target.value)}
                   className="w-full appearance-none rounded-xl border border-border bg-white px-3.5 py-2.5 pr-10 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
                 >
-                  <option value="06">06</option>
+                  <option value={siteConfig.rwNumber}>{siteConfig.rwNumber}</option>
                 </select>
                 <ChevronDown
                   size={15}

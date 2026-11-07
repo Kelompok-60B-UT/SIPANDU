@@ -23,6 +23,7 @@ import { createDraft, submitTicket } from "@/app/actions/tickets";
 import { uploadAttachment } from "@/app/actions/attachments";
 import { isSupabaseConfigured } from "@/utils/supabase/client";
 import { validateAttachment, compressImageFile } from "@/utils/upload";
+import { siteConfig } from "@/config/site";
 import type { CategoryOption, Profile, RegionOption } from "@/types";
 
 interface PhotoDraftItem {
@@ -141,7 +142,7 @@ export default function CreateTicketForm({
             </h2>
 
             <p className="mt-2.5 text-xs leading-relaxed text-muted sm:text-sm">
-              Untuk menjaga ketertiban dan keabsahan laporan warga di RW 06 Parakan Saat, setiap pendaftar baru wajib disetujui terlebih dahulu oleh <strong>Ketua RT {userRegion.name}</strong>, <strong>Ketua RW 06</strong>, atau <strong>Admin SIPANDU</strong>.
+              Untuk menjaga ketertiban dan keabsahan laporan warga di {siteConfig.rwLabel}, setiap pendaftar baru wajib disetujui terlebih dahulu oleh <strong>Ketua RT {userRegion.name}</strong>, <strong>Ketua {siteConfig.rwShortLabel}</strong>, atau <strong>Admin {siteConfig.appName}</strong>.
             </p>
 
             {/* Info Rincian Data Pendaftaran */}
@@ -499,7 +500,7 @@ export default function CreateTicketForm({
           <section className="rounded-2xl border border-border bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-ink">2. Lokasi kejadian</h2>
             <p className="mt-0.5 text-xs text-muted">
-              Pastikan berada di wilayah RW 06 Parakan Saat.
+              Pastikan berada di wilayah {siteConfig.rwLabel}.
             </p>
 
             <div className="mt-5 space-y-4">
@@ -543,7 +544,7 @@ export default function CreateTicketForm({
                     <input
                       id="ticket_rw"
                       type="text"
-                      value="RW 06"
+                      value={siteConfig.rwShortLabel}
                       readOnly
                       tabIndex={-1}
                       className="w-full rounded-xl border border-border bg-surface/60 px-3.5 py-2.5 pr-10 text-sm text-ink focus:outline-none"

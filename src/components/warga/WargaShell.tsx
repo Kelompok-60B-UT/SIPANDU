@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
+import { siteConfig } from "@/config/site";
 
 export type WargaMenuKey =
   | "ringkasan"
@@ -224,7 +225,7 @@ export default function WargaShell({
                 SIPANDU
               </span>
               <span className="block text-[10px] text-muted">
-                RW 06 Parakan Saat, Bandung
+                {siteConfig.rwLabel}
               </span>
             </span>
           </Link>
@@ -426,7 +427,7 @@ export default function WargaShell({
           <div className="mx-auto max-w-6xl">
             {children}
             <footer className="mt-8 text-[11px] text-muted">
-              SIPANDU • Layanan warga RW 06 Parakan Saat, Bandung
+              {siteConfig.appName} • Layanan warga {siteConfig.rwLabel}
             </footer>
           </div>
         </main>

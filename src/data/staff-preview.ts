@@ -7,6 +7,7 @@ import {
 import type { TicketStatus } from '@/types/database.types'
 import type { DashboardStats } from '@/data/tickets'
 import { PREVIEW_REGIONS } from '@/data/warga-preview'
+import { siteConfig } from '@/config/site'
 
 export interface StaffAttachmentItem {
   id: number
@@ -210,8 +211,8 @@ export const PREVIEW_RT_DATA: StaffContextData = {
 export const PREVIEW_RW_DATA: StaffContextData = {
   isPreview: true,
   fullName: 'Bambang Heryana',
-  regionName: 'RW 06 Parakan Saat',
-  rw: '06',
+  regionName: siteConfig.subHeaderLabel,
+  rw: siteConfig.rwNumber,
   unreadCount: 3,
   stats: {
     total: 128,
@@ -652,11 +653,11 @@ export async function getStaffDashboardData(
         ticketNumber: row.ticket_number ?? `PG-${row.id}`,
         title: row.title,
         description: row.description,
-        locationLandmark: row.location_landmark ?? row.regions?.name ?? 'RW 06',
+        locationLandmark: row.location_landmark ?? row.regions?.name ?? siteConfig.rwShortLabel,
         categoryName: row.categories?.name ?? 'Umum',
         regionId: row.region_id,
         regionName: row.regions?.name ?? regionObj.name,
-        reporterName: reporterMap.get(row.user_id) ?? 'Warga RW 06',
+        reporterName: reporterMap.get(row.user_id) ?? `Warga ${siteConfig.rwShortLabel}`,
         status: row.status,
         dateShort: formatShortDate(row.submitted_at ?? row.created_at),
         submittedFullLabel: formatFullWib(row.submitted_at ?? row.created_at),
@@ -751,7 +752,7 @@ export async function getStaffDashboardData(
             phone: r.phone,
             address: r.address,
             regionId: r.region_id,
-            regionName: reg ? reg.name : r.region_id ? `RT 0${r.region_id}` : 'RW 06',
+            regionName: reg ? reg.name : r.region_id ? `RT 0${r.region_id}` : siteConfig.rwShortLabel,
             createdAt: r.created_at,
             dateShort: formatShortDate(r.created_at),
             isVerified: r.is_rt_verified ?? false,
@@ -766,7 +767,7 @@ export async function getStaffDashboardData(
         profile?.full_name || metaName || user.email?.split('@')[0] || 'Pengurus',
       avatarUrl,
       regionName:
-        targetRole === 'ketua_rt' ? regionObj.name : 'RW 06 Parakan Saat',
+        targetRole === 'ketua_rt' ? regionObj.name : siteConfig.subHeaderLabel,
       rw: regionObj.rw,
       unreadCount: unreadRes.data?.length ?? 0,
       stats,

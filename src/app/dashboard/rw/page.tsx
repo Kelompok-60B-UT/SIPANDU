@@ -5,11 +5,11 @@ import RwDashboardClient from "@/components/staff/RwDashboardClient";
 import { StaffDashboardSkeleton } from "@/components/ui/Skeleton";
 import { getStaffDashboardData } from "@/data/staff-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Ruang Layanan Ketua RW — SIPANDU RW 06 Parakan Saat",
-  description:
-    "Koordinasi tindak lanjut dan penyelesaian pengaduan warga RW 06 Parakan Saat.",
+  title: `Ruang Layanan Ketua RW — ${siteConfig.appName} ${siteConfig.rwLabel}`,
+  description: `Koordinasi tindak lanjut dan penyelesaian pengaduan warga ${siteConfig.rwLabel}.`,
 };
 
 async function LiveRwDashboard() {

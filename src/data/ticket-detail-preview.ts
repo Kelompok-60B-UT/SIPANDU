@@ -4,6 +4,7 @@ import { getTicketById } from '@/data/tickets'
 import { getFormOptions } from '@/app/actions/tickets'
 import { listNotifications } from '@/app/actions/profile'
 import { getRoleFromJwt, roleLabelId } from '@/utils/roles'
+import { siteConfig } from '@/config/site'
 import {
   PREVIEW_NOTIFICATIONS,
   PREVIEW_REGIONS,
@@ -321,7 +322,7 @@ function buildPreviewTicketFromList(rawParam: string): TicketDetailView {
     title: matched.title,
     description: matched.description,
     locationLandmark: matched.location_landmark ?? regionName,
-    locationSubdetail: `Wilayah ${regionName} • RW ${regionRw} Parakan Saat, Bandung`,
+    locationSubdetail: `Wilayah ${regionName} • RW ${regionRw} ${siteConfig.areaName}`,
     status: matched.status,
     reporterName: 'Dewi Lestari',
     handlerDisplay,
@@ -414,10 +415,10 @@ export async function getTicketDetailPageData(
   const viewerRegionLabel = viewerRegion
     ? `${viewerRegion.name} / RW ${viewerRegion.rw}`
     : viewerRole === 'ketua_rw'
-      ? 'RW 06 Parakan Saat'
+      ? siteConfig.subHeaderLabel
       : viewerRole === 'admin'
-        ? 'Seluruh Wilayah RW 06'
-        : 'RW 06'
+        ? `Seluruh Wilayah ${siteConfig.rwShortLabel}`
+        : siteConfig.rwShortLabel
 
   // Resolve numeric ticket ID (supports numeric ID or ticket_number e.g. PG-2026-0261)
   const decoded = decodeURIComponent(rawId).trim()
@@ -528,7 +529,7 @@ export async function getTicketDetailPageData(
   if (rawTicket.handler_rw_id) {
     const rwName =
       profileNameMap.get(rawTicket.handler_rw_id) ?? rwEntry?.actor_name
-    handlerDisplay = rwName ? `${rwName} • Ketua RW` : 'Ketua RW 06'
+    handlerDisplay = rwName ? `${rwName} • Ketua RW` : `Ketua ${siteConfig.rwShortLabel}`
   } else if (rwEntry) {
     handlerDisplay = `${rwEntry.actor_name} • Ketua RW`
   } else if (rawTicket.handler_rt_id) {
@@ -602,7 +603,7 @@ export async function getTicketDetailPageData(
       description: rawTicket.description,
       locationLandmark:
         rawTicket.location_landmark ?? `Wilayah ${regionName}`,
-      locationSubdetail: `Dekat wilayah ${regionName} • RW ${regionRw} Parakan Saat, Bandung`,
+      locationSubdetail: `Dekat wilayah ${regionName} • RW ${regionRw} ${siteConfig.areaName}`,
       status: rawTicket.status,
       reporterName,
       handlerDisplay,

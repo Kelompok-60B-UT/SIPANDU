@@ -13,6 +13,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import { siteConfig } from "@/config/site";
 
 export function Skeleton({ className = "" }: { className?: string }) {
   return (
@@ -155,7 +156,7 @@ function AppShellSkeleton({
                   SIPANDU
                 </span>
                 <span className="block text-[10px] text-muted">
-                  RW 06 Parakan Saat, Bandung
+                  {siteConfig.rwLabel}
                 </span>
               </span>
             </div>

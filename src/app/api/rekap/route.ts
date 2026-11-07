@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { getRoleFromJwt } from '@/utils/roles'
 import { statusLabelId } from '@/utils/transition'
+import { siteConfig } from '@/config/site'
 import type { TicketStatus } from '@/types/database.types'
 
 const MONTHS_SHORT = [
@@ -449,7 +450,7 @@ export async function GET(request: Request) {
     const regionRows = Object.entries(perRegion).map(([rtName, count]) => {
       const pct = statusTotal > 0 ? ((count / statusTotal) * 100).toFixed(1) + '%' : '0%'
       return {
-        'Wilayah': `${rtName} (RW 06)`,
+        'Wilayah': `${rtName} (${siteConfig.rwShortLabel})`,
         'Jumlah Laporan': count,
         'Persentase': pct,
       }

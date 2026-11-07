@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { getPublicStats } from "@/app/actions/tickets";
 import { StatsSkeleton } from "@/components/ui/Skeleton";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 
 const FALLBACK_ITEMS = [
   { value: "128", label: "Laporan terkirim" },
@@ -24,8 +25,7 @@ function StatsGrid({
         </div>
       ))}
       <p className="text-xs text-muted md:ml-auto md:max-w-50">
-        Transparansi untuk semua warga. Statistik pengaduan publik RW 06
-        Parakan Saat.
+        Transparansi untuk semua warga. Statistik pengaduan publik {siteConfig.rwLabel}.
       </p>
     </div>
   );

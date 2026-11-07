@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
+import { siteConfig } from "@/config/site";
 import {
   formatFriendlyUserName,
   useLocalTimeGreeting,
@@ -525,7 +526,7 @@ export default function RwDashboardClient({
     <StaffShell
       role="ketua_rw"
       fullName={initialData.fullName}
-      subHeaderLabel="RW 06 Parakan Saat"
+      subHeaderLabel={siteConfig.subHeaderLabel}
       unreadCount={initialData.unreadCount}
       avatarUrl={initialData.avatarUrl}
     >
@@ -1149,7 +1150,7 @@ export default function RwDashboardClient({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-ink sm:text-lg">
-                  Persetujuan Warga Baru (Lintas RT / RW 06)
+                  Persetujuan Warga Baru (Lintas RT / {siteConfig.rwShortLabel})
                 </h2>
                 {pendingResidentsCount > 0 ? (
                   <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
@@ -1163,7 +1164,7 @@ export default function RwDashboardClient({
               </div>
               <p className="mt-1 text-xs text-muted">
                 Ketua RW berwenang menyetujui dan mengaktifkan akun warga yang baru
-                mendaftar dari seluruh wilayah RT di RW 06 Parakan Saat.
+                mendaftar dari seluruh wilayah RT di {siteConfig.rwLabel}.
               </p>
             </div>
 
@@ -1338,7 +1339,7 @@ export default function RwDashboardClient({
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted">
                   {residentFilter === "pending"
-                    ? "Seluruh warga baru di RW 06 telah disetujui."
+                    ? `Seluruh warga baru di ${siteConfig.rwShortLabel} telah disetujui.`
                     : "Coba ubah kata kunci pencarian atau ganti filter."}
                 </p>
               </div>

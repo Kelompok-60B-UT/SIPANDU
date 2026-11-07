@@ -17,6 +17,7 @@ import { signup } from "@/app/actions/auth";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import type { RegionOption } from "@/types";
+import { siteConfig } from "@/config/site";
 
 function evaluatePassword(password: string, confirmPassword: string) {
   const len = password.length;
@@ -122,7 +123,7 @@ export default function RegisterForm({
         Halo, tetangga baru.
       </h1>
       <p className="mt-1.5 text-sm text-muted">
-        Buat akun untuk menyampaikan pengaduan di RW 06 Parakan Saat, Bandung.
+        Buat akun untuk menyampaikan pengaduan di {siteConfig.rwLabel}.
       </p>
 
       {message?.error && (
@@ -217,7 +218,7 @@ export default function RegisterForm({
           <Input
             label="RW"
             id="rw_display"
-            value="RW 06 Parakan Saat"
+            value={siteConfig.rwLabel}
             readOnly
             required
             tabIndex={-1}
@@ -226,7 +227,7 @@ export default function RegisterForm({
         </div>
 
         <p className="-mt-1.5 text-[11px] text-muted">
-          Pilih RT sesuai alamat tinggal Anda. Layanan ini khusus wilayah RW 06.
+          Pilih RT sesuai alamat tinggal Anda. Layanan ini khusus wilayah {siteConfig.rwShortLabel}.
         </p>
 
         <h2 className="pt-2 text-sm font-semibold text-ink">

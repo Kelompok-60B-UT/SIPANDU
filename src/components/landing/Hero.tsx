@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2, MapPin, Plus, ShieldCheck } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import { siteConfig } from "@/config/site";
 import { getPublicStats } from "@/app/actions/tickets";
 import {
   createAdminClient,
@@ -129,7 +130,7 @@ async function fetchHeroCardData(): Promise<HeroCardData> {
 
   const fallbackTitle =
     totalCount > 0
-      ? "Pantauan pengaduan warga RW 06"
+      ? `Pantauan pengaduan warga ${siteConfig.rwShortLabel}`
       : "Belum ada pengaduan warga terbaru";
 
   return {
@@ -151,7 +152,7 @@ export default function Hero() {
         <div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase text-primary">
             <MapPin size={12} />
-            Untuk warga RW 06 Parakan Saat
+            Untuk warga {siteConfig.rwLabel}
           </span>
 
           <h1 className="mt-6 text-4xl font-light leading-tight text-ink sm:text-5xl">
@@ -190,7 +191,7 @@ export default function Hero() {
         <div className="relative pb-6">
           <Image
             src="/hero.jpg"
-            alt="Warga RW 06 Parakan Saat bergotong royong membersihkan lingkungan"
+            alt={`Warga ${siteConfig.rwLabel} bergotong royong membersihkan lingkungan`}
             width={640}
             height={560}
             priority

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { siteConfig } from "@/config/site";
 
 const DAYS_ID = [
   "MINGGU",
@@ -114,7 +115,7 @@ export function WargaGreetingHeader({
     : formatFriendlyUserName(fullName, "Warga");
 
   const dateText =
-    bannerDateUpper ?? (isPreview ? "SABTU, 31 OKTOBER 2026" : "RW 06 PARAKANSAAT");
+    bannerDateUpper ?? (isPreview ? "SABTU, 31 OKTOBER 2026" : siteConfig.subHeaderLabel.toUpperCase());
 
   return (
     <div>

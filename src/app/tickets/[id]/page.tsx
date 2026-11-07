@@ -5,11 +5,11 @@ import TicketDetailClient from "@/components/tickets/TicketDetailClient";
 import { TicketDetailSkeleton } from "@/components/ui/Skeleton";
 import { getTicketDetailPageData } from "@/data/ticket-detail-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Pelacakan & Detail Tiket — SIPANDU RW 06",
-  description:
-    "Pantau status penanganan, foto laporan & bukti penyelesaian, serta kronologi pengaduan warga RW 06 Parakan Saat.",
+  title: `Pelacakan & Detail Tiket — ${siteConfig.appName} ${siteConfig.rwShortLabel}`,
+  description: `Pantau status penanganan, foto laporan & bukti penyelesaian, serta kronologi pengaduan warga ${siteConfig.rwLabel}.`,
 };
 
 async function TicketDetailContent({

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import AuthShell from "@/components/auth/AuthShell";
 import LoginForm from "@/components/auth/LoginForm";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Masuk — SIPANDU RW 06 Parakan Saat",
-  description: "Masuk ke layanan pengaduan warga SIPANDU RW 06 Parakan Saat.",
+  title: `Masuk — ${siteConfig.appName} ${siteConfig.rwLabel}`,
+  description: `Masuk ke layanan pengaduan warga ${siteConfig.appName} ${siteConfig.rwLabel}.`,
 };
 
 export default function LoginPage() {

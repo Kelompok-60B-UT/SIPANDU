@@ -28,6 +28,7 @@ import {
 import WargaShell from "@/components/warga/WargaShell";
 import StaffShell from "@/components/staff/StaffShell";
 import Badge from "@/components/ui/Badge";
+import { siteConfig } from "@/config/site";
 import {
   completeTicket,
   deleteDraft,
@@ -247,7 +248,7 @@ export default function TicketDetailClient({
         fullName: "Rina Marlina",
         role: "admin" as const,
         roleLabel: "Admin",
-        regionLabel: "Seluruh Wilayah RW 06",
+        regionLabel: `Seluruh Wilayah ${siteConfig.rwShortLabel}`,
       };
     }
     if (previewRole === "ketua_rw") {
@@ -256,7 +257,7 @@ export default function TicketDetailClient({
         fullName: "Bambang Heryana",
         role: "ketua_rw" as const,
         roleLabel: "Ketua RW",
-        regionLabel: "RW 06 Parakan Saat",
+        regionLabel: siteConfig.rwLabel,
       };
     }
     if (previewRole === "ketua_rt") {
@@ -265,7 +266,7 @@ export default function TicketDetailClient({
         fullName: "Agus Setiawan",
         role: "ketua_rt" as const,
         roleLabel: "Ketua RT",
-        regionLabel: "RT 03 / RW 06",
+        regionLabel: `RT 03 / ${siteConfig.rwShortLabel}`,
       };
     }
     return data.viewer;
@@ -723,7 +724,7 @@ export default function TicketDetailClient({
     setFeedback(null);
     const noteText =
       rtVerifyNote.trim() ||
-      `Lokasi dan kondisi sesuai laporan ${ticket.regionName}. Diteruskan ke Ketua RW 06.`;
+      `Lokasi dan kondisi sesuai laporan ${ticket.regionName}. Diteruskan ke Ketua ${siteConfig.rwShortLabel}.`;
     startTransition(async () => {
       const res = await verifyTicket(ticket.id, noteText);
       if (!res.success) {
@@ -869,7 +870,7 @@ export default function TicketDetailClient({
               Pengaduan sedang ditangani di lapangan oleh pengurus RW
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-amber-800/90">
-              Pengurus RW 06 sedang menindaklanjuti laporan ini. Bukti
+              Pengurus {siteConfig.rwShortLabel} sedang menindaklanjuti laporan ini. Bukti
               penyelesaian akan dilampirkan setelah pekerjaan selesai.
             </p>
           </div>
@@ -1109,7 +1110,7 @@ export default function TicketDetailClient({
           </h2>
           <p className="mt-1.5 text-xs leading-relaxed text-muted">
             Pastikan laporan berada di wilayah Anda sebelum diteruskan ke Ketua
-            RW 06. Pesan/catatan di bawah akan tampil pada kronologi warga.
+            {siteConfig.rwShortLabel}. Pesan/catatan di bawah akan tampil pada kronologi warga.
           </p>
 
           <div className="mt-3.5">

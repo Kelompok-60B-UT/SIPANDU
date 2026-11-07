@@ -8,6 +8,7 @@ import {
   isSupabaseConfigured,
 } from '@/utils/supabase/server'
 import { CreateStaffSchema, SaveCategorySchema } from '@/utils/validation'
+import { siteConfig } from '@/config/site'
 import {
   err,
   ok,
@@ -722,13 +723,10 @@ export async function deleteRegion(
 }
 
 export async function updateRwSettings(input: {
-  rwNumber: string
-  rwAreaName: string
+  rwNumber?: string
+  rwAreaName?: string
   rwLeaderUserId?: string | null
 }): Promise<ActionResult<undefined>> {
-  const rwNumber = input.rwNumber.trim().replace(/[^0-9A-Za-z]/g, '') || '06'
-  const rwAreaName = input.rwAreaName.trim() || 'Parakan Saat, Bandung'
-
   if (!isSupabaseConfigured()) return okEmpty()
 
   const adminId = await requireAdmin()
@@ -736,11 +734,6 @@ export async function updateRwSettings(input: {
 
   try {
     const admin = createAdminClient()
-    const { error: regErr } = await admin
-      .from('regions')
-      .update({ rw: rwNumber })
-      .gt('id', 0)
-    if (regErr) return err(supabaseErrorToMessage(regErr))
 
     if (input.rwLeaderUserId) {
       const targetIsAdmin = await isTargetAdmin(admin, input.rwLeaderUserId)
@@ -761,13 +754,11 @@ export async function updateRwSettings(input: {
       })
     }
 
-    const supabase = await createClient()
-    await supabase.auth.updateUser({
-      data: {
-        rw_number: rwNumber,
-        rw_area_name: rwAreaName,
-      },
-    })
+    const targetRw = siteConfig.rwNumber
+    await admin
+      .from('regions')
+      .update({ rw: targetRw })
+      .neq('rw', targetRw)
 
     revalidatePath('/dashboard/admin')
     revalidatePath('/dashboard/rw')
@@ -776,7 +767,7 @@ export async function updateRwSettings(input: {
     return okEmpty()
   } catch (error) {
     unstable_rethrow(error)
-    return err('Gagal menyimpan pengaturan RW')
+    return err('Gagal menyimpan penetapan Ketua RW')
   }
 }
 

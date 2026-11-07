@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MessageSquareText } from "lucide-react";
 import AuthButtons from "@/components/layout/AuthButtons";
 import { AuthButtonsSkeleton } from "@/components/ui/Skeleton";
+import { siteConfig } from "@/config/site";
 
 const menu = [
   { label: "Beranda", href: "#beranda" },
@@ -23,7 +24,7 @@ export default function Navbar() {
           <span className="leading-tight">
             <span className="block text-base font-bold text-ink">SIPANDU</span>
             <span className="hidden text-[10px] text-muted xs:block sm:block">
-              RW 06 Parakan Saat, Bandung
+              {siteConfig.rwLabel}
             </span>
           </span>
         </Link>

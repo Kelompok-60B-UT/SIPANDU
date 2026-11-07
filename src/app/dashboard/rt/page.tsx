@@ -5,11 +5,11 @@ import RtDashboardClient from "@/components/staff/RtDashboardClient";
 import { StaffDashboardSkeleton } from "@/components/ui/Skeleton";
 import { getStaffDashboardData } from "@/data/staff-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Ruang Layanan Ketua RT — SIPANDU RW 06 Parakan Saat",
-  description:
-    "Verifikasi dan pemeriksaan pengaduan warga wilayah RT di RW 06 Parakan Saat.",
+  title: `Ruang Layanan Ketua RT — ${siteConfig.appName} ${siteConfig.rwLabel}`,
+  description: `Verifikasi dan pemeriksaan pengaduan warga wilayah RT di ${siteConfig.rwLabel}.`,
 };
 
 async function LiveRtDashboard() {

@@ -1,6 +1,7 @@
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { listUsers } from '@/app/actions/admin'
+import { siteConfig } from '@/config/site'
 import type { TicketStatus, UserRole } from '@/types/database.types'
 import type { DashboardStats } from '@/data/tickets'
 import type { StaffAttachmentItem } from '@/data/staff-preview'
@@ -76,8 +77,8 @@ export interface AdminDashboardData {
 export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
   isPreview: true,
   adminName: 'Rina Marlina',
-  rwNumber: '06',
-  rwAreaName: 'Parakan Saat, Bandung',
+  rwNumber: siteConfig.rwNumber,
+  rwAreaName: siteConfig.areaName,
   unreadCount: 3,
   residentTotal: 386,
   staffActiveTotal: 8,
@@ -440,7 +441,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tickets: AdminTicketRow[] = rawTickets.map((row: any) => {
-      const repName = reporterMap.get(row.user_id) ?? 'Warga RW 06'
+      const repName = reporterMap.get(row.user_id) ?? `Warga ${siteConfig.rwShortLabel}`
       const regName = row.regions?.name ?? 'RT -'
       const attachments = Array.isArray(row.ticket_attachments)
         ? row.ticket_attachments
@@ -483,8 +484,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     if (usersRes.success) {
       accounts = usersRes.data.map((u) => {
         const regLabel = u.region_id
-          ? (regionMap.get(u.region_id) ?? 'RW 06')
-          : 'RW 06'
+          ? (regionMap.get(u.region_id) ?? siteConfig.rwShortLabel)
+          : siteConfig.rwShortLabel
         return {
           id: u.id,
           fullName: u.full_name || u.email,
@@ -505,8 +506,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         .limit(200)
       accounts = (fallbackProfiles ?? []).map((p) => {
         const regLabel = p.region_id
-          ? (regionMap.get(p.region_id) ?? 'RW 06')
-          : 'RW 06'
+          ? (regionMap.get(p.region_id) ?? siteConfig.rwShortLabel)
+          : siteConfig.rwShortLabel
         const role: UserRole = p.id === user.id ? 'admin' : 'warga'
         return {
           id: p.id,
@@ -578,16 +579,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       user.user_metadata.avatar_url.trim()
         ? user.user_metadata.avatar_url.trim()
         : null
-    const rwNumber =
-      regionsRes.data?.[0]?.rw ||
-      (typeof user.user_metadata?.rw_number === 'string'
-        ? user.user_metadata.rw_number
-        : '06')
-    const rwAreaName =
-      typeof user.user_metadata?.rw_area_name === 'string' &&
-      user.user_metadata.rw_area_name.trim()
-        ? user.user_metadata.rw_area_name.trim()
-        : 'Parakan Saat, Bandung'
+    const rwNumber = siteConfig.rwNumber
+    const rwAreaName = siteConfig.areaName
 
     return {
       isPreview: false,

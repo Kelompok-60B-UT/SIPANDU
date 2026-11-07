@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { siteConfig } from "@/config/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,9 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SIPANDU — Layanan Pengaduan Warga RW 06 Parakan Saat",
-  description:
-    "Sistem Informasi Layanan Publik dan Pengaduan Warga RW 06 Parakan Saat, Bandung.",
+  title: siteConfig.metaTitleDefault,
+  description: siteConfig.metaDescriptionDefault,
 };
 
 export default function RootLayout({

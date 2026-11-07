@@ -5,6 +5,7 @@ import WargaShell from "@/components/warga/WargaShell";
 import StaffShell from "@/components/staff/StaffShell";
 import ProfileForm from "@/components/warga/ProfileForm";
 import { roleLabelId } from "@/utils/roles";
+import { siteConfig } from "@/config/site";
 import type { WargaUserContext } from "@/data/warga-preview";
 import type { Profile, RegionOption, UserRole } from "@/types";
 
@@ -158,7 +159,7 @@ export default function ProfilePageClient({
     activeRole === "ketua_rt"
   ) {
     const subHeaderLabel =
-      activeRole === "ketua_rt" ? regionLabel : "RW 06 Parakan Saat";
+      activeRole === "ketua_rt" ? regionLabel : siteConfig.subHeaderLabel;
     return (
       <StaffShell
         role={activeRole}

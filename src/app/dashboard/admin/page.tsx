@@ -5,11 +5,11 @@ import AdminDashboardClient from "@/components/admin/AdminDashboardClient";
 import { AdminDashboardSkeleton } from "@/components/ui/Skeleton";
 import { getAdminDashboardData } from "@/data/admin-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Ruang Layanan Admin — SIPANDU RW 06 Parakan Saat",
-  description:
-    "Administrasi pengaduan lintas RT, manajemen akun, wilayah, dan kategori layanan SIPANDU RW 06.",
+  title: `Ruang Layanan Admin — ${siteConfig.appName} ${siteConfig.rwLabel}`,
+  description: `Administrasi pengaduan lintas RT, manajemen akun, wilayah, dan kategori layanan ${siteConfig.appName} ${siteConfig.rwShortLabel}.`,
 };
 
 async function LiveAdminDashboard() {
