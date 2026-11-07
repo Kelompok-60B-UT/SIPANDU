@@ -226,7 +226,7 @@ function DashboardView({
             </div>
 
             <Link
-              href="/#cara-mengadu"
+              href="/bantuan#panduan-warga"
               className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
             >
               <BookOpen size={15} />

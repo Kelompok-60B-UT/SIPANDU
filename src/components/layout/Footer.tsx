@@ -70,6 +70,13 @@ export default function Footer() {
                     </div>
                   )}
                   <Link
+                    href="/bantuan"
+                    className="cursor-pointer text-primary hover:underline"
+                  >
+                    Pusat Bantuan
+                  </Link>
+                  <span className="text-border">•</span>
+                  <Link
                     href="/login"
                     className="cursor-pointer text-primary hover:underline"
                   >

@@ -279,7 +279,7 @@ export default function StaffShell({
             Pengurus RW siap membantu Anda.
           </p>
           <Link
-            href="/#bantuan"
+            href="/bantuan#hubungi-pengurus"
             className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
           >
             Hubungi pengurus →

@@ -802,7 +802,13 @@ export default function CreateTicketForm({
               </p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted">
                 Pengurus {selectedRegionName} siap membantu Anda menyampaikan
-                laporan pada jam layanan.
+                laporan pada jam layanan.{" "}
+                <Link
+                  href="/bantuan#panduan-warga"
+                  className="font-medium text-primary underline underline-offset-2 hover:text-primary-hover"
+                >
+                  Lihat panduan
+                </Link>
               </p>
             </div>
           </div>

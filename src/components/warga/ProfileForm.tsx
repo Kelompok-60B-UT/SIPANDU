@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -619,8 +620,14 @@ export default function ProfileForm({
           <div className="flex items-center gap-2.5 rounded-xl bg-surface px-3.5 py-2.5 text-[11px] text-muted">
             <Info size={15} className="shrink-0 text-primary" />
             <span>
-              Pindah RT atau RW? Pastikan wilayah sesuai domisili Anda. Hubungi
-              pengurus jika membutuhkan bantuan pembaruan data.
+              Pindah RT atau RW? Pastikan wilayah sesuai domisili Anda.{" "}
+              <Link
+                href="/bantuan#hubungi-pengurus"
+                className="font-medium text-primary hover:underline"
+              >
+                Hubungi pengurus
+              </Link>{" "}
+              jika membutuhkan bantuan pembaruan data.
             </span>
           </div>
         </div>

@@ -76,7 +76,7 @@ export default function AuthShell({ headline, children }: AuthShellProps) {
             Kembali ke beranda
           </Link>
           <Link
-            href="/#bantuan"
+            href="/bantuan"
             className="transition-colors hover:text-ink"
           >
             Butuh bantuan?

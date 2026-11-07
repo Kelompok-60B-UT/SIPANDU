@@ -2083,7 +2083,13 @@ export default function TicketDetailClient({
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted">
                   Hubungi pengurus {ticket.regionName} dengan menyebut nomor
-                  tiket agar lebih mudah ditelusuri.
+                  tiket agar lebih mudah ditelusuri.{" "}
+                  <Link
+                    href="/bantuan#hubungi-pengurus"
+                    className="font-medium text-primary underline underline-offset-2 hover:text-primary-hover"
+                  >
+                    Kontak pengurus
+                  </Link>
                 </p>
               </div>
             </div>

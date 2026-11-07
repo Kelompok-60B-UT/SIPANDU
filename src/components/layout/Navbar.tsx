@@ -2,15 +2,16 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { MessageSquareText } from "lucide-react";
 import AuthButtons from "@/components/layout/AuthButtons";
+import NavbarLinks from "@/components/layout/NavbarLinks";
 import { AuthButtonsSkeleton } from "@/components/ui/Skeleton";
 import { siteConfig } from "@/config/site";
 
 const menu = [
-  { label: "Beranda", href: "#beranda" },
-  { label: "Cara mengadu", href: "#cara-mengadu" },
-  { label: "Layanan", href: "#layanan" },
-  { label: "Tentang RW", href: "#tentang" },
-  { label: "Bantuan", href: "#bantuan" },
+  { label: "Beranda", href: "/#beranda" },
+  { label: "Cara mengadu", href: "/#cara-mengadu" },
+  { label: "Layanan", href: "/#layanan" },
+  { label: "Tentang RW", href: "/#tentang" },
+  { label: "Bantuan", href: "/bantuan" },
 ];
 
 export default function Navbar() {
@@ -29,21 +30,7 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-8 text-sm text-muted lg:flex">
-          {menu.map((item, i) => (
-            <a
-              key={item.label}
-              href={item.href}
-              className={
-                i === 0
-                  ? "font-medium text-primary"
-                  : "transition-colors hover:text-ink"
-              }
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
+        <NavbarLinks items={menu} />
 
         <Suspense fallback={<AuthButtonsSkeleton />}>
           <AuthButtons />
