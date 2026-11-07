@@ -24,7 +24,10 @@ export default function RtDashboardPage() {
   return (
     <Suspense
       fallback={
-        <StaffDashboardSkeleton headerTitle="Ruang layanan Ketua RT" />
+        <StaffDashboardSkeleton
+          headerTitle="Ruang layanan Ketua RT"
+          variant="rt"
+        />
       }
     >
       <LiveRtDashboard />

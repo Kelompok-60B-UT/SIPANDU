@@ -24,7 +24,10 @@ export default function RwDashboardPage() {
   return (
     <Suspense
       fallback={
-        <StaffDashboardSkeleton headerTitle="Ruang layanan Ketua RW" />
+        <StaffDashboardSkeleton
+          headerTitle="Ruang layanan Ketua RW"
+          variant="rw"
+        />
       }
     >
       <LiveRwDashboard />

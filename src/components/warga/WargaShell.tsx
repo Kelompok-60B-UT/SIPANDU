@@ -6,18 +6,17 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   ChevronDown,
-  ClipboardList,
   Headset,
   LayoutGrid,
   LogOut,
   Menu,
   MessageSquareText,
-  PlusCircle,
   User,
   X,
 } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { siteConfig } from "@/config/site";
+import { WARGA_NAV_ITEMS } from "@/config/navigation";
 
 export type WargaMenuKey =
   | "ringkasan"
@@ -43,33 +42,7 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-const MENU_ITEMS: Array<{
-  key: WargaMenuKey;
-  label: string;
-  href: string;
-  icon: typeof LayoutGrid;
-}> = [
-  { key: "ringkasan", label: "Ringkasan", href: "/dashboard/warga", icon: LayoutGrid },
-  {
-    key: "pengaduan",
-    label: "Pengaduan saya",
-    href: "/dashboard/warga#pengaduan-saya",
-    icon: ClipboardList,
-  },
-  {
-    key: "buat",
-    label: "Buat pengaduan",
-    href: "/tickets/new",
-    icon: PlusCircle,
-  },
-  {
-    key: "notifikasi",
-    label: "Notifikasi",
-    href: "/dashboard/warga#notifikasi",
-    icon: Bell,
-  },
-  { key: "profil", label: "Profil saya", href: "/profile", icon: User },
-];
+const MENU_ITEMS = WARGA_NAV_ITEMS;
 
 export default function WargaShell({
   activeMenu,
@@ -253,7 +226,7 @@ export default function WargaShell({
                 key={item.key}
                 href={item.href}
                 onClick={() => {
-                  setActiveSection(item.key);
+                  setActiveSection(item.key as WargaMenuKey);
                   setMobileOpen(false);
                 }}
                 className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs transition-colors ${

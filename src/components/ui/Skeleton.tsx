@@ -1,19 +1,18 @@
 import {
-  Bell,
-  ClipboardCheck,
-  ClipboardList,
   Headset,
-  History,
-  LayoutGrid,
+  LogOut,
+  Menu,
   MessageSquareText,
-  PlusCircle,
-  Tag,
-  User,
-  Users,
-  Wrench,
-  type LucideIcon,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import {
+  ADMIN_NAV_ITEMS,
+  NAV_HEADINGS,
+  RT_NAV_ITEMS,
+  RW_NAV_ITEMS,
+  WARGA_NAV_ITEMS,
+  type NavItem,
+} from "@/config/navigation";
 
 export function Skeleton({ className = "" }: { className?: string }) {
   return (
@@ -73,61 +72,62 @@ export function RegisterFormSkeleton() {
   );
 }
 
-type SkeletonMenuVariant = "warga" | "rt" | "rw" | "admin" | "staff";
-
-type SkeletonMenuItem = {
-  label: string;
-  icon: LucideIcon;
-};
-
-const WARGA_SKELETON_MENUS: SkeletonMenuItem[] = [
-  { label: "Ringkasan", icon: LayoutGrid },
-  { label: "Pengaduan saya", icon: ClipboardList },
-  { label: "Buat pengaduan", icon: PlusCircle },
-  { label: "Notifikasi", icon: Bell },
-  { label: "Profil saya", icon: User },
-];
-
-const RT_SKELETON_MENUS: SkeletonMenuItem[] = [
-  { label: "Ringkasan", icon: LayoutGrid },
-  { label: "Verifikasi laporan", icon: ClipboardCheck },
-  { label: "Persetujuan warga", icon: Users },
-  { label: "Riwayat aksi", icon: History },
-];
-
-const RW_SKELETON_MENUS: SkeletonMenuItem[] = [
-  { label: "Ringkasan", icon: LayoutGrid },
-  { label: "Semua pengaduan", icon: ClipboardList },
-  { label: "Notifikasi", icon: Bell },
-  { label: "Kelola kategori", icon: Tag },
-];
-
-const ADMIN_SKELETON_MENUS: SkeletonMenuItem[] = [
-  { label: "Ringkasan", icon: LayoutGrid },
-  { label: "Semua tiket", icon: ClipboardList },
-  { label: "Kelola akun", icon: Users },
-  { label: "Kelola kategori", icon: Tag },
-  { label: "Pengaturan sistem", icon: Wrench },
-];
+type SkeletonMenuVariant =
+  | "warga"
+  | "rt"
+  | "rw"
+  | "admin"
+  | "staff"
+  | "neutral";
 
 function getSkeletonNav(variant: SkeletonMenuVariant, headerTitle: string) {
   if (variant === "admin") {
-    return { title: "MENU ADMIN", items: ADMIN_SKELETON_MENUS };
+    return {
+      title: NAV_HEADINGS.admin,
+      items: ADMIN_NAV_ITEMS,
+      isNeutral: false,
+    };
   }
   if (variant === "rt") {
-    return { title: "MENU KETUA RT", items: RT_SKELETON_MENUS };
+    return {
+      title: NAV_HEADINGS.ketua_rt,
+      items: RT_NAV_ITEMS,
+      isNeutral: false,
+    };
   }
   if (variant === "rw") {
-    return { title: "MENU KETUA RW", items: RW_SKELETON_MENUS };
+    return {
+      title: NAV_HEADINGS.ketua_rw,
+      items: RW_NAV_ITEMS,
+      isNeutral: false,
+    };
   }
   if (variant === "staff") {
     const isRt = headerTitle.toLowerCase().includes("rt");
+    return isRt
+      ? {
+          title: NAV_HEADINGS.ketua_rt,
+          items: RT_NAV_ITEMS,
+          isNeutral: false,
+        }
+      : {
+          title: NAV_HEADINGS.ketua_rw,
+          items: RW_NAV_ITEMS,
+          isNeutral: false,
+        };
+  }
+  if (variant === "neutral") {
     return {
-      title: isRt ? "MENU KETUA RT" : "MENU KETUA RW",
-      items: isRt ? RT_SKELETON_MENUS : RW_SKELETON_MENUS,
+      title: "NAVIGASI",
+      items: [] as readonly NavItem[],
+      isNeutral: true,
     };
   }
-  return { title: "MENU WARGA", items: WARGA_SKELETON_MENUS };
+  return {
+    title: NAV_HEADINGS.warga,
+    items: WARGA_NAV_ITEMS,
+    isNeutral: false,
+  };
 }
 
 function AppShellSkeleton({
@@ -161,27 +161,47 @@ function AppShellSkeleton({
               </span>
             </div>
 
-            <p className="px-5 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80">
-              {nav.title}
-            </p>
+            {nav.isNeutral ? (
+              <div className="px-5 pt-3 pb-2">
+                <Skeleton className="h-3 w-20 rounded-md" />
+              </div>
+            ) : (
+              <p className="px-5 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted/80">
+                {nav.title}
+              </p>
+            )}
 
             <nav className="space-y-1 px-3">
-              {nav.items.map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={item.label}
-                    className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium transition-colors ${
-                      i === 0
-                        ? "bg-blue-50/90 font-semibold text-primary"
-                        : "text-muted"
-                    }`}
-                  >
-                    <Icon size={16} className="shrink-0" />
-                    <span>{item.label}</span>
-                  </div>
-                );
-              })}
+              {nav.isNeutral
+                ? [0, 1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 rounded-xl px-3.5 py-2.5"
+                    >
+                      <Skeleton className="h-4 w-4 rounded-md shrink-0" />
+                      <Skeleton
+                        className={`h-3.5 rounded-md ${
+                          i % 2 === 0 ? "w-28" : "w-36"
+                        }`}
+                      />
+                    </div>
+                  ))
+                : nav.items.map((item, i) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={item.label}
+                        className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium transition-colors ${
+                          i === 0
+                            ? "bg-blue-50/90 font-semibold text-primary"
+                            : "text-muted"
+                        }`}
+                      >
+                        <Icon size={16} className="shrink-0" />
+                        <span>{item.label}</span>
+                      </div>
+                    );
+                  })}
             </nav>
 
             <div className="mx-3 mt-6 rounded-2xl bg-surface p-4">
@@ -194,6 +214,14 @@ function AppShellSkeleton({
                 Hubungi pengurus →
               </span>
             </div>
+
+            {/* Placeholder Keluar akun */}
+            <div className="mx-3 mt-2">
+              <div className="flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs font-medium text-muted">
+                <LogOut size={16} />
+                <span>Keluar akun</span>
+              </div>
+            </div>
           </div>
         </div>
       </aside>
@@ -201,11 +229,20 @@ function AppShellSkeleton({
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-white px-4 sm:px-8">
-          <div>
-            <p className="text-sm font-bold leading-tight text-ink">
-              {headerTitle}
-            </p>
-            <Skeleton className="mt-1.5 h-3 w-32 rounded-md" />
+          <div className="flex items-center gap-3">
+            {/* Placeholder tombol menu mobile agar layout stabil */}
+            <div
+              aria-hidden="true"
+              className="rounded-lg border border-border p-2 text-muted lg:hidden"
+            >
+              <Menu size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-tight text-ink">
+                {headerTitle}
+              </p>
+              <Skeleton className="mt-1.5 h-3 w-32 rounded-md" />
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -294,11 +331,13 @@ export function WargaDashboardSkeleton() {
 
 export function StaffDashboardSkeleton({
   headerTitle = "Ruang layanan Pengurus",
+  variant = "staff",
 }: {
   headerTitle?: string;
+  variant?: "rt" | "rw" | "staff";
 }) {
   return (
-    <AppShellSkeleton headerTitle={headerTitle} variant="staff">
+    <AppShellSkeleton headerTitle={headerTitle} variant={variant}>
       <div className="space-y-6">
         <div className="space-y-2">
           <Skeleton className="h-3.5 w-36 rounded-md" />
@@ -453,9 +492,13 @@ export function CreateTicketSkeleton() {
   );
 }
 
-export function ProfileSkeleton() {
+export function ProfileSkeleton({
+  variant = "neutral",
+}: {
+  variant?: SkeletonMenuVariant;
+} = {}) {
   return (
-    <AppShellSkeleton headerTitle="Ruang layanan Warga" variant="warga">
+    <AppShellSkeleton headerTitle="Profil Saya" variant={variant}>
       <div className="space-y-6">
         <div className="space-y-2">
           <Skeleton className="h-3.5 w-28 rounded-md" />
@@ -511,9 +554,13 @@ export function ProfileSkeleton() {
   );
 }
 
-export function TicketDetailSkeleton() {
+export function TicketDetailSkeleton({
+  variant = "neutral",
+}: {
+  variant?: SkeletonMenuVariant;
+} = {}) {
   return (
-    <AppShellSkeleton headerTitle="Pelacakan & Detail Tiket" variant="warga">
+    <AppShellSkeleton headerTitle="Pelacakan & Detail Tiket" variant={variant}>
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">

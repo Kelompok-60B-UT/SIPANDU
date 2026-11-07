@@ -535,7 +535,7 @@ export default function RwDashboardClient({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-              RW {initialData.rw} PARAKANSAAT •{" "}
+              {siteConfig.subHeaderLabel.toUpperCase()} •{" "}
               {monthYearUpper ?? "OKTOBER 2026"}
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">

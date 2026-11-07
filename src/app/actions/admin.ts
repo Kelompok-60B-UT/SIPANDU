@@ -574,7 +574,7 @@ export async function saveRegion(input: {
   ActionResult<{ id: number; name: string; rw: string; isActive: boolean }>
 > {
   const name = input.name.trim()
-  const rw = (input.rw ?? '06').trim() || '06'
+  const rw = siteConfig.rwNumber
   const isActive = input.isActive ?? true
 
   if (name.length < 2) {
@@ -753,12 +753,6 @@ export async function updateRwSettings(input: {
         app_metadata: { sipandu_role: 'ketua_rw' },
       })
     }
-
-    const targetRw = siteConfig.rwNumber
-    await admin
-      .from('regions')
-      .update({ rw: targetRw })
-      .neq('rw', targetRw)
 
     revalidatePath('/dashboard/admin')
     revalidatePath('/dashboard/rw')

@@ -101,7 +101,7 @@ export default function ProfileForm({
   const [kelurahan, setKelurahan] = useState(
     initialKelurahan || "Cisaranten Endah",
   );
-  const [city, setCity] = useState(initialCity || "Bandung");
+  const [city, setCity] = useState(initialCity || siteConfig.city);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     initialAvatarUrl ?? null,
   );
@@ -286,7 +286,7 @@ export default function ProfileForm({
     setRegionId(profile.region_id ?? regions[2]?.id ?? regions[0]?.id ?? 3);
     setRw(siteConfig.rwNumber);
     setKelurahan(initialKelurahan || "Cisaranten Endah");
-    setCity(initialCity || "Bandung");
+    setCity(initialCity || siteConfig.city);
     setFeedback(null);
     setNewPassword("");
     setConfirmPassword("");

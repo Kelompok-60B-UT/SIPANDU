@@ -6,22 +6,22 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   ChevronDown,
-  ClipboardCheck,
-  ClipboardList,
   Headset,
-  History,
   LayoutGrid,
   LogOut,
   Menu,
   MessageSquareText,
-  Tag,
   User,
-  Users,
-  Wrench,
   X,
 } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { siteConfig } from "@/config/site";
+import {
+  ADMIN_NAV_ITEMS,
+  NAV_HEADINGS,
+  RT_NAV_ITEMS,
+  RW_NAV_ITEMS,
+} from "@/config/navigation";
 
 export type StaffRoleType = "ketua_rt" | "ketua_rw" | "admin";
 
@@ -41,123 +41,6 @@ function getInitials(name: string): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
-
-const RT_MENUS = [
-  {
-    key: "ringkasan",
-    label: "Ringkasan",
-    href: "/dashboard/rt#ringkasan",
-    icon: LayoutGrid,
-  },
-  {
-    key: "verifikasi",
-    label: "Verifikasi laporan",
-    href: "/dashboard/rt#antrean-verifikasi",
-    icon: ClipboardCheck,
-  },
-  {
-    key: "persetujuan-warga",
-    label: "Persetujuan warga",
-    href: "/dashboard/rt#persetujuan-warga",
-    icon: Users,
-  },
-  {
-    key: "riwayat",
-    label: "Riwayat pengaduan",
-    href: "/dashboard/rt#antrean-verifikasi",
-    icon: History,
-  },
-  {
-    key: "notifikasi",
-    label: "Notifikasi",
-    href: "/dashboard/rt#batas-kewenangan",
-    icon: Bell,
-  },
-  {
-    key: "profil",
-    label: "Profil saya",
-    href: "/profile",
-    icon: User,
-  },
-];
-
-const RW_MENUS = [
-  {
-    key: "ringkasan",
-    label: "Ringkasan",
-    href: "/dashboard/rw#ringkasan",
-    icon: LayoutGrid,
-  },
-  {
-    key: "tindak-lanjut",
-    label: "Tindak lanjut",
-    href: "/dashboard/rw#perbarui-penanganan",
-    icon: Wrench,
-  },
-  {
-    key: "seluruh",
-    label: "Seluruh pengaduan",
-    href: "/dashboard/rw#antrean-tindak-lanjut",
-    icon: ClipboardList,
-  },
-  {
-    key: "persetujuan-warga",
-    label: "Persetujuan warga",
-    href: "/dashboard/rw#persetujuan-warga",
-    icon: Users,
-  },
-  {
-    key: "notifikasi",
-    label: "Notifikasi",
-    href: "/dashboard/rw#kabar-terbaru",
-    icon: Bell,
-  },
-  {
-    key: "profil",
-    label: "Profil saya",
-    href: "/profile",
-    icon: User,
-  },
-];
-
-const ADMIN_MENUS = [
-  {
-    key: "ringkasan",
-    label: "Ringkasan",
-    href: "/dashboard/admin#ringkasan",
-    icon: LayoutGrid,
-  },
-  {
-    key: "seluruh",
-    label: "Seluruh pengaduan",
-    href: "/dashboard/admin#pengaduan-lintas-wilayah",
-    icon: ClipboardList,
-  },
-  {
-    key: "akun",
-    label: "Akun & hak akses",
-    href: "/dashboard/admin#akun-hak-akses",
-    icon: Users,
-  },
-  {
-    key: "kategori",
-    label: "Kategori layanan",
-    href: "/dashboard/admin#kategori-layanan",
-    icon: Tag,
-  },
-  {
-    key: "aktivitas",
-    label: "Catatan aktivitas",
-    href: "/dashboard/admin#catatan-aktivitas",
-    icon: History,
-  },
-  {
-    key: "profil",
-    label: "Profil saya",
-    href: "/profile",
-    icon: User,
-  },
-];
 
 export default function StaffShell({
   role,
@@ -189,7 +72,11 @@ export default function StaffShell({
     if (pathname.startsWith("/profile")) return;
 
     const currentMenus =
-      role === "admin" ? ADMIN_MENUS : role === "ketua_rw" ? RW_MENUS : RT_MENUS;
+      role === "admin"
+        ? ADMIN_NAV_ITEMS
+        : role === "ketua_rw"
+          ? RW_NAV_ITEMS
+          : RT_NAV_ITEMS;
 
     const syncFromHash = () => {
       const hash = window.location.hash;
@@ -301,12 +188,7 @@ export default function StaffShell({
         ? "Ketua RW"
         : "Ketua RT";
 
-  const menuHeading =
-    role === "admin"
-      ? "MENU ADMIN"
-      : role === "ketua_rw"
-        ? "MENU KETUA RW"
-        : "MENU KETUA RT";
+  const menuHeading = NAV_HEADINGS[role];
 
   const headerTitle =
     role === "admin"
@@ -317,10 +199,10 @@ export default function StaffShell({
 
   const menus =
     role === "admin"
-      ? ADMIN_MENUS
+      ? ADMIN_NAV_ITEMS
       : role === "ketua_rw"
-        ? RW_MENUS
-        : RT_MENUS;
+        ? RW_NAV_ITEMS
+        : RT_NAV_ITEMS;
 
   const bellHref =
     role === "admin"

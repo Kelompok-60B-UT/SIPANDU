@@ -4,6 +4,7 @@ import { getRoleFromJwt } from '@/utils/roles'
 import type { Notification, Profile, UserRole } from '@/types/database.types'
 import type { RegionOption } from '@/types'
 import type { DashboardStats, TicketListItem } from '@/data/tickets'
+import { siteConfig } from '@/config/site'
 
 export interface WargaUserContext {
   isPreview: boolean
@@ -237,7 +238,7 @@ export async function getWargaUserContext(): Promise<WargaUserContext> {
     const city =
       typeof meta.city === 'string' && meta.city.trim()
         ? meta.city.trim()
-        : 'Bandung'
+        : siteConfig.city
 
     const { data: profile } = await supabase
       .from('profiles')
