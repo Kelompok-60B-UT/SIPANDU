@@ -185,6 +185,76 @@ export default function StaffShell({
   }, [role]);
 
   useEffect(() => {
+    if (pathname.startsWith("/profile")) return;
+
+    const currentMenus =
+      role === "admin" ? ADMIN_MENUS : role === "ketua_rw" ? RW_MENUS : RT_MENUS;
+
+    const syncFromHash = () => {
+      const hash = window.location.hash;
+      if (!hash) {
+        setActiveKey("ringkasan");
+        return;
+      }
+      const matched = currentMenus.find((m) => m.href.includes(hash));
+      if (matched) {
+        setActiveKey(matched.key);
+      }
+    };
+
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+
+    const sectionEntries: Array<{ id: string; key: string }> = [];
+    currentMenus.forEach((m) => {
+      const hashIdx = m.href.indexOf("#");
+      if (hashIdx !== -1) {
+        const id = m.href.slice(hashIdx + 1);
+        if (!sectionEntries.some((e) => e.id === id)) {
+          sectionEntries.push({ id, key: m.key });
+        }
+      }
+    });
+
+    const elements = sectionEntries
+      .map((s) => ({ el: document.getElementById(s.id), key: s.key }))
+      .filter((s): s is { el: HTMLElement; key: string } => Boolean(s.el));
+
+    if (elements.length === 0) {
+      return () => window.removeEventListener("hashchange", syncFromHash);
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length > 0) {
+          const mostVisible = visible.reduce((prev, curr) =>
+            curr.intersectionRatio > prev.intersectionRatio ? curr : prev,
+          );
+          const matched = sectionEntries.find(
+            (s) => s.id === mostVisible.target.id,
+          );
+          if (matched) {
+            setActiveKey(matched.key);
+          }
+        }
+      },
+      {
+        root: null,
+        rootMargin: "-15% 0px -60% 0px",
+        threshold: [0, 0.2, 0.5, 0.8],
+      },
+    );
+
+    elements.forEach(({ el }) => observer.observe(el));
+
+    return () => {
+      window.removeEventListener("hashchange", syncFromHash);
+      observer.disconnect();
+    };
+  }, [pathname, role]);
+
+  useEffect(() => {
     const syncProfileAndAvatar = () => {
       try {
         setClientAvatar(localStorage.getItem("sipandu_avatar_url"));
@@ -274,7 +344,7 @@ export default function StaffShell({
                 SIPANDU
               </span>
               <span className="block text-[10px] text-muted">
-                RW 06 Parakansaat, Bandung
+                RW 06 Parakan Saat, Bandung
               </span>
             </span>
           </Link>
@@ -480,7 +550,7 @@ export default function StaffShell({
           <div className="mx-auto max-w-6xl">
             {children}
             <footer className="mt-8 text-[11px] text-muted">
-              SIPANDU • Layanan warga RW 06 Parakansaat, Bandung
+              SIPANDU • Layanan warga RW 06 Parakan Saat, Bandung
             </footer>
           </div>
         </main>

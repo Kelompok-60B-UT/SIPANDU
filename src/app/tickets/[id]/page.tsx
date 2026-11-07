@@ -9,7 +9,7 @@ import { isSupabaseConfigured } from "@/utils/supabase/server";
 export const metadata: Metadata = {
   title: "Pelacakan & Detail Tiket — SIPANDU RW 06",
   description:
-    "Pantau status penanganan, foto laporan & bukti penyelesaian, serta kronologi pengaduan warga RW 06 Parakansaat.",
+    "Pantau status penanganan, foto laporan & bukti penyelesaian, serta kronologi pengaduan warga RW 06 Parakan Saat.",
 };
 
 async function TicketDetailContent({

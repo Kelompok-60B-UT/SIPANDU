@@ -23,7 +23,7 @@ export default function Navbar() {
           <span className="leading-tight">
             <span className="block text-base font-bold text-ink">SIPANDU</span>
             <span className="hidden text-[10px] text-muted xs:block sm:block">
-              RW 06 Parakansaat, Bandung
+              RW 06 Parakan Saat, Bandung
             </span>
           </span>
         </Link>

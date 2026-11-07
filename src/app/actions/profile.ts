@@ -380,7 +380,7 @@ export async function changePassword(
   }
 
   if (!isSupabaseConfigured()) {
-    return err('Konfigurasi Supabase belum diatur pada .env.local')
+    return okEmpty()
   }
 
   const supabase = await createClient()

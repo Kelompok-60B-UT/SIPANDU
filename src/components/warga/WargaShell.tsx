@@ -141,8 +141,72 @@ export default function WargaShell({
   const displayRegionLabel = clientRegionLabel || regionLabel;
   const displayAvatar = avatarUrl || clientAvatar;
 
-  const resolvedActive: WargaMenuKey =
-    activeMenu ?? (pathname.startsWith("/profile") ? "profil" : "ringkasan");
+  const [activeSection, setActiveSection] = useState<WargaMenuKey>(() => {
+    if (pathname.startsWith("/profile")) return "profil";
+    if (pathname.startsWith("/tickets/new")) return "buat";
+    return activeMenu ?? "ringkasan";
+  });
+
+  useEffect(() => {
+    if (!pathname.startsWith("/dashboard/warga")) return;
+
+    const syncFromHash = () => {
+      const hash = window.location.hash;
+      if (hash === "#pengaduan-saya") setActiveSection("pengaduan");
+      else if (hash === "#notifikasi") setActiveSection("notifikasi");
+      else if (hash === "#ringkasan" || !hash) setActiveSection("ringkasan");
+    };
+
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+
+    const sections: Array<{ id: string; key: WargaMenuKey }> = [
+      { id: "ringkasan", key: "ringkasan" },
+      { id: "pengaduan-saya", key: "pengaduan" },
+      { id: "notifikasi", key: "notifikasi" },
+    ];
+
+    const elements = sections
+      .map((s) => ({ el: document.getElementById(s.id), key: s.key }))
+      .filter((s): s is { el: HTMLElement; key: WargaMenuKey } => Boolean(s.el));
+
+    if (elements.length === 0) {
+      return () => window.removeEventListener("hashchange", syncFromHash);
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length > 0) {
+          const mostVisible = visible.reduce((prev, curr) =>
+            curr.intersectionRatio > prev.intersectionRatio ? curr : prev,
+          );
+          const matched = sections.find((s) => s.id === mostVisible.target.id);
+          if (matched) {
+            setActiveSection(matched.key);
+          }
+        }
+      },
+      {
+        root: null,
+        rootMargin: "-15% 0px -60% 0px",
+        threshold: [0, 0.2, 0.5, 0.8],
+      },
+    );
+
+    elements.forEach(({ el }) => observer.observe(el));
+
+    return () => {
+      window.removeEventListener("hashchange", syncFromHash);
+      observer.disconnect();
+    };
+  }, [pathname]);
+
+  const resolvedActive: WargaMenuKey = pathname.startsWith("/profile")
+    ? "profil"
+    : pathname.startsWith("/tickets/new")
+      ? "buat"
+      : activeSection;
 
   const initials = getInitials(displayName);
 
@@ -160,7 +224,7 @@ export default function WargaShell({
                 SIPANDU
               </span>
               <span className="block text-[10px] text-muted">
-                RW 06 Parakansaat, Bandung
+                RW 06 Parakan Saat, Bandung
               </span>
             </span>
           </Link>
@@ -187,7 +251,10 @@ export default function WargaShell({
               <Link
                 key={item.key}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => {
+                  setActiveSection(item.key);
+                  setMobileOpen(false);
+                }}
                 className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs transition-colors ${
                   isActive
                     ? "bg-blue-50/90 font-semibold text-primary"
@@ -359,7 +426,7 @@ export default function WargaShell({
           <div className="mx-auto max-w-6xl">
             {children}
             <footer className="mt-8 text-[11px] text-muted">
-              SIPANDU • Layanan warga RW 06 Parakansaat, Bandung
+              SIPANDU • Layanan warga RW 06 Parakan Saat, Bandung
             </footer>
           </div>
         </main>

@@ -122,7 +122,7 @@ export default function RegisterForm({
         Halo, tetangga baru.
       </h1>
       <p className="mt-1.5 text-sm text-muted">
-        Buat akun untuk menyampaikan pengaduan di RW 06 Parakansaat, Bandung.
+        Buat akun untuk menyampaikan pengaduan di RW 06 Parakan Saat, Bandung.
       </p>
 
       {message?.error && (
@@ -185,7 +185,7 @@ export default function RegisterForm({
           required
           minLength={5}
           autoComplete="street-address"
-          placeholder="Jl. Parakansaat, Gang Melati No. 12"
+          placeholder="Jl. Parakan Saat, Gang Melati No. 12"
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -217,7 +217,7 @@ export default function RegisterForm({
           <Input
             label="RW"
             id="rw_display"
-            value="RW 06 Parakansaat"
+            value="RW 06 Parakan Saat"
             readOnly
             required
             tabIndex={-1}

@@ -77,7 +77,7 @@ export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
   isPreview: true,
   adminName: 'Rina Marlina',
   rwNumber: '06',
-  rwAreaName: 'Parakansaat, Bandung',
+  rwAreaName: 'Parakan Saat, Bandung',
   unreadCount: 3,
   residentTotal: 386,
   staffActiveTotal: 8,
@@ -587,7 +587,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       typeof user.user_metadata?.rw_area_name === 'string' &&
       user.user_metadata.rw_area_name.trim()
         ? user.user_metadata.rw_area_name.trim()
-        : 'Parakansaat, Bandung'
+        : 'Parakan Saat, Bandung'
 
     return {
       isPreview: false,

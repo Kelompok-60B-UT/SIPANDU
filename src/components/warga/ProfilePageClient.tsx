@@ -18,7 +18,7 @@ const PREVIEW_ROLE_PROFILES: Record<
       id: "preview-warga-id",
       full_name: "Dewi Lestari",
       phone: "0812 3456 7890",
-      address: "Jl. Parakansaat, Gang Melati No. 12",
+      address: "Jl. Parakan Saat, Gang Melati No. 12",
       region_id: 3,
       is_active: true,
       is_rt_verified: true,
@@ -32,7 +32,7 @@ const PREVIEW_ROLE_PROFILES: Record<
       id: "preview-rt-id",
       full_name: "Agus Setiawan",
       phone: "0812 2233 4455",
-      address: "Jl. Parakansaat, Pos RT 03",
+      address: "Jl. Parakan Saat, Pos RT 03",
       region_id: 3,
       is_active: true,
       is_rt_verified: true,
@@ -46,7 +46,7 @@ const PREVIEW_ROLE_PROFILES: Record<
       id: "preview-rw-id",
       full_name: "Bambang Heryana",
       phone: "0811 2233 8899",
-      address: "Sekretariat RW 06 Parakansaat",
+      address: "Sekretariat RW 06 Parakan Saat",
       region_id: 3,
       is_active: true,
       is_rt_verified: true,
@@ -60,7 +60,7 @@ const PREVIEW_ROLE_PROFILES: Record<
       id: "preview-admin-id",
       full_name: "Rina Marlina",
       phone: "0813 9988 7766",
-      address: "Balai Warga RW 06 Parakansaat",
+      address: "Balai Warga RW 06 Parakan Saat",
       region_id: 3,
       is_active: true,
       is_rt_verified: true,
@@ -158,7 +158,7 @@ export default function ProfilePageClient({
     activeRole === "ketua_rt"
   ) {
     const subHeaderLabel =
-      activeRole === "ketua_rt" ? regionLabel : "RW 06 Parakansaat";
+      activeRole === "ketua_rt" ? regionLabel : "RW 06 Parakan Saat";
     return (
       <StaffShell
         role={activeRole}

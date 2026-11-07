@@ -3,8 +3,8 @@ import AuthShell from "@/components/auth/AuthShell";
 import LoginForm from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = {
-  title: "Masuk — SIPANDU RW 06 Parakansaat",
-  description: "Masuk ke layanan pengaduan warga SIPANDU RW 06 Parakansaat.",
+  title: "Masuk — SIPANDU RW 06 Parakan Saat",
+  description: "Masuk ke layanan pengaduan warga SIPANDU RW 06 Parakan Saat.",
 };
 
 export default function LoginPage() {

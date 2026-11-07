@@ -9,9 +9,9 @@ import { isSupabaseConfigured } from "@/utils/supabase/server";
 import type { RegionOption } from "@/types";
 
 export const metadata: Metadata = {
-  title: "Daftar Warga — SIPANDU RW 06 Parakansaat",
+  title: "Daftar Warga — SIPANDU RW 06 Parakan Saat",
   description:
-    "Pendaftaran akun warga untuk menyampaikan pengaduan di RW 06 Parakansaat, Bandung.",
+    "Pendaftaran akun warga untuk menyampaikan pengaduan di RW 06 Parakan Saat, Bandung.",
 };
 
 const DEFAULT_REGIONS: RegionOption[] = [

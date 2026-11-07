@@ -7,7 +7,7 @@ import { getAdminDashboardData } from "@/data/admin-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Ruang Layanan Admin — SIPANDU RW 06 Parakansaat",
+  title: "Ruang Layanan Admin — SIPANDU RW 06 Parakan Saat",
   description:
     "Administrasi pengaduan lintas RT, manajemen akun, wilayah, dan kategori layanan SIPANDU RW 06.",
 };

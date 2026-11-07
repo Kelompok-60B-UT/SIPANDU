@@ -108,7 +108,7 @@ const PREVIEW_TICKET_261: TicketDetailView = {
   description:
     'Saluran air di depan Gang Melati tersumbat daun dan sampah sejak 27 Oktober. Saat hujan, air meluap ke jalan dan mengganggu akses warga. Mohon bantuan pembersihan saluran.',
   locationLandmark: 'Gang Melati, depan rumah No. 12',
-  locationSubdetail: 'Dekat pos RT 03 • RW 06 Parakansaat, Bandung',
+  locationSubdetail: 'Dekat pos RT 03 • RW 06 Parakan Saat, Bandung',
   status: 'selesai',
   reporterName: 'Dewi Lestari',
   handlerDisplay: 'Bambang Heryana • Ketua RW',
@@ -321,7 +321,7 @@ function buildPreviewTicketFromList(rawParam: string): TicketDetailView {
     title: matched.title,
     description: matched.description,
     locationLandmark: matched.location_landmark ?? regionName,
-    locationSubdetail: `Wilayah ${regionName} • RW ${regionRw} Parakansaat, Bandung`,
+    locationSubdetail: `Wilayah ${regionName} • RW ${regionRw} Parakan Saat, Bandung`,
     status: matched.status,
     reporterName: 'Dewi Lestari',
     handlerDisplay,
@@ -414,7 +414,7 @@ export async function getTicketDetailPageData(
   const viewerRegionLabel = viewerRegion
     ? `${viewerRegion.name} / RW ${viewerRegion.rw}`
     : viewerRole === 'ketua_rw'
-      ? 'RW 06 Parakansaat'
+      ? 'RW 06 Parakan Saat'
       : viewerRole === 'admin'
         ? 'Seluruh Wilayah RW 06'
         : 'RW 06'
@@ -602,7 +602,7 @@ export async function getTicketDetailPageData(
       description: rawTicket.description,
       locationLandmark:
         rawTicket.location_landmark ?? `Wilayah ${regionName}`,
-      locationSubdetail: `Dekat wilayah ${regionName} • RW ${regionRw} Parakansaat, Bandung`,
+      locationSubdetail: `Dekat wilayah ${regionName} • RW ${regionRw} Parakan Saat, Bandung`,
       status: rawTicket.status,
       reporterName,
       handlerDisplay,

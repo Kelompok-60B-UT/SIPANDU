@@ -151,7 +151,7 @@ export default function Hero() {
         <div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase text-primary">
             <MapPin size={12} />
-            Untuk warga RW 06 Parakansaat
+            Untuk warga RW 06 Parakan Saat
           </span>
 
           <h1 className="mt-6 text-4xl font-light leading-tight text-ink sm:text-5xl">
@@ -190,7 +190,7 @@ export default function Hero() {
         <div className="relative pb-6">
           <Image
             src="/hero.jpg"
-            alt="Warga RW 06 Parakansaat bergotong royong membersihkan lingkungan"
+            alt="Warga RW 06 Parakan Saat bergotong royong membersihkan lingkungan"
             width={640}
             height={560}
             priority

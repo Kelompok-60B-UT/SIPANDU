@@ -184,7 +184,7 @@ export const PREVIEW_RT_DATA: StaffContextData = {
       id: 'res-rt3-01',
       fullName: 'Budi Santoso',
       phone: '0812 3456 7801',
-      address: 'Jl. Parakansaat No. 14, Gang Melati',
+      address: 'Jl. Parakan Saat No. 14, Gang Melati',
       regionId: 3,
       regionName: 'RT 03',
       createdAt: '2026-10-31T09:30:00Z',
@@ -210,7 +210,7 @@ export const PREVIEW_RT_DATA: StaffContextData = {
 export const PREVIEW_RW_DATA: StaffContextData = {
   isPreview: true,
   fullName: 'Bambang Heryana',
-  regionName: 'RW 06 Parakansaat',
+  regionName: 'RW 06 Parakan Saat',
   rw: '06',
   unreadCount: 3,
   stats: {
@@ -452,7 +452,7 @@ export const PREVIEW_RW_DATA: StaffContextData = {
       id: 'res-rt3-01',
       fullName: 'Budi Santoso',
       phone: '0812 3456 7801',
-      address: 'Jl. Parakansaat No. 14, Gang Melati',
+      address: 'Jl. Parakan Saat No. 14, Gang Melati',
       regionId: 3,
       regionName: 'RT 03',
       createdAt: '2026-10-31T09:30:00Z',
@@ -766,7 +766,7 @@ export async function getStaffDashboardData(
         profile?.full_name || metaName || user.email?.split('@')[0] || 'Pengurus',
       avatarUrl,
       regionName:
-        targetRole === 'ketua_rt' ? regionObj.name : 'RW 06 Parakansaat',
+        targetRole === 'ketua_rt' ? regionObj.name : 'RW 06 Parakan Saat',
       rw: regionObj.rw,
       unreadCount: unreadRes.data?.length ?? 0,
       stats,

@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SIPANDU — Layanan Pengaduan Warga RW 06 Parakansaat",
+  title: "SIPANDU — Layanan Pengaduan Warga RW 06 Parakan Saat",
   description:
-    "Sistem Informasi Layanan Publik dan Pengaduan Warga RW 06 Parakansaat, Bandung.",
+    "Sistem Informasi Layanan Publik dan Pengaduan Warga RW 06 Parakan Saat, Bandung.",
 };
 
 export default function RootLayout({

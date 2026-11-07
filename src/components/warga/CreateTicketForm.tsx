@@ -141,7 +141,7 @@ export default function CreateTicketForm({
             </h2>
 
             <p className="mt-2.5 text-xs leading-relaxed text-muted sm:text-sm">
-              Untuk menjaga ketertiban dan keabsahan laporan warga di RW 06 Parakansaat, setiap pendaftar baru wajib disetujui terlebih dahulu oleh <strong>Ketua RT {userRegion.name}</strong>, <strong>Ketua RW 06</strong>, atau <strong>Admin SIPANDU</strong>.
+              Untuk menjaga ketertiban dan keabsahan laporan warga di RW 06 Parakan Saat, setiap pendaftar baru wajib disetujui terlebih dahulu oleh <strong>Ketua RT {userRegion.name}</strong>, <strong>Ketua RW 06</strong>, atau <strong>Admin SIPANDU</strong>.
             </p>
 
             {/* Info Rincian Data Pendaftaran */}
@@ -499,7 +499,7 @@ export default function CreateTicketForm({
           <section className="rounded-2xl border border-border bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-ink">2. Lokasi kejadian</h2>
             <p className="mt-0.5 text-xs text-muted">
-              Pastikan berada di wilayah RW 06 Parakansaat.
+              Pastikan berada di wilayah RW 06 Parakan Saat.
             </p>
 
             <div className="mt-5 space-y-4">

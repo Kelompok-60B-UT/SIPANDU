@@ -31,6 +31,54 @@ async function requireAdmin(): Promise<string | null> {
   return user.id
 }
 
+async function countActiveAdmins(
+  adminClient: ReturnType<typeof createAdminClient>,
+  excludeUserId?: string,
+): Promise<number> {
+  const { data: usersData, error: usersErr } =
+    await adminClient.auth.admin.listUsers({ perPage: 1000 })
+  if (usersErr || !usersData) return 0
+
+  const adminUserIds = usersData.users
+    .filter((u) => {
+      const role = (u.app_metadata as Record<string, string> | undefined)
+        ?.sipandu_role
+      const isNotBanned =
+        !u.banned_until || new Date(u.banned_until) <= new Date()
+      return (
+        role === 'admin' &&
+        isNotBanned &&
+        (!excludeUserId || u.id !== excludeUserId)
+      )
+    })
+    .map((u) => u.id)
+
+  if (adminUserIds.length === 0) return 0
+
+  const { data: activeProfiles, error: profErr } = await adminClient
+    .from('profiles')
+    .select('id')
+    .in('id', adminUserIds)
+    .eq('is_active', true)
+
+  if (profErr || !activeProfiles) {
+    return adminUserIds.length
+  }
+
+  return activeProfiles.length
+}
+
+async function isTargetAdmin(
+  adminClient: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await adminClient.auth.admin.getUserById(userId)
+  if (error || !data?.user) return false
+  const role = (data.user.app_metadata as Record<string, string> | undefined)
+    ?.sipandu_role
+  return role === 'admin'
+}
+
 export async function createStaff(
   formData: FormData,
 ): Promise<ActionResult<{ id: string; user_id: string }>> {
@@ -95,6 +143,19 @@ export async function setStaffActive(
   if (adminId === userId) return err('Tidak dapat mengubah status akun sendiri')
 
   const admin = createAdminClient()
+
+  if (!isActive) {
+    const targetIsAdmin = await isTargetAdmin(admin, userId)
+    if (targetIsAdmin) {
+      const remainingAdmins = await countActiveAdmins(admin, userId)
+      if (remainingAdmins < 1) {
+        return err(
+          'Tidak dapat menonaktifkan akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.',
+        )
+      }
+    }
+  }
+
   const { error } = await admin
     .from('profiles')
     .update({ is_active: isActive })
@@ -134,6 +195,16 @@ export async function deleteUserByAdmin(
 
   try {
     const admin = createAdminClient()
+
+    const targetIsAdmin = await isTargetAdmin(admin, cleanUserId)
+    if (targetIsAdmin) {
+      const remainingAdmins = await countActiveAdmins(admin, cleanUserId)
+      if (remainingAdmins < 1) {
+        return err(
+          'Tidak dapat menghapus akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.',
+        )
+      }
+    }
 
     // 1. Bersihkan file foto profil user pada bucket avatars (jika ada)
     try {
@@ -432,6 +503,19 @@ export async function updateUserRole(input: {
 
   try {
     const admin = createAdminClient()
+
+    if (input.role !== 'admin') {
+      const targetIsAdmin = await isTargetAdmin(admin, input.userId)
+      if (targetIsAdmin) {
+        const remainingAdmins = await countActiveAdmins(admin, input.userId)
+        if (remainingAdmins < 1) {
+          return err(
+            'Tidak dapat mengubah peran akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.',
+          )
+        }
+      }
+    }
+
     const nextRegionId =
       input.role === 'warga' || input.role === 'ketua_rt'
         ? input.regionId && input.regionId > 0
@@ -533,6 +617,19 @@ export async function saveRegion(input: {
     }
 
     if (input.leaderUserId && regionId) {
+      const targetIsAdmin = await isTargetAdmin(admin, input.leaderUserId)
+      if (targetIsAdmin) {
+        const remainingAdmins = await countActiveAdmins(
+          admin,
+          input.leaderUserId,
+        )
+        if (remainingAdmins < 1) {
+          return err(
+            'Akun ini adalah satu-satunya akun Admin aktif dan tidak dapat dialihkan menjadi Ketua RT.',
+          )
+        }
+      }
+
       await admin.auth.admin.updateUserById(input.leaderUserId, {
         app_metadata: { sipandu_role: 'ketua_rt' },
         user_metadata: { region_id: regionId },
@@ -630,7 +727,7 @@ export async function updateRwSettings(input: {
   rwLeaderUserId?: string | null
 }): Promise<ActionResult<undefined>> {
   const rwNumber = input.rwNumber.trim().replace(/[^0-9A-Za-z]/g, '') || '06'
-  const rwAreaName = input.rwAreaName.trim() || 'Parakansaat, Bandung'
+  const rwAreaName = input.rwAreaName.trim() || 'Parakan Saat, Bandung'
 
   if (!isSupabaseConfigured()) return okEmpty()
 
@@ -646,6 +743,19 @@ export async function updateRwSettings(input: {
     if (regErr) return err(supabaseErrorToMessage(regErr))
 
     if (input.rwLeaderUserId) {
+      const targetIsAdmin = await isTargetAdmin(admin, input.rwLeaderUserId)
+      if (targetIsAdmin) {
+        const remainingAdmins = await countActiveAdmins(
+          admin,
+          input.rwLeaderUserId,
+        )
+        if (remainingAdmins < 1) {
+          return err(
+            'Akun ini adalah satu-satunya akun Admin aktif dan tidak dapat dialihkan menjadi Ketua RW.',
+          )
+        }
+      }
+
       await admin.auth.admin.updateUserById(input.rwLeaderUserId, {
         app_metadata: { sipandu_role: 'ketua_rw' },
       })

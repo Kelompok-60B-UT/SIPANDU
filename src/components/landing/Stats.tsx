@@ -25,7 +25,7 @@ function StatsGrid({
       ))}
       <p className="text-xs text-muted md:ml-auto md:max-w-50">
         Transparansi untuk semua warga. Statistik pengaduan publik RW 06
-        Parakansaat.
+        Parakan Saat.
       </p>
     </div>
   );

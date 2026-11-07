@@ -18,8 +18,8 @@ import { isSupabaseConfigured } from "@/utils/supabase/server";
 import type { CategoryOption, RegionOption } from "@/types";
 
 export const metadata: Metadata = {
-  title: "Buat Pengaduan — SIPANDU RW 06 Parakansaat",
-  description: "Sampaikan pengaduan warga wilayah RW 06 Parakansaat, Bandung.",
+  title: "Buat Pengaduan — SIPANDU RW 06 Parakan Saat",
+  description: "Sampaikan pengaduan warga wilayah RW 06 Parakan Saat, Bandung.",
 };
 
 const PREVIEW_CATEGORIES: CategoryOption[] = [

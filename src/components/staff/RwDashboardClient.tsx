@@ -525,7 +525,7 @@ export default function RwDashboardClient({
     <StaffShell
       role="ketua_rw"
       fullName={initialData.fullName}
-      subHeaderLabel="RW 06 Parakansaat"
+      subHeaderLabel="RW 06 Parakan Saat"
       unreadCount={initialData.unreadCount}
       avatarUrl={initialData.avatarUrl}
     >
@@ -1163,7 +1163,7 @@ export default function RwDashboardClient({
               </div>
               <p className="mt-1 text-xs text-muted">
                 Ketua RW berwenang menyetujui dan mengaktifkan akun warga yang baru
-                mendaftar dari seluruh wilayah RT di RW 06 Parakansaat.
+                mendaftar dari seluruh wilayah RT di RW 06 Parakan Saat.
               </p>
             </div>
 

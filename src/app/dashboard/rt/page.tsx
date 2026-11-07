@@ -7,9 +7,9 @@ import { getStaffDashboardData } from "@/data/staff-preview";
 import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Ruang Layanan Ketua RT — SIPANDU RW 06 Parakansaat",
+  title: "Ruang Layanan Ketua RT — SIPANDU RW 06 Parakan Saat",
   description:
-    "Verifikasi dan pemeriksaan pengaduan warga wilayah RT di RW 06 Parakansaat.",
+    "Verifikasi dan pemeriksaan pengaduan warga wilayah RT di RW 06 Parakan Saat.",
 };
 
 async function LiveRtDashboard() {

@@ -37,8 +37,8 @@ import { isSupabaseConfigured } from "@/utils/supabase/server";
 import type { Notification } from "@/types";
 
 export const metadata: Metadata = {
-  title: "Ruang Layanan Warga — SIPANDU RW 06 Parakansaat",
-  description: "Ringkasan dan pemantauan pengaduan warga RW 06 Parakansaat.",
+  title: "Ruang Layanan Warga — SIPANDU RW 06 Parakan Saat",
+  description: "Ringkasan dan pemantauan pengaduan warga RW 06 Parakan Saat.",
 };
 
 const EMPTY_STATS: DashboardStats = {
@@ -78,7 +78,7 @@ function DashboardView({
       regionLabel={regionLabel}
       unreadCount={unreadCount}
     >
-      <div className="space-y-6">
+      <div id="ringkasan" className="scroll-mt-20 space-y-6">
         {/* Baris Sapaan & Tombol Buat Pengaduan */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <WargaGreetingHeader

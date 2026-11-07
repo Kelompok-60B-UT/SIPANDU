@@ -186,7 +186,7 @@ export default function AdminDashboardClient({
   );
   const [rwNumber, setRwNumber] = useState(initialData.rwNumber || "06");
   const [rwAreaName, setRwAreaName] = useState(
-    initialData.rwAreaName || "Parakansaat, Bandung",
+    initialData.rwAreaName || "Parakan Saat, Bandung",
   );
   const [rwLeaderUserId, setRwLeaderUserId] = useState<string>(() => {
     const rwAcc = initialData.accounts.find((a) => a.role === "ketua_rw");
@@ -234,6 +234,11 @@ export default function AdminDashboardClient({
 
   const pendingAccountsCount = useMemo(
     () => accounts.filter((a) => a.role === "warga" && !a.isVerified).length,
+    [accounts],
+  );
+
+  const activeAdminsCount = useMemo(
+    () => accounts.filter((a) => a.role === "admin" && a.isActive).length,
     [accounts],
   );
 
@@ -577,15 +582,13 @@ export default function AdminDashboardClient({
   };
 
   const handleSaveAccountRole = (acc: AdminAccountRow) => {
-    if (
-      acc.role === "admin" &&
-      acc.fullName === initialData.adminName &&
-      draftRole !== "admin"
-    ) {
-      setAccountFeedback(
-        "Tidak dapat menurunkan peran akun Admin yang sedang digunakan.",
-      );
-      return;
+    if (acc.role === "admin" && draftRole !== "admin") {
+      if (activeAdminsCount <= 1) {
+        setAccountFeedback(
+          "Tidak dapat menurunkan peran akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.",
+        );
+        return;
+      }
     }
     setAccountFeedback(null);
 
@@ -663,8 +666,10 @@ export default function AdminDashboardClient({
   };
 
   const handleToggleAccount = (acc: AdminAccountRow) => {
-    if (acc.role === "admin" && acc.fullName === initialData.adminName) {
-      setAccountFeedback("Akun Admin yang sedang aktif tidak dapat dinonaktifkan.");
+    if (acc.role === "admin" && acc.isActive && activeAdminsCount <= 1) {
+      setAccountFeedback(
+        "Tidak dapat menonaktifkan akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.",
+      );
       return;
     }
     setAccountFeedback(null);
@@ -721,9 +726,9 @@ export default function AdminDashboardClient({
   };
 
   const handleDeleteAccount = (acc: AdminAccountRow) => {
-    if (acc.role === "admin" && acc.fullName === initialData.adminName) {
+    if (acc.role === "admin" && activeAdminsCount <= 1) {
       setAccountFeedback(
-        "Akun Admin yang sedang digunakan tidak dapat dihapus.",
+        "Tidak dapat menghapus akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.",
       );
       return;
     }
@@ -955,7 +960,7 @@ export default function AdminDashboardClient({
 
   const handleSaveRwSettings = () => {
     const cleanRw = rwNumber.trim() || "06";
-    const cleanArea = rwAreaName.trim() || "Parakansaat, Bandung";
+    const cleanArea = rwAreaName.trim() || "Parakan Saat, Bandung";
     setRtFeedback(null);
     startTransition(async () => {
       const res = await updateRwSettings({
@@ -1129,7 +1134,7 @@ export default function AdminDashboardClient({
     <StaffShell
       role="admin"
       fullName={initialData.adminName}
-      subHeaderLabel="RW 06 Parakansaat"
+      subHeaderLabel="RW 06 Parakan Saat"
       unreadCount={initialData.unreadCount}
       avatarUrl={initialData.avatarUrl}
     >
@@ -1339,11 +1344,18 @@ export default function AdminDashboardClient({
                         key={ticket.id}
                         onClick={() => handleSelectTicket(ticket)}
                         className={`cursor-pointer transition-colors ${
-                          isSelected ? "bg-blue-50/40" : "hover:bg-surface/60"
+                          isSelected
+                            ? "border-l-4 border-primary bg-blue-50/70 shadow-xs"
+                            : "border-l-4 border-transparent hover:bg-surface/60"
                         }`}
                       >
-                        <td className="px-3.5 py-3.5 align-middle text-xs font-semibold text-primary whitespace-nowrap">
-                          {ticket.ticketNumber}
+                        <td className="px-3.5 py-3.5 align-middle text-xs font-semibold whitespace-nowrap">
+                          <span className="font-bold text-primary">{ticket.ticketNumber}</span>
+                          {isSelected && (
+                            <span className="ml-2 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+                              Aktif Dikelola
+                            </span>
+                          )}
                         </td>
                         <td className="px-3.5 py-3.5 align-middle">
                           <p className="text-xs font-semibold text-ink sm:text-[13px]">
@@ -1385,9 +1397,9 @@ export default function AdminDashboardClient({
                                 e.stopPropagation();
                                 handleSelectTicket(ticket);
                               }}
-                              className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary whitespace-nowrap hover:underline"
+                              className="inline-flex cursor-pointer items-center gap-1 text-xs font-bold text-primary whitespace-nowrap hover:underline"
                             >
-                              Kelola tiket
+                              {isSelected ? "Sedang dikelola" : "Kelola tiket"}
                               <ArrowRight size={13} />
                             </button>
                             <button
@@ -1423,14 +1435,37 @@ export default function AdminDashboardClient({
         {selectedTicket && (
           <section
             ref={managePanelRef}
-            className="scroll-mt-20 rounded-2xl border border-border bg-white p-5 sm:p-6"
+            className="scroll-mt-20 space-y-5 rounded-2xl border border-border bg-white p-5 sm:p-6"
           >
+            {/* Header Identitas Tiket Aktif yang Sedang Dikelola */}
+            <div className="rounded-xl border border-blue-200/90 bg-blue-50/80 p-4 sm:p-5">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-lg bg-primary px-3 py-1 text-xs font-bold text-white shadow-xs">
+                      {selectedTicket.ticketNumber}
+                    </span>
+                    <span className="inline-flex items-center rounded-md border border-primary/30 bg-white px-2 py-0.5 text-[11px] font-bold text-primary">
+                      Sedang Dikelola Admin
+                    </span>
+                    <Badge status={selectedTicket.status} dot />
+                  </div>
+                  <h2 className="text-base font-bold text-ink sm:text-lg">
+                    {selectedTicket.title}
+                  </h2>
+                  <p className="text-xs text-muted">
+                    Pelapor: <strong className="text-ink">{selectedTicket.reporterName}</strong> • Wilayah: <strong className="text-ink">{selectedTicket.regionName}</strong> • Kategori: <strong className="text-ink">{selectedTicket.categoryName}</strong> • Masuk: <strong className="text-ink">{selectedTicket.dateShort}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div>
               <h2 className="text-base font-bold text-ink">
                 Bantuan penanganan & status langsung
               </h2>
               <p className="mt-0.5 text-xs text-muted">
-                Tiket {selectedTicket.ticketNumber} • {selectedTicket.title}
+                Perbarui status atau tindak lanjut tiket pengaduan ini secara langsung.
               </p>
             </div>
 
@@ -1894,8 +1929,9 @@ export default function AdminDashboardClient({
             {filteredAccounts.map((acc) => {
               const isEditingRole = editingRoleAccountId === acc.id;
               const isConfirmingDelete = confirmDeleteAccountId === acc.id;
-              const isSelfAdmin =
-                acc.role === "admin" && acc.fullName === initialData.adminName;
+              const isProtectedAdmin =
+                acc.role === "admin" &&
+                (acc.fullName === initialData.adminName || activeAdminsCount <= 1);
               return (
                 <div key={acc.id} className="py-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1975,15 +2011,27 @@ export default function AdminDashboardClient({
                       <span className="text-border">•</span>
                       <button
                         type="button"
-                        disabled={isPending}
+                        disabled={
+                          isPending ||
+                          (acc.role === "admin" &&
+                            acc.isActive &&
+                            activeAdminsCount <= 1)
+                        }
                         onClick={() => handleToggleAccount(acc)}
+                        title={
+                          acc.role === "admin" &&
+                          acc.isActive &&
+                          activeAdminsCount <= 1
+                            ? "Akun Admin terakhir tidak dapat dinonaktifkan"
+                            : undefined
+                        }
                         className={`cursor-pointer text-xs font-semibold hover:underline disabled:opacity-50 ${
                           acc.isActive ? "text-amber-700" : "text-emerald-600"
                         }`}
                       >
                         {acc.isActive ? "Nonaktifkan" : "Aktifkan kembali"}
                       </button>
-                      {!isSelfAdmin && (
+                      {!isProtectedAdmin && (
                         <>
                           <span className="text-border">•</span>
                           <button
@@ -2165,7 +2213,7 @@ export default function AdminDashboardClient({
                       type="text"
                       value={rwAreaName}
                       onChange={(e) => setRwAreaName(e.target.value)}
-                      placeholder="Parakansaat, Bandung"
+                      placeholder="Parakan Saat, Bandung"
                       className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
                     />
                   </div>

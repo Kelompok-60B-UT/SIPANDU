@@ -256,7 +256,7 @@ export default function TicketDetailClient({
         fullName: "Bambang Heryana",
         role: "ketua_rw" as const,
         roleLabel: "Ketua RW",
-        regionLabel: "RW 06 Parakansaat",
+        regionLabel: "RW 06 Parakan Saat",
       };
     }
     if (previewRole === "ketua_rt") {

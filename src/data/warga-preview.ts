@@ -35,7 +35,7 @@ export const PREVIEW_USER: WargaUserContext = {
     id: 'preview-warga-id',
     full_name: 'Dewi Lestari',
     phone: '0812 3456 7890',
-    address: 'Jl. Parakansaat, Gang Melati No. 12',
+    address: 'Jl. Parakan Saat, Gang Melati No. 12',
     region_id: 3,
     is_active: true,
     is_rt_verified: true,

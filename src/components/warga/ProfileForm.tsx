@@ -7,12 +7,19 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  Eye,
+  EyeOff,
   Info,
+  KeyRound,
   Loader2,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { updateProfile, updateProfileAvatar } from "@/app/actions/profile";
+import {
+  changePassword,
+  updateProfile,
+  updateProfileAvatar,
+} from "@/app/actions/profile";
 import type { Profile, RegionOption, UserRole } from "@/types";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB sesuai desain
@@ -97,6 +104,15 @@ export default function ProfileForm({
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     initialAvatarUrl ?? null,
   );
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordPending, startPasswordTransition] = useTransition();
+  const [passwordFeedback, setPasswordFeedback] = useState<{
+    error?: string;
+    success?: string;
+  } | null>(null);
   const [prevProfileUpdatedAt, setPrevProfileUpdatedAt] = useState(
     profile.updated_at,
   );
@@ -271,7 +287,41 @@ export default function ProfileForm({
     setKelurahan(initialKelurahan || "Cisaranten Endah");
     setCity(initialCity || "Bandung");
     setFeedback(null);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordFeedback(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleChangePassword = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setPasswordFeedback(null);
+
+    if (newPassword.length < 8) {
+      setPasswordFeedback({ error: "Kata sandi minimal 8 karakter." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordFeedback({ error: "Konfirmasi kata sandi tidak cocok." });
+      return;
+    }
+
+    startPasswordTransition(async () => {
+      const fd = new FormData();
+      fd.set("new_password", newPassword);
+      fd.set("confirm_password", confirmPassword);
+
+      const res = await changePassword(fd);
+      if (!res.success) {
+        setPasswordFeedback({ error: res.error });
+      } else {
+        setNewPassword("");
+        setConfirmPassword("");
+        setPasswordFeedback({
+          success: "Kata sandi berhasil diperbarui.",
+        });
+      }
+    });
   };
 
   const handleSubmit = (formData: FormData) => {
@@ -486,7 +536,7 @@ export default function ProfileForm({
               rows={2}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="Jl. Parakansaat, Gang Melati No. 12"
+              placeholder="Jl. Parakan Saat, Gang Melati No. 12"
               className="w-full resize-none rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
             />
           </div>
@@ -571,6 +621,132 @@ export default function ProfileForm({
               Pindah RT atau RW? Pastikan wilayah sesuai domisili Anda. Hubungi
               pengurus jika membutuhkan bantuan pembaruan data.
             </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bagian 4: Keamanan dan kata sandi */}
+      <div className="grid gap-5 p-6 sm:p-7 lg:grid-cols-[230px_1fr] lg:gap-8">
+        <div>
+          <h2 className="text-sm font-bold text-ink">Keamanan & kata sandi</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Perbarui kata sandi secara berkala untuk menjaga keamanan akun Anda.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="new_password"
+                className="text-xs font-semibold text-ink"
+              >
+                Kata sandi baru
+              </label>
+              <div className="relative">
+                <input
+                  id="new_password"
+                  name="new_password"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    setPasswordFeedback(null);
+                  }}
+                  placeholder="Minimal 8 karakter"
+                  className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 pr-10 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  aria-label={
+                    showNewPassword
+                      ? "Sembunyikan kata sandi"
+                      : "Tampilkan kata sandi"
+                  }
+                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted hover:text-ink"
+                >
+                  {showNewPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="confirm_password"
+                className="text-xs font-semibold text-ink"
+              >
+                Konfirmasi kata sandi baru
+              </label>
+              <div className="relative">
+                <input
+                  id="confirm_password"
+                  name="confirm_password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setPasswordFeedback(null);
+                  }}
+                  placeholder="Ulangi kata sandi baru"
+                  className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 pr-10 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  aria-label={
+                    showConfirmPassword
+                      ? "Sembunyikan kata sandi"
+                      : "Tampilkan kata sandi"
+                  }
+                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted hover:text-ink"
+                >
+                  {showConfirmPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Feedback dan tombol perbarui kata sandi */}
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {passwordFeedback?.error ? (
+                <p className="inline-flex items-center gap-2 text-xs font-medium text-red-600">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>{passwordFeedback.error}</span>
+                </p>
+              ) : passwordFeedback?.success ? (
+                <p className="inline-flex items-center gap-2 text-xs font-medium text-emerald-600">
+                  <CheckCircle2 size={15} className="shrink-0" />
+                  <span>{passwordFeedback.success}</span>
+                </p>
+              ) : newPassword && confirmPassword && newPassword !== confirmPassword ? (
+                <p className="inline-flex items-center gap-2 text-xs text-amber-600">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>Konfirmasi kata sandi belum cocok.</span>
+                </p>
+              ) : newPassword && newPassword.length < 8 ? (
+                <p className="inline-flex items-center gap-2 text-xs text-muted">
+                  <KeyRound size={14} className="shrink-0 text-muted" />
+                  <span>Gunakan minimal 8 karakter.</span>
+                </p>
+              ) : null}
+            </div>
+
+            <button
+              type="button"
+              disabled={isPasswordPending || !newPassword || !confirmPassword}
+              onClick={handleChangePassword}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-border/40 disabled:opacity-50"
+            >
+              {isPasswordPending && (
+                <Loader2 size={13} className="animate-spin text-primary" />
+              )}
+              <KeyRound size={14} className="text-primary" />
+              <span>
+                {isPasswordPending ? "Menyimpan sandi..." : "Perbarui kata sandi"}
+              </span>
+            </button>
           </div>
         </div>
       </div>

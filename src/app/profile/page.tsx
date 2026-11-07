@@ -14,7 +14,7 @@ import {
 import { isSupabaseConfigured } from "@/utils/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Profil Saya — SIPANDU RW 06 Parakansaat",
+  title: "Profil Saya — SIPANDU RW 06 Parakan Saat",
   description: "Kelola informasi pribadi dan alamat domisili warga SIPANDU.",
 };
 
