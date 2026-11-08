@@ -29,44 +29,110 @@ async function requireAdmin(): Promise<string | null> {
   const role = (user.app_metadata as Record<string, string> | undefined)
     ?.sipandu_role
   if (role !== 'admin') return null
+
+  // Validasi tambahan: akun admin wajib memiliki profil aktif
+  const { data: profile, error: profErr } = await supabase
+    .from('profiles')
+    .select('is_active')
+    .eq('id', user.id)
+    .single()
+
+  if (profErr || !profile || profile.is_active === false) {
+    return null
+  }
+
   return user.id
 }
 
-async function countActiveAdmins(
+type AdminCountResult =
+  | { success: true; count: number }
+  | { success: false; error: string }
+
+async function getActiveAdminsCount(
   adminClient: ReturnType<typeof createAdminClient>,
   excludeUserId?: string,
-): Promise<number> {
-  const { data: usersData, error: usersErr } =
-    await adminClient.auth.admin.listUsers({ perPage: 1000 })
-  if (usersErr || !usersData) return 0
+): Promise<AdminCountResult> {
+  const PAGE_SIZE = 100
+  let page = 1
+  const allAdminUserIds: string[] = []
+  const now = new Date()
 
-  const adminUserIds = usersData.users
-    .filter((u) => {
-      const role = (u.app_metadata as Record<string, string> | undefined)
-        ?.sipandu_role
-      const isNotBanned =
-        !u.banned_until || new Date(u.banned_until) <= new Date()
-      return (
-        role === 'admin' &&
-        isNotBanned &&
-        (!excludeUserId || u.id !== excludeUserId)
-      )
-    })
-    .map((u) => u.id)
+  try {
+    while (true) {
+      const { data, error } = await adminClient.auth.admin.listUsers({
+        page,
+        perPage: PAGE_SIZE,
+      })
 
-  if (adminUserIds.length === 0) return 0
+      if (error) {
+        return {
+          success: false,
+          error: `Gagal memuat pengguna pada halaman ${page}: ${error.message}`,
+        }
+      }
 
-  const { data: activeProfiles, error: profErr } = await adminClient
-    .from('profiles')
-    .select('id')
-    .in('id', adminUserIds)
-    .eq('is_active', true)
+      if (!data || !data.users) {
+        return {
+          success: false,
+          error: `Respons data pengguna pada halaman ${page} kosong atau tidak valid`,
+        }
+      }
 
-  if (profErr || !activeProfiles) {
-    return adminUserIds.length
+      for (const u of data.users) {
+        const role = (u.app_metadata as Record<string, string> | undefined)
+          ?.sipandu_role
+        const isNotBanned =
+          !u.banned_until || new Date(u.banned_until) <= now
+        const isNotDeleted = !(u as { deleted_at?: string | null }).deleted_at
+
+        if (
+          role === 'admin' &&
+          isNotBanned &&
+          isNotDeleted &&
+          (!excludeUserId || u.id !== excludeUserId)
+        ) {
+          allAdminUserIds.push(u.id)
+        }
+      }
+
+      if (data.users.length < PAGE_SIZE) {
+        break
+      }
+
+      page++
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: `Pengecualian saat memuat pengguna auth: ${err instanceof Error ? err.message : String(err)}`,
+    }
   }
 
-  return activeProfiles.length
+  if (allAdminUserIds.length === 0) {
+    return { success: true, count: 0 }
+  }
+
+  try {
+    const { data: activeProfiles, error: profErr } = await adminClient
+      .from('profiles')
+      .select('id')
+      .in('id', allAdminUserIds)
+      .eq('is_active', true)
+
+    if (profErr || !activeProfiles) {
+      return {
+        success: false,
+        error: `Gagal memverifikasi keaktifan profil admin: ${profErr?.message ?? 'Data profil kosong'}`,
+      }
+    }
+
+    return { success: true, count: activeProfiles.length }
+  } catch (err) {
+    return {
+      success: false,
+      error: `Pengecualian saat memverifikasi profil admin: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
 }
 
 async function isTargetAdmin(
@@ -148,8 +214,13 @@ export async function setStaffActive(
   if (!isActive) {
     const targetIsAdmin = await isTargetAdmin(admin, userId)
     if (targetIsAdmin) {
-      const remainingAdmins = await countActiveAdmins(admin, userId)
-      if (remainingAdmins < 1) {
+      const adminCountRes = await getActiveAdminsCount(admin, userId)
+      if (!adminCountRes.success) {
+        return err(
+          `Gagal memverifikasi jumlah Admin: ${adminCountRes.error}. Tindakan dibatalkan demi keamanan.`,
+        )
+      }
+      if (adminCountRes.count < 1) {
         return err(
           'Tidak dapat menonaktifkan akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.',
         )
@@ -157,22 +228,58 @@ export async function setStaffActive(
     }
   }
 
-  const { error } = await admin
-    .from('profiles')
-    .update({ is_active: isActive })
-    .eq('id', userId)
-  if (error) return err(supabaseErrorToMessage(error))
+  if (!isActive) {
+    // Saat menonaktifkan: update Auth (ban) terlebih dahulu agar trigger database memeriksa invariant
+    const { error: banErr } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: '876000h',
+    })
+    if (banErr) return err(supabaseErrorToMessage(banErr))
 
-  const authError = isActive
-    ? (await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' }))
-        .error
-    : (
-        await admin.auth.admin.updateUserById(userId, {
-          ban_duration: '876000h',
-        })
-      ).error
+    const { error: profErr } = await admin
+      .from('profiles')
+      .update({ is_active: false })
+      .eq('id', userId)
 
-  if (authError) return err(supabaseErrorToMessage(authError))
+    if (profErr) {
+      // Aksi kompensasi: unban kembali di Auth jika update profiles gagal
+      const { error: rollbackErr } = await admin.auth.admin.updateUserById(
+        userId,
+        { ban_duration: 'none' },
+      )
+      if (rollbackErr) {
+        console.error(
+          `CRITICAL: Compensating unban failed for user ${userId}:`,
+          rollbackErr,
+        )
+      }
+      return err(supabaseErrorToMessage(profErr))
+    }
+  } else {
+    // Saat mengaktifkan kembali: aktifkan profil terlebih dahulu, lalu lepas ban di Auth
+    const { error: profErr } = await admin
+      .from('profiles')
+      .update({ is_active: true })
+      .eq('id', userId)
+    if (profErr) return err(supabaseErrorToMessage(profErr))
+
+    const { error: unbanErr } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: 'none',
+    })
+    if (unbanErr) {
+      // Aksi kompensasi: kembalikan is_active ke false
+      const { error: rollbackErr } = await admin
+        .from('profiles')
+        .update({ is_active: false })
+        .eq('id', userId)
+      if (rollbackErr) {
+        console.error(
+          `CRITICAL: Compensating profile deactivate failed for user ${userId}:`,
+          rollbackErr,
+        )
+      }
+      return err(supabaseErrorToMessage(unbanErr))
+    }
+  }
 
   revalidatePath('/dashboard/admin')
   return okEmpty()
@@ -199,8 +306,13 @@ export async function deleteUserByAdmin(
 
     const targetIsAdmin = await isTargetAdmin(admin, cleanUserId)
     if (targetIsAdmin) {
-      const remainingAdmins = await countActiveAdmins(admin, cleanUserId)
-      if (remainingAdmins < 1) {
+      const adminCountRes = await getActiveAdminsCount(admin, cleanUserId)
+      if (!adminCountRes.success) {
+        return err(
+          `Gagal memverifikasi jumlah Admin: ${adminCountRes.error}. Tindakan dibatalkan demi keamanan.`,
+        )
+      }
+      if (adminCountRes.count < 1) {
         return err(
           'Tidak dapat menghapus akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.',
         )
@@ -508,8 +620,13 @@ export async function updateUserRole(input: {
     if (input.role !== 'admin') {
       const targetIsAdmin = await isTargetAdmin(admin, input.userId)
       if (targetIsAdmin) {
-        const remainingAdmins = await countActiveAdmins(admin, input.userId)
-        if (remainingAdmins < 1) {
+        const adminCountRes = await getActiveAdminsCount(admin, input.userId)
+        if (!adminCountRes.success) {
+          return err(
+            `Gagal memverifikasi jumlah Admin: ${adminCountRes.error}. Tindakan dibatalkan demi keamanan.`,
+          )
+        }
+        if (adminCountRes.count < 1) {
           return err(
             'Tidak dapat mengubah peran akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.',
           )
@@ -620,11 +737,16 @@ export async function saveRegion(input: {
     if (input.leaderUserId && regionId) {
       const targetIsAdmin = await isTargetAdmin(admin, input.leaderUserId)
       if (targetIsAdmin) {
-        const remainingAdmins = await countActiveAdmins(
+        const adminCountRes = await getActiveAdminsCount(
           admin,
           input.leaderUserId,
         )
-        if (remainingAdmins < 1) {
+        if (!adminCountRes.success) {
+          return err(
+            `Gagal memverifikasi jumlah Admin: ${adminCountRes.error}. Tindakan dibatalkan demi keamanan.`,
+          )
+        }
+        if (adminCountRes.count < 1) {
           return err(
             'Akun ini adalah satu-satunya akun Admin aktif dan tidak dapat dialihkan menjadi Ketua RT.',
           )
@@ -738,11 +860,16 @@ export async function updateRwSettings(input: {
     if (input.rwLeaderUserId) {
       const targetIsAdmin = await isTargetAdmin(admin, input.rwLeaderUserId)
       if (targetIsAdmin) {
-        const remainingAdmins = await countActiveAdmins(
+        const adminCountRes = await getActiveAdminsCount(
           admin,
           input.rwLeaderUserId,
         )
-        if (remainingAdmins < 1) {
+        if (!adminCountRes.success) {
+          return err(
+            `Gagal memverifikasi jumlah Admin: ${adminCountRes.error}. Tindakan dibatalkan demi keamanan.`,
+          )
+        }
+        if (adminCountRes.count < 1) {
           return err(
             'Akun ini adalah satu-satunya akun Admin aktif dan tidak dapat dialihkan menjadi Ketua RW.',
           )

@@ -347,15 +347,10 @@ export type Database = {
         Returns: undefined
       }
       submit_ticket: { Args: { p_ticket_id: number }; Returns: undefined }
-      verify_resident:
-        | {
-            Args: { p_is_verified?: boolean; p_user_id: string }
-            Returns: undefined
-          }
-        | {
-            Args: { p_region_id: number; p_user_id: string }
-            Returns: undefined
-          }
+      verify_resident: {
+        Args: { p_is_verified?: boolean; p_user_id: string }
+        Returns: undefined
+      }
       verify_ticket: { Args: { p_ticket_id: number }; Returns: undefined }
     }
     Enums: {

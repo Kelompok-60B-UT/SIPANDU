@@ -59,6 +59,7 @@ export interface AdminActivityLog {
 
 export interface AdminDashboardData {
   isPreview: boolean
+  adminId: string
   adminName: string
   avatarUrl?: string | null
   rwNumber?: string
@@ -76,6 +77,7 @@ export interface AdminDashboardData {
 
 export const PREVIEW_ADMIN_DATA: AdminDashboardData = {
   isPreview: true,
+  adminId: 'acc-admin-1',
   adminName: 'Rina Marlina',
   rwNumber: siteConfig.rwNumber,
   rwAreaName: siteConfig.areaName,
@@ -584,6 +586,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     return {
       isPreview: false,
+      adminId: user.id,
       adminName:
         profileRes.data?.full_name ||
         metaAdminName ||

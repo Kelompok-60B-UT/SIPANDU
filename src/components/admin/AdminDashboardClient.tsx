@@ -240,6 +240,8 @@ export default function AdminDashboardClient({
     [accounts],
   );
 
+  const currentAdminId = initialData.adminId;
+
   const filteredAccounts = useMemo(() => {
     const q = accountSearch.trim().toLowerCase();
     return accounts.filter((a) => {
@@ -580,6 +582,10 @@ export default function AdminDashboardClient({
   };
 
   const handleSaveAccountRole = (acc: AdminAccountRow) => {
+    if (acc.id === currentAdminId && draftRole !== "admin") {
+      setAccountFeedback("Tidak dapat menurunkan peran akun Admin Anda sendiri.");
+      return;
+    }
     if (acc.role === "admin" && draftRole !== "admin") {
       if (activeAdminsCount <= 1) {
         setAccountFeedback(
@@ -664,6 +670,10 @@ export default function AdminDashboardClient({
   };
 
   const handleToggleAccount = (acc: AdminAccountRow) => {
+    if (acc.id === currentAdminId) {
+      setAccountFeedback("Tidak dapat menonaktifkan akun Admin yang sedang digunakan.");
+      return;
+    }
     if (acc.role === "admin" && acc.isActive && activeAdminsCount <= 1) {
       setAccountFeedback(
         "Tidak dapat menonaktifkan akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.",
@@ -724,6 +734,10 @@ export default function AdminDashboardClient({
   };
 
   const handleDeleteAccount = (acc: AdminAccountRow) => {
+    if (acc.id === currentAdminId) {
+      setAccountFeedback("Tidak dapat menghapus akun Admin yang sedang digunakan.");
+      return;
+    }
     if (acc.role === "admin" && activeAdminsCount <= 1) {
       setAccountFeedback(
         "Tidak dapat menghapus akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.",
@@ -790,6 +804,20 @@ export default function AdminDashboardClient({
       setRtFeedback("Nama RT wajib diisi (contoh: RT 07).");
       return;
     }
+    if (newRtLeaderId) {
+      const chosenLeader = accounts.find((a) => a.id === newRtLeaderId);
+      if (
+        chosenLeader &&
+        chosenLeader.role === "admin" &&
+        chosenLeader.isActive &&
+        (activeAdminsCount <= 1 || chosenLeader.id === currentAdminId)
+      ) {
+        setRtFeedback(
+          "Tidak dapat menetapkan Admin ini sebagai Ketua RT karena akun berstatus Admin Terproteksi.",
+        );
+        return;
+      }
+    }
     setRtFeedback(null);
     startTransition(async () => {
       const res = await saveRegion({
@@ -855,6 +883,20 @@ export default function AdminDashboardClient({
     if (trimmed.length < 2) {
       setRtFeedback("Nama RT wajib diisi.");
       return;
+    }
+    if (editRtLeaderId) {
+      const chosenLeader = accounts.find((a) => a.id === editRtLeaderId);
+      if (
+        chosenLeader &&
+        chosenLeader.role === "admin" &&
+        chosenLeader.isActive &&
+        (activeAdminsCount <= 1 || chosenLeader.id === currentAdminId)
+      ) {
+        setRtFeedback(
+          "Tidak dapat menetapkan Admin ini sebagai Ketua RT karena akun berstatus Admin Terproteksi.",
+        );
+        return;
+      }
     }
     setRtFeedback(null);
     startTransition(async () => {
@@ -958,6 +1000,20 @@ export default function AdminDashboardClient({
 
   const handleSaveRwSettings = () => {
     setRtFeedback(null);
+    if (rwLeaderUserId) {
+      const chosen = accounts.find((a) => a.id === rwLeaderUserId);
+      if (
+        chosen &&
+        chosen.role === "admin" &&
+        chosen.isActive &&
+        (activeAdminsCount <= 1 || chosen.id === currentAdminId)
+      ) {
+        setRtFeedback(
+          "Tidak dapat menetapkan Admin ini sebagai Ketua RW karena akun berstatus Admin Terproteksi.",
+        );
+        return;
+      }
+    }
     startTransition(async () => {
       const res = await updateRwSettings({
         rwLeaderUserId: rwLeaderUserId || null,
@@ -1921,16 +1977,31 @@ export default function AdminDashboardClient({
             {filteredAccounts.map((acc) => {
               const isEditingRole = editingRoleAccountId === acc.id;
               const isConfirmingDelete = confirmDeleteAccountId === acc.id;
-              const isProtectedAdmin =
+              const isCurrentAdmin = acc.id === currentAdminId;
+              const isLastActiveAdmin =
                 acc.role === "admin" &&
-                (acc.fullName === initialData.adminName || activeAdminsCount <= 1);
+                acc.isActive &&
+                activeAdminsCount <= 1;
+              const isProtectedAdmin = isCurrentAdmin || isLastActiveAdmin;
               return (
                 <div key={acc.id} className="py-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="sm:w-64">
-                      <p className="text-xs font-bold text-ink sm:text-[13px]">
-                        {acc.fullName}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="text-xs font-bold text-ink sm:text-[13px]">
+                          {acc.fullName}
+                        </p>
+                        {isCurrentAdmin && (
+                          <span className="rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
+                            Akun Anda
+                          </span>
+                        )}
+                        {isLastActiveAdmin && (
+                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                            Admin Terproteksi
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-0.5 text-[11px] text-muted">
                         {roleLabelId(acc.role)} • {acc.regionLabel} •{" "}
                         <span
@@ -1991,12 +2062,19 @@ export default function AdminDashboardClient({
                       )}
                       <button
                         type="button"
-                        disabled={isPending}
+                        disabled={isPending || isProtectedAdmin}
                         onClick={() => {
                           setConfirmDeleteAccountId(null);
                           handleOpenRoleEditor(acc);
                         }}
-                        className="cursor-pointer text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                        title={
+                          isProtectedAdmin
+                            ? isCurrentAdmin
+                              ? "Tidak dapat mengubah peran akun Admin Anda sendiri"
+                              : "Tidak dapat mengubah peran Admin aktif terakhir"
+                            : undefined
+                        }
+                        className="cursor-pointer text-xs font-semibold text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isEditingRole ? "Tutup ubah peran" : "Ubah peran"}
                       </button>
@@ -2005,19 +2083,17 @@ export default function AdminDashboardClient({
                         type="button"
                         disabled={
                           isPending ||
-                          (acc.role === "admin" &&
-                            acc.isActive &&
-                            activeAdminsCount <= 1)
+                          (acc.isActive && isProtectedAdmin)
                         }
                         onClick={() => handleToggleAccount(acc)}
                         title={
-                          acc.role === "admin" &&
-                          acc.isActive &&
-                          activeAdminsCount <= 1
-                            ? "Akun Admin terakhir tidak dapat dinonaktifkan"
-                            : undefined
+                          acc.isActive && isCurrentAdmin
+                            ? "Anda tidak dapat menonaktifkan akun Admin Anda sendiri"
+                            : acc.isActive && isLastActiveAdmin
+                              ? "Akun Admin terakhir tidak dapat dinonaktifkan"
+                              : undefined
                         }
-                        className={`cursor-pointer text-xs font-semibold hover:underline disabled:opacity-50 ${
+                        className={`cursor-pointer text-xs font-semibold hover:underline disabled:opacity-50 disabled:cursor-not-allowed ${
                           acc.isActive ? "text-amber-700" : "text-emerald-600"
                         }`}
                       >
@@ -2091,9 +2167,15 @@ export default function AdminDashboardClient({
                         disabled={isPending}
                         className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-ink focus:border-primary focus:outline-none"
                       >
-                        <option value="warga">Warga</option>
-                        <option value="ketua_rt">Ketua RT</option>
-                        <option value="ketua_rw">Ketua RW</option>
+                        <option value="warga" disabled={isProtectedAdmin}>
+                          Warga{isProtectedAdmin ? " (Terkunci)" : ""}
+                        </option>
+                        <option value="ketua_rt" disabled={isProtectedAdmin}>
+                          Ketua RT{isProtectedAdmin ? " (Terkunci)" : ""}
+                        </option>
+                        <option value="ketua_rw" disabled={isProtectedAdmin}>
+                          Ketua RW{isProtectedAdmin ? " (Terkunci)" : ""}
+                        </option>
                         <option value="admin">Admin</option>
                       </select>
 
@@ -2122,9 +2204,12 @@ export default function AdminDashboardClient({
                       <div className="ml-auto flex items-center gap-2">
                         <button
                           type="button"
-                          disabled={isPending}
+                          disabled={
+                            isPending ||
+                            (isProtectedAdmin && draftRole !== "admin")
+                          }
                           onClick={() => handleSaveAccountRole(acc)}
-                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isPending && (
                             <Loader2 size={12} className="animate-spin" />
@@ -2225,11 +2310,22 @@ export default function AdminDashboardClient({
                     className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
                   >
                     <option value="">-- Pilih Ketua RW --</option>
-                    {accounts.map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.fullName} ({roleLabelId(acc.role)})
-                      </option>
-                    ))}
+                    {accounts.map((acc) => {
+                      const isProtected =
+                        acc.role === "admin" &&
+                        acc.isActive &&
+                        (activeAdminsCount <= 1 || acc.id === currentAdminId);
+                      return (
+                        <option
+                          key={acc.id}
+                          value={acc.id}
+                          disabled={isProtected}
+                        >
+                          {acc.fullName} ({roleLabelId(acc.role)})
+                          {isProtected ? " - Terproteksi (Admin)" : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div className="flex items-center justify-end gap-2">
@@ -2313,11 +2409,22 @@ export default function AdminDashboardClient({
                           className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
                         >
                           <option value="">-- Pilih Ketua RT --</option>
-                          {accounts.map((acc) => (
-                            <option key={acc.id} value={acc.id}>
-                              {acc.fullName} ({roleLabelId(acc.role)})
-                            </option>
-                          ))}
+                          {accounts.map((acc) => {
+                            const isProtected =
+                              acc.role === "admin" &&
+                              acc.isActive &&
+                              (activeAdminsCount <= 1 || acc.id === currentAdminId);
+                            return (
+                              <option
+                                key={acc.id}
+                                value={acc.id}
+                                disabled={isProtected}
+                              >
+                                {acc.fullName} ({roleLabelId(acc.role)})
+                                {isProtected ? " - Terproteksi (Admin)" : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     </div>
@@ -2431,11 +2538,22 @@ export default function AdminDashboardClient({
                       className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
                     >
                       <option value="">-- Belum ditetapkan --</option>
-                      {accounts.map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.fullName} ({roleLabelId(acc.role)})
-                        </option>
-                      ))}
+                      {accounts.map((acc) => {
+                        const isProtected =
+                          acc.role === "admin" &&
+                          acc.isActive &&
+                          (activeAdminsCount <= 1 || acc.id === currentAdminId);
+                        return (
+                          <option
+                            key={acc.id}
+                            value={acc.id}
+                            disabled={isProtected}
+                          >
+                            {acc.fullName} ({roleLabelId(acc.role)})
+                            {isProtected ? " - Terproteksi (Admin)" : ""}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
