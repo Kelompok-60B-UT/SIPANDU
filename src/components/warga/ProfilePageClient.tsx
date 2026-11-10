@@ -14,7 +14,7 @@ const PREVIEW_ROLE_PROFILES: Record<
   { email: string; profile: Profile }
 > = {
   warga: {
-    email: "dewi.lestari@gmail.com",
+    email: "dewi.lestari@example.test",
     profile: {
       id: "preview-warga-id",
       full_name: "Dewi Lestari",

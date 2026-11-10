@@ -91,46 +91,38 @@ Direktori `supabase/migrations/` memuat tepat 9 berkas migrasi kanonik berurutan
 | **04** | `20261101120004_avatars_bucket.sql` | Pembuatan storage bucket publik `avatars` untuk foto profil pengguna. |
 | **05** | `20261101122337_admin_rls_and_delete.sql` | Hak akses Admin & RW untuk bukti penyelesaian tiket, dan policy penghapusan administratif `tickets_admin_delete`. |
 | **06** | `20261101122344_pending_user_verification.sql` | RPC `verify_resident(uuid, boolean)` dengan validasi wilayah RT, notifikasi persetujuan, dan proteksi pengiriman tiket warga belum disetujui. |
-| **07** | `20261109000001_admin_protection_and_profile_guards.sql` | Helper role real-time (`_is_caller_admin`, `_get_caller_role`), trigger penegakan invariant Admin terakhir (`tr_protect_last_admin`, `tr_check_profile_guards`), serta preflight check adaptif database kosong. |
+| **07** | `20261109000001_admin_protection_and_profile_guards.sql` | Helper role real-time (`_is_caller_admin`, `_get_caller_role`), trigger penegakan invariant Admin terakhir (`tr_protect_last_admin`, `tr_check_profile_guards`), serta preflight assertion verifikasi keberadaan minimal 1 Admin aktif sah. |
 | **08** | `20261109000002_storage_and_privilege_hardening.sql` | Penambahan master data RT 09, 4 policies storage avatars (`read`, `insert`, `update`, `delete`), schema anti-hijacking (`REVOKE CREATE ON SCHEMA public`), Principle of Least Privilege (PoLP) tabel dan fungsi, serta default privileges. |
 | **09** | `20261109000003_deduplicate_rt09_and_unique_constraint.sql` | Deduplikasi dinamis record RT 09, remap foreign key otomatis, penataan ulang sequence `public.regions.id` via `ALTER SEQUENCE ... RESTART WITH`, dan penambahan constraint integritas `UNIQUE (name, rw)` pada `public.regions`. |
 
 ---
 
-## 5. Eksekusi Migrasi Database Baru
+## 5. Prosedur Eksekusi Migrasi Database & Bootstrap Administrator
 
-### Opsi 5.1: Menggunakan Local Supabase Stack
+Direktori `supabase/migrations/` memuat 9 berkas migrasi kanonik berurutan. Berkas migrasi 0007 memuat *preflight assertion* yang menjamin bahwa sistem database **tidak boleh** memasang proteksi invariant admin jika belum memiliki minimal 1 Administrator aktif sah.
+
+Oleh karena itu, alur deployment Supabase CLI pada database baru terbagi menjadi tiga langkah terintegrasi:
+
+### Tahap 5.1: Eksekusi Migrasi Awal (0001–0006)
+Jalankan perintah push migrasi Supabase CLI:
+
 ```bash
-# Menyalakan stack lokal Supabase
-npx supabase start
-
-# Menjalankan 9 migrasi kanonik dari nol
+# Untuk Local Supabase Stack:
 npx supabase db push
-```
 
-### Opsi 5.2: Menggunakan Hosted Supabase Project Baru
-```bash
-# Hubungkan repositori ke project hosted baru
-npx supabase link --project-ref <NEW_PROJECT_REF>
-
-# Terapkan seluruh migrasi kanonik ke remote database
+# Untuk Hosted Supabase Project Baru:
 npx supabase db push --remote
 ```
 
-*Hasil yang diharapkan:*
-- 9 file migrasi terpasang sukses berurutan.
-- Tabel `public.regions` berisi tepat 9 record (`RT 01` s/d `RT 09`, RW 06).
-- Constraint `regions_name_rw_unique` aktif.
-- Tabel `public.categories` berisi 6 kategori pengaduan standar.
+*Status Eksekusi:*
+Supabase CLI akan menerapkan migrasi `20261101120001` s/d `20261101122344` secara sukses. Ketika mencapai migrasi `20261109000001`, preflight assertion akan menghentikan eksekusi sementara dengan pesan:
+```text
+ERROR: PREFLIGHT ABORT: Ditemukan 0 akun Admin aktif sah. Sistem wajib memiliki minimal 1 Admin aktif sebelum migration ini dapat diterapkan.
+```
+Pada titik ini, skema dasar tabel pengguna (`auth.users`, `public.profiles`), master data awal, dan fungsi trigger telah terpasang sempurna dan siap menerima pendaftaran administrator.
 
----
-
-## 6. Prosedur Bootstrap Root Administrator
-
-> [!WARNING]
-> Setelah database dipasang, lakukan bootstrap administrator pertama **SEBELUM** membuka akses aplikasi untuk pengguna umum. Proteksi invariant admin database mewajibkan minimal 1 Administrator aktif setiap saat.
-
-Jalankan script bootstrap resmi menggunakan Supabase Auth Admin API:
+### Tahap 5.2: Bootstrap Root Administrator
+Jalankan script bootstrap resmi menggunakan Supabase Auth Admin API untuk membuat akun Administrator perdana:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_PROJECT_REF>.supabase.co" \
@@ -140,14 +132,30 @@ ADMIN_PASSWORD="<STRONG_PASSWORD_MIN_12_CHARS>" \
 npx tsx scripts/bootstrap-admin.ts
 ```
 
-Script ini akan:
-1. Mendaftarkan user ke sistem Auth Supabase dengan konfirmasi email otomatis (`email_confirm = true`).
-2. Menetapkan peran pada level tepercaya: `app_metadata.sipandu_role = 'admin'`.
-3. Memicu trigger pembuatan profil dengan status aktif (`is_active = true`) dan terverifikasi (`is_rt_verified = true`).
+*Verifikasi:*
+Script akan mendaftarkan user dengan `app_metadata.sipandu_role = 'admin'` dan menghasilkan profil aktif (`is_active = true`).
+
+### Tahap 5.3: Eksekusi Migrasi Lanjutan (0007–0009)
+Jalankan kembali perintah push Supabase CLI:
+
+```bash
+# Untuk Local Supabase Stack:
+npx supabase db push
+
+# Untuk Hosted Supabase Project Baru:
+npx supabase db push --remote
+```
+
+*Status Akhir:*
+Supabase CLI mendeteksi migrasi 0001–0006 telah terpasang, memvalidasi preflight assertion migrasi 0007 (`PREFLIGHT PASSED: Terverifikasi 1 akun Admin aktif sah`), dan melanjutkan penerapan migrasi `20261109000001` s/d `20261109000003` hingga tuntas:
+- Tepat 9 record wilayah (`RT 01` s/d `RT 09`, RW 06) dengan constraint `regions_name_rw_unique`.
+- Sequence `public.regions.id` selaras (`RESTART WITH 10`).
+- Trigger penegakan invariant admin terakhir (`tr_protect_last_admin`) aktif.
+- Storage policies untuk bucket `ticket-attachments` dan `avatars` aktif.
 
 ---
 
-## 7. Prosedur Seeding Demo Sintetis (Opsional / Non-Production)
+## 6. Prosedur Seeding Demo Sintetis (Opsional / Non-Production)
 
 > [!CAUTION]
 > Script data demo **DILARANG** dijalankan pada environment produksi (`NODE_ENV=production`). Script dilengkapi modul pengaman `scripts/demo-guard.ts` yang akan membatalkan eksekusi jika mendeteksi environment produksi atau tanpa persetujuan eksplisit `ALLOW_DEMO_SEED=true`.
@@ -269,27 +277,35 @@ Bagian ini mendokumentasikan status dan riwayat operasional proyek demo hosted S
 * **Region:** `ap-southeast-2` (AWS Sydney)
 * **Status:** **READ-ONLY / DEMO ACTIVE**
 * **Kebijakan Pemeliharaan:** Proyek ini digunakan secara aktif untuk demonstrasi capstone. Tidak boleh dilakukan DDL destruktif, reset database, atau operasi pembersihan data pada instans ini.
+* **Larangan Target Aplikasi & Testing:** Instance demo hosted `zbttpwepgzqmyspbmsnz` **DILARANG KERAS** dijadikan target konfigurasi `.env.local`, pengembangan lokal, maupun target eksekusi test suite backend. Instans ini terisolasi murni sebagai media tinjauan langsung (demo).
 
 ---
 
-## 2. Rekam Historis Penerapan Migrasi 0001–0009
+## 2. Rekam Historis Skema & Rekonsiliasi Migrasi (0001–0009)
 
-Proyek demo hosted telah melalui seluruh tahapan evolusi skema hingga mencapai paritas 100% dengan repositori lokal:
+Evolusi skema database hosted terhadap repositori kanonik mencakup dua dimensi yang perlu dibedakan:
 
-1. **Baseline Inisial (0001–0004)**: Diterapkan saat inisiasi proyek historis dan direkonsiliasi via `supabase migration repair --status applied`.
-2. **Pembaruan Fitur Awal (0005–0006)**: Tercatat pada riwayat remote (`20261101122337` dan `20261101122344`).
-3. **Penguatan Hak Akses & Invariant (0007–0008)**:
-   - `20261109000001_admin_protection_and_profile_guards.sql`
-   - `20261109000002_storage_and_privilege_hardening.sql`
-   Diterapkan pada Deployment Fase 2.
-4. **Koreksi & Integritas Wilayah (0009)**:
-   - `20261109000003_deduplicate_rt09_and_unique_constraint.sql`
-   Diterapkan pada 2026-11-10 untuk mendeduplikasi record RT 09, merestart sequence `public.regions.id` via `ALTER SEQUENCE ... RESTART WITH`, dan menambahkan constraint `UNIQUE (name, rw)`.
+### A. Kesesuaian Definisi Skema DDL (Schema Parity)
+Seluruh struktur relasional, integritas data, dan kebijakan keamanan pada database hosted saat ini identik dengan berkas migrasi `20261101120001` s/d `20261109000003`:
+- Tepat 9 record wilayah (`RT 01` s/d `RT 09`, RW 06) dan 6 kategori laporan.
+- Constraint integritas `regions_name_rw_unique` terpasang.
+- Sequence `public.regions.id` selaras (`last_value = 10, is_called = false`).
+- RLS aktif 100% pada seluruh tabel publik beserta fungsi trigger invariant (`tr_protect_last_admin`, `tr_check_profile_guards`).
+- Storage bucket `ticket-attachments` dan `avatars` dengan hak akses minimal (PoLP).
 
-*Status Akhir Hosted:*
-- Tepat 9 record wilayah (`RT 01` s/d `RT 09`, RW 06).
-- Constraint `regions_name_rw_unique` terpasang.
-- Nilai sequence `public.regions.id` selaras (`last_value = 10, is_called = false`).
+### B. Rekonsiliasi Version ID vs Penamaan Berkas Kanonik
+Perlu dibedakan antara kesesuaian riwayat *migration version IDs* dengan isi SQL DDL migrasi:
+1. **Riwayat Version IDs pada Database Hosted:**
+   - Migrasi 0001–0004 awalnya diterapkan menggunakan format penamaan inisial (`0001`–`0004`) pada masa awal perancangan, kemudian diselaraskan riwayat versinya pada tabel `supabase_migrations.schema_migrations` melalui `supabase migration repair --status applied`.
+   - Migrasi 0005–0006 tercatat dengan version IDs `20261101122337` dan `20261101122344`.
+   - Migrasi 0007–0008 tercatat dengan version IDs `20261109000001` dan `20261109000002`.
+   - Migrasi 0009 tercatat dengan version ID `20261109000003` (diterapkan 2026-11-10 untuk deduplikasi RT 09, penataan sequence, dan unique constraint).
+2. **Kanonisasi Penamaan Berkas pada Repositori:**
+   - Seluruh 9 berkas migrasi lokal distandarisasi menggunakan timestamp 14-digit (`20261101120001` s/d `20261109000003`) agar urutan eksekusi bersifat deterministik dan dapat langsung direproduksi pada instance Supabase baru (*blank database*) tanpa memerlukan langkah repair manual.
+   - Isi DDL SQL, definisi constraint, dan timestamp migrasi yang sudah diterapkan dipertahankan utuh tanpa perubahan.
+3. **Catatan Normalisasi Delimiter Migrasi 0003:**
+   - Pada berkas migrasi kanonik `20261101120003_verification_active_guards.sql`, delimiter fungsi `check_profile_update()` dinormalisasi dari dollar-quoting tunggal (`AS $ ... $;`) pada naskah historis inisial menjadi dollar-quoting ganda standar PostgreSQL (`AS $$ ... $$;`).
+   - Oleh karena itu, terdapat perbedaan sintaks minor pada delimiter fungsi tersebut dibandingkan snapshot historis inisial, meskipun struktur DDL dan logika pengamanannya identik 100%.
 
 ---
 
@@ -300,7 +316,8 @@ Sebelum penerapan migrasi 0009 pada proyek hosted, telah dibuat cadangan penuh (
 - Dienkripsi dengan AES-256 via GPG (`hosted_backup_20261110_000003_predeployment.tar.gz.gpg`).
 - Telah diuji restorasi pada container lokal PostgreSQL 17 dengan kecocokan baris data 100%.
 
-Jika terjadi insiden infrastruktur darurat pada lingkungan hosted baru saat pengujian, konfigurasi `.env.local` dapat diarahkan ke instance demo `zbttpwepgzqmyspbmsnz` sebagai rujukan cadangan.
+> [!CAUTION]
+> **Larangan Target Cadangan:** Jika terjadi kendala infrastruktur pada lingkungan pengujian baru, pengembang/evaluator **TIDAK BOLEH** mengalihkan `.env.local` ke instance demo hosted `zbttpwepgzqmyspbmsnz`. Solusi yang benar adalah me-reset database pengujian atau membuat proyek pengujian baru yang terisolasi sesuai Langkah 3.1.
 
 ---
 

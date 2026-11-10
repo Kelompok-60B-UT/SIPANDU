@@ -30,7 +30,7 @@ export const PREVIEW_REGIONS: RegionOption[] = [
 
 export const PREVIEW_USER: WargaUserContext = {
   isPreview: true,
-  email: 'dewi.lestari@gmail.com',
+  email: 'dewi.lestari@example.test',
   role: 'warga',
   profile: {
     id: 'preview-warga-id',

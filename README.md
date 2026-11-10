@@ -15,9 +15,8 @@
 7. [Panduan Instalasi & Setup Lokal](#-panduan-instalasi--setup-lokal)
    - [Langkah 1: Kloning Repositori & Instal Dependensi](#langkah-1-kloning-repositori--instal-dependensi)
    - [Langkah 2: Konfigurasi Environment Variables](#langkah-2-konfigurasi-environment-variables)
-   - [Langkah 3: Setup Database Supabase Baru (Blank Database)](#langkah-3-setup-database-supabase-baru-blank-database)
-   - [Langkah 4: Bootstrap Root Administrator](#langkah-4-bootstrap-root-administrator)
-   - [Langkah 5: Seeding Pengguna & Tiket Demo (Opsional)](#langkah-5-seeding-pengguna--tiket-demo-opsional)
+   - [Langkah 3: Setup Database Supabase Baru & Bootstrap Administrator](#langkah-3-setup-database-supabase-baru--bootstrap-administrator)
+   - [Langkah 4: Seeding Pengguna & Tiket Demo (Opsional)](#langkah-4-seeding-pengguna--tiket-demo-opsional)
 8. [Menjalankan Aplikasi](#-menjalankan-aplikasi)
 9. [Panduan Deployment ke Vercel](#-panduan-deployment-ke-vercel)
 10. [Prinsip Keamanan & Tata Kelola Data](#-prinsip-keamanan--tata-kelola-data)
@@ -103,7 +102,7 @@ Seluruh struktur skema, keamanan, master data, dan logika database didefinisikan
 | **04** | `20261101120004_avatars_bucket.sql` | Pembuatan storage bucket publik `avatars` untuk foto profil pengguna. |
 | **05** | `20261101122337_admin_rls_and_delete.sql` | Policy pembacaan bukti penyelesaian tiket oleh Admin & RW, serta policy penghapusan tiket administratif `tickets_admin_delete`. |
 | **06** | `20261101122344_pending_user_verification.sql` | RPC `verify_resident(uuid, boolean)` dengan validasi wilayah RT, pengiriman notifikasi approval, dan pemblokiran pembuatan tiket warga pending. |
-| **07** | `20261109000001_admin_protection_and_profile_guards.sql` | Helper real-time role checking (`_is_caller_admin`, `_get_caller_role`), trigger penegakan invariant admin terakhir (`tr_protect_last_admin`), trigger proteksi profil (`tr_check_profile_guards`), dan preflight check adaptif database kosong. |
+| **07** | `20261109000001_admin_protection_and_profile_guards.sql` | Helper real-time role checking (`_is_caller_admin`, `_get_caller_role`), trigger penegakan invariant admin terakhir (`tr_protect_last_admin`), trigger proteksi profil (`tr_check_profile_guards`), dan preflight assertion verifikasi keberadaan minimal 1 Admin aktif sah. |
 | **08** | `20261109000002_storage_and_privilege_hardening.sql` | Penambahan master data RT 09, penguatan 4 storage policies bucket `avatars` (`read`, `insert`, `update`, `delete`), schema anti-hijacking (`REVOKE CREATE ON SCHEMA public`), Principle of Least Privilege (PoLP) tabel dan fungsi, serta default privileges. |
 | **09** | `20261109000003_deduplicate_rt09_and_unique_constraint.sql` | Deduplikasi dinamis record wilayah RT 09, penataan ulang sequence `public.regions.id` via `ALTER SEQUENCE ... RESTART WITH`, dan penambahan constraint integritas `UNIQUE (name, rw)` pada `public.regions`. |
 
@@ -151,46 +150,43 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### Langkah 3: Setup Database Supabase Baru (Blank Database)
+### Langkah 3: Setup Database Supabase Baru & Bootstrap Administrator
 
-Anda dapat menggunakan **Local Supabase Stack** atau **Hosted Supabase Project** baru yang masih kosong.
+Direktori `supabase/migrations/` memuat 9 berkas migrasi kanonik berurutan. Berkas migrasi 0007 memuat *preflight assertion* yang memvalidasi keberadaan minimal 1 Admin aktif sah sebelum memasang DDL proteksi invariant admin.
 
-#### Opsi A: Menjalankan Local Supabase Stack
+Alur instalasi pada database baru dilakukan dalam tiga langkah terintegrasi via Supabase CLI:
+
+#### 1. Push Migrasi Awal (0001–0006)
 ```bash
-# Menyalakan stack lokal Supabase (PostgreSQL 17, Auth, Storage, Studio)
-npx supabase start
-
-# Menerapkan seluruh 9 migrasi kanonik secara otomatis
+# Untuk Local Supabase:
 npx supabase db push
-```
 
-#### Opsi B: Mengarahkan ke Hosted Supabase Project Baru
-```bash
-# Link repositori lokal ke remote project ID baru
+# Untuk Hosted Supabase Baru:
 npx supabase link --project-ref <NEW_PROJECT_REF>
-
-# Terapkan seluruh 9 migrasi kanonik dari nol ke database remote
 npx supabase db push --remote
 ```
+*(CLI akan memasang skema inti 0001–0006 dan berhenti sementara pada preflight migrasi 0007 karena mendeteksi belum ada akun admin).*
 
-*Hasil:* Seluruh tabel, tipe data, triggers, fungsi RPC, storage buckets, master data 9 RT (RT 01–RT 09 RW 06) dan 6 kategori pengaduan terpasang rapi.
-
-### Langkah 4: Bootstrap Root Administrator
-
-Setelah database terpasang, akun Administrator pertama harus dibuat menggunakan Auth Admin API resmi:
-
+#### 2. Bootstrap Root Administrator
+Jalankan skrip bootstrap resmi menggunakan Auth Admin API:
 ```bash
 ADMIN_EMAIL="admin@sipandu.id" \
 ADMIN_PASSWORD="GantiDenganPasswordKuat123!" \
 npx tsx scripts/bootstrap-admin.ts
 ```
 
-Script ini akan:
-1. Mendaftarkan user ke Supabase Auth dengan email terverifikasi.
-2. Menetapkan peran tepercaya `app_metadata.sipandu_role = 'admin'`.
-3. Memastikan profil pengguna aktif (`is_active = true`) dan terverifikasi (`is_rt_verified = true`).
+#### 3. Push Migrasi Lanjutan (0007–0009)
+Jalankan kembali perintah push untuk menyelesaikan seluruh migrasi:
+```bash
+# Untuk Local Supabase:
+npx supabase db push
 
-### Langkah 5: Seeding Pengguna & Tiket Demo (Opsional)
+# Untuk Hosted Supabase Baru:
+npx supabase db push --remote
+```
+*Hasil:* 9 migrasi terpasang tuntas, 9 record RT (RT 01–RT 09), sequence selaras, dan seluruh proteksi invariant aktif.
+
+### Langkah 4: Seeding Pengguna & Tiket Demo (Opsional)
 
 > [!NOTE]
 > Script demo dilindungi oleh guard keamanan (`scripts/demo-guard.ts`). Script ini menolak berjalan di lingkungan `NODE_ENV=production` dan mewajibkan opt-in eksplisit `ALLOW_DEMO_SEED=true`.
