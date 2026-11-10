@@ -1,11 +1,6 @@
 /**
  * Regression Test Suite untuk Target Guards SIPANDU (test-guard & demo-guard).
- * Memvalidasi penolakan mutlak terhadap target lokal (localhost, 127.0.0.1, 0.0.0.0, IP privat),
- * domain produksi, basis data terproteksi, serta memastikan hanya instance Supabase Hosted
- * (<ref>.supabase.co) yang diizinkan dengan flag eksplisit yang dapat lolos.
- *
- * Menjalankan:
- *   npx tsx scripts/test-guards-regression.ts
+ * Memvalidasi penegakan kebijakan Hosted-Only pada lingkungan pengujian dan seeding demo.
  */
 
 import { validateTestTarget } from './test-guard'
@@ -29,13 +24,7 @@ function assertCase(suite: string, name: string, condition: boolean, detail?: st
   })
 }
 
-console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only Enforcement)...\n')
-
-// ==============================================================================
-// 1. REGRESSION TESTS: validateTestTarget
-// ==============================================================================
-
-// Kasus 1.1: Localhost wajib ditolak (bahkan dengan ALLOW_DESTRUCTIVE_TEST=true)
+// 1. Pengujian validateTestTarget (11 kasus)
 {
   const res = validateTestTarget({
     supabaseUrl: 'http://localhost:54321',
@@ -43,15 +32,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowRemoteHostedTest: 'true',
     allowedTestProjectRef: 'localhost',
   })
-  assertCase(
-    'test-guard',
-    'Tolak target http://localhost:54321',
-    !res.ok && Boolean(res.error?.includes('Target lokal')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak target http://localhost:54321', !res.ok && Boolean(res.error?.includes('Target lokal')), res.error)
 }
 
-// Kasus 1.2: 127.0.0.1 wajib ditolak
 {
   const res = validateTestTarget({
     supabaseUrl: 'http://127.0.0.1:54321',
@@ -59,15 +42,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowRemoteHostedTest: 'true',
     allowedTestProjectRef: '127.0.0.1',
   })
-  assertCase(
-    'test-guard',
-    'Tolak target http://127.0.0.1:54321',
-    !res.ok && Boolean(res.error?.includes('Target lokal')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak target http://127.0.0.1:54321', !res.ok && Boolean(res.error?.includes('Target lokal')), res.error)
 }
 
-// Kasus 1.3: 0.0.0.0 wajib ditolak
 {
   const res = validateTestTarget({
     supabaseUrl: 'http://0.0.0.0:54321',
@@ -75,15 +52,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowRemoteHostedTest: 'true',
     allowedTestProjectRef: '0.0.0.0',
   })
-  assertCase(
-    'test-guard',
-    'Tolak target http://0.0.0.0:54321',
-    !res.ok && Boolean(res.error?.includes('Target lokal')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak target http://0.0.0.0:54321', !res.ok && Boolean(res.error?.includes('Target lokal')), res.error)
 }
 
-// Kasus 1.4: IP privat lokal (192.168.x.x, 10.x.x.x) wajib ditolak
 {
   const res1 = validateTestTarget({
     supabaseUrl: 'http://192.168.1.50:54321',
@@ -95,15 +66,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowDestructiveTest: 'true',
     allowRemoteHostedTest: 'true',
   })
-  assertCase(
-    'test-guard',
-    'Tolak target IP privat lokal (192.168.x.x dan 10.x.x.x)',
-    !res1.ok && !res2.ok && Boolean(res1.error?.includes('Target lokal')),
-    `res1=${res1.ok}, res2=${res2.ok}`
-  )
+  assertCase('test-guard', 'Tolak target IP privat', !res1.ok && !res2.ok && Boolean(res1.error?.includes('Target lokal')), res1.error)
 }
 
-// Kasus 1.5: Host sembarang di luar supabase.co wajib ditolak
 {
   const res = validateTestTarget({
     supabaseUrl: 'https://evil-hacker.com',
@@ -111,15 +76,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowRemoteHostedTest: 'true',
     allowedTestProjectRef: 'evil-hacker',
   })
-  assertCase(
-    'test-guard',
-    'Tolak host eksternal non-supabase.co',
-    !res.ok && Boolean(res.error?.includes('bukan host Supabase Hosted')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak host non-supabase.co', !res.ok && Boolean(res.error?.includes('bukan instans Supabase Hosted')), res.error)
 }
 
-// Kasus 1.6: Protected project ref wajib ditolak mutlak
 {
   const res = validateTestTarget({
     supabaseUrl: 'https://protected-demo-123.supabase.co',
@@ -128,30 +87,18 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowedTestProjectRef: 'protected-demo-123',
     protectedProjectRefs: 'protected-demo-123,other-prod-ref',
   })
-  assertCase(
-    'test-guard',
-    'Tolak target yang terdaftar di PROTECTED_SUPABASE_PROJECT_REFS',
-    !res.ok && Boolean(res.error?.includes('terdaftar sebagai basis data terproteksi')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak project ref terproteksi', !res.ok && Boolean(res.error?.includes('basis data terproteksi')), res.error)
 }
 
-// Kasus 1.7: Domain produksi wajib ditolak
 {
   const res = validateTestTarget({
     supabaseUrl: 'https://sipandu.journey.web.id',
     allowDestructiveTest: 'true',
     allowRemoteHostedTest: 'true',
   })
-  assertCase(
-    'test-guard',
-    'Tolak domain produksi sipandu.journey.web.id',
-    !res.ok && Boolean(res.error?.includes('domain produksi')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak domain produksi', !res.ok && Boolean(res.error?.includes('domain produksi')), res.error)
 }
 
-// Kasus 1.8: Environment produksi wajib ditolak
 {
   const res = validateTestTarget({
     supabaseUrl: 'https://valid-test-ref.supabase.co',
@@ -160,15 +107,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowRemoteHostedTest: 'true',
     allowedTestProjectRef: 'valid-test-ref',
   })
-  assertCase(
-    'test-guard',
-    'Tolak saat NODE_ENV=production',
-    !res.ok && Boolean(res.error?.includes('environment produksi')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak environment produksi', !res.ok && Boolean(res.error?.includes('lingkungan produksi')), res.error)
 }
 
-// Kasus 1.9: Ketiadaan ALLOW_REMOTE_HOSTED_TEST=true wajib ditolak
 {
   const res = validateTestTarget({
     supabaseUrl: 'https://valid-test-ref.supabase.co',
@@ -176,15 +117,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowRemoteHostedTest: 'false',
     allowedTestProjectRef: 'valid-test-ref',
   })
-  assertCase(
-    'test-guard',
-    'Tolak target hosted jika ALLOW_REMOTE_HOSTED_TEST bukan true',
-    !res.ok && Boolean(res.error?.includes('memerlukan persetujuan eksplisit')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak tanpa ALLOW_REMOTE_HOSTED_TEST=true', !res.ok && Boolean(res.error?.includes('memerlukan persetujuan eksplisit')), res.error)
 }
 
-// Kasus 1.10: Ketidakcocokan ALLOWED_TEST_PROJECT_REF wajib ditolak
 {
   const res = validateTestTarget({
     supabaseUrl: 'https://actual-test-ref.supabase.co',
@@ -192,15 +127,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowRemoteHostedTest: 'true',
     allowedTestProjectRef: 'different-ref',
   })
-  assertCase(
-    'test-guard',
-    'Tolak jika ALLOWED_TEST_PROJECT_REF tidak cocok persis',
-    !res.ok && Boolean(res.error?.includes('tidak cocok')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Tolak ALLOWED_TEST_PROJECT_REF tidak cocok', !res.ok && Boolean(res.error?.includes('tidak cocok')), res.error)
 }
 
-// Kasus 1.11: Target Supabase Hosted yang sah dengan semua flag sesuai wajib LOLOS
 {
   const res = validateTestTarget({
     supabaseUrl: 'https://my-qa-project-999.supabase.co',
@@ -209,19 +138,10 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowedTestProjectRef: 'my-qa-project-999',
     protectedProjectRefs: 'demo-protected-ref',
   })
-  assertCase(
-    'test-guard',
-    'Lolos target Supabase Hosted sah dengan flag dan ref yang cocok persis',
-    res.ok && res.projectRef === 'my-qa-project-999',
-    `Hasil: ok=${res.ok}, projectRef=${res.projectRef}, error=${res.error}`
-  )
+  assertCase('test-guard', 'Lolos target Supabase Hosted sah', res.ok && res.projectRef === 'my-qa-project-999', res.error)
 }
 
-// ==============================================================================
-// 2. REGRESSION TESTS: validateDemoTarget
-// ==============================================================================
-
-// Kasus 2.1: Localhost wajib ditolak oleh demo guard
+// 2. Pengujian validateDemoTarget (7 kasus)
 {
   const res = validateDemoTarget({
     allowDemoSeed: 'true',
@@ -229,15 +149,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowedProjectRef: 'localhost',
     demoPassword: 'DemoPassword123!',
   })
-  assertCase(
-    'demo-guard',
-    'Tolak seeding pada target http://localhost:54321',
-    !res.ok && Boolean(res.error?.includes('Local target')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('demo-guard', 'Tolak seeding http://localhost:54321', !res.ok && Boolean(res.error?.includes('Local target')), res.error)
 }
 
-// Kasus 2.2: 127.0.0.1 wajib ditolak oleh demo guard
 {
   const res = validateDemoTarget({
     allowDemoSeed: 'true',
@@ -245,15 +159,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowedProjectRef: '127.0.0.1',
     demoPassword: 'DemoPassword123!',
   })
-  assertCase(
-    'demo-guard',
-    'Tolak seeding pada target http://127.0.0.1:54321',
-    !res.ok && Boolean(res.error?.includes('Local target')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('demo-guard', 'Tolak seeding http://127.0.0.1:54321', !res.ok && Boolean(res.error?.includes('Local target')), res.error)
 }
 
-// Kasus 2.3: Protected ref wajib ditolak mutlak oleh demo guard
 {
   const res = validateDemoTarget({
     allowDemoSeed: 'true',
@@ -262,15 +170,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     protectedProjectRefs: 'my-protected-demo,another-ref',
     demoPassword: 'DemoPassword123!',
   })
-  assertCase(
-    'demo-guard',
-    'Tolak seeding pada target yang terdaftar di PROTECTED_SUPABASE_PROJECT_REFS',
-    !res.ok && Boolean(res.error?.includes('registered in PROTECTED_SUPABASE_PROJECT_REFS')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('demo-guard', 'Tolak seeding project terproteksi', !res.ok && Boolean(res.error?.includes('PROTECTED_SUPABASE_PROJECT_REFS')), res.error)
 }
 
-// Kasus 2.4: Domain produksi wajib ditolak oleh demo guard
 {
   const res = validateDemoTarget({
     allowDemoSeed: 'true',
@@ -278,15 +180,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowedProjectRef: 'sipandu',
     demoPassword: 'DemoPassword123!',
   })
-  assertCase(
-    'demo-guard',
-    'Tolak seeding pada domain produksi sipandu.journey.web.id',
-    !res.ok && Boolean(res.error?.includes('production domain')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('demo-guard', 'Tolak seeding domain produksi', !res.ok && Boolean(res.error?.includes('production domain')), res.error)
 }
 
-// Kasus 2.5: Host non-supabase.co wajib ditolak oleh demo guard
 {
   const res = validateDemoTarget({
     allowDemoSeed: 'true',
@@ -294,15 +190,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowedProjectRef: 'random-api',
     demoPassword: 'DemoPassword123!',
   })
-  assertCase(
-    'demo-guard',
-    'Tolak seeding pada host eksternal non-supabase.co',
-    !res.ok && Boolean(res.error?.includes('not a valid Supabase Hosted')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('demo-guard', 'Tolak seeding host non-supabase.co', !res.ok && Boolean(res.error?.includes('Supabase Hosted')), res.error)
 }
 
-// Kasus 2.6: ALLOWED_DEMO_PROJECT_REF tidak cocok wajib ditolak
 {
   const res = validateDemoTarget({
     allowDemoSeed: 'true',
@@ -310,15 +200,9 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     allowedProjectRef: 'different-staging-ref',
     demoPassword: 'DemoPassword123!',
   })
-  assertCase(
-    'demo-guard',
-    'Tolak seeding jika ALLOWED_DEMO_PROJECT_REF tidak cocok persis',
-    !res.ok && Boolean(res.error?.includes('not in the approved demo allowlist')),
-    `Hasil: ok=${res.ok}, error=${res.error}`
-  )
+  assertCase('demo-guard', 'Tolak seeding ALLOWED_DEMO_PROJECT_REF tidak cocok', !res.ok && Boolean(res.error?.includes('approved demo allowlist')), res.error)
 }
 
-// Kasus 2.7: Target Supabase Hosted staging yang sah dengan password aman wajib LOLOS
 {
   const res = validateDemoTarget({
     allowDemoSeed: 'true',
@@ -327,38 +211,23 @@ console.log('🧪 Menjalankan Regression Test Target Guard SIPANDU (Hosted-Only 
     demoPassword: 'StrongPassword123!',
     protectedProjectRefs: 'protected-demo-ref',
   })
-  assertCase(
-    'demo-guard',
-    'Lolos seeding pada target Supabase Hosted staging sah dengan ref dan password cocok',
-    res.ok && res.projectRef === 'staging-project-789',
-    `Hasil: ok=${res.ok}, projectRef=${res.projectRef}, error=${res.error}`
-  )
+  assertCase('demo-guard', 'Lolos seeding target Supabase Hosted sah', res.ok && res.projectRef === 'staging-project-789', res.error)
 }
 
-// ==============================================================================
-// RINGKASAN HASIL
-// ==============================================================================
-console.log('-----------------------------------------------------------------------------')
-console.log('No.'.padEnd(5) + 'Suite'.padEnd(14) + 'Status'.padEnd(10) + 'Deskripsi')
-console.log('-----------------------------------------------------------------------------')
-
+// Ringkasan hasil pengujian
 let passCount = 0
 for (let i = 0; i < results.length; i++) {
   const r = results[i]
-  const statusStr = r.passed ? '✅ PASS' : '❌ FAIL'
-  console.log(`${(i + 1).toString().padEnd(5)}${r.suite.padEnd(14)}${statusStr.padEnd(10)}${r.name}`)
+  const statusStr = r.passed ? 'PASS' : 'FAIL'
+  console.log(`[${statusStr}] ${(i + 1).toString().padStart(2)}. ${r.suite} - ${r.name}`)
   if (!r.passed && r.errorDetail) {
-    console.log(`     └─ Detail: ${r.errorDetail}`)
+    console.log(`       Detail: ${r.errorDetail}`)
   }
   if (r.passed) passCount++
 }
 
-console.log('-----------------------------------------------------------------------------')
-console.log(`TOTAL: ${passCount} / ${results.length} LULUS`)
+console.log(`\nHasil: ${passCount} / ${results.length} pengujian lulus.`)
 
 if (passCount !== results.length) {
-  console.error('\n❌ Ada kasus pengujian guard yang GAGAL!')
   process.exit(1)
-} else {
-  console.log('\n🎉 SELURUH 18 KASUS REGRESSION TARGET GUARD LULUS 100% (HOSTED-ONLY TERBUKTI AMAN)!')
 }

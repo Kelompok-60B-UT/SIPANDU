@@ -1,8 +1,6 @@
 /**
  * Penjaga target eksekusi untuk skrip seeding data demo.
- * Hanya mengizinkan target Supabase Hosted staging (<ref>.supabase.co) terpisah.
- * Menolak target lokal (localhost, 127.0.0.1, 0.0.0.0), domain produksi,
- * project dalam PROTECTED_SUPABASE_PROJECT_REFS, serta target yang tidak disetujui.
+ * Hanya mengizinkan instans Supabase Hosted staging (<ref>.supabase.co) yang disetujui.
  */
 
 export interface TargetValidationResult {
@@ -25,9 +23,7 @@ export interface GuardOptions {
 export function parseProtectedProjectRefs(input?: string | string[]): string[] {
   const source = input ?? process.env.PROTECTED_SUPABASE_PROJECT_REFS ?? ''
   const items = Array.isArray(source) ? source : source.split(',')
-  return items
-    .map((item) => item.trim().toLowerCase())
-    .filter((item) => item.length > 0)
+  return items.map((item) => item.trim().toLowerCase()).filter(Boolean)
 }
 
 export function validateDemoTarget(options: GuardOptions): TargetValidationResult {
@@ -46,7 +42,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
   if (nodeEnv === 'production' || vercelEnv === 'production' || appEnv === 'production') {
     return {
       ok: false,
-      error: 'Execution is strictly forbidden in production environment (NODE_ENV/VERCEL_ENV=production).',
+      error: 'Execution is forbidden in production environment.',
     }
   }
 
@@ -65,7 +61,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     if (rawUrl.toLowerCase().includes(ref) || allowedProjectRef === ref) {
       return {
         ok: false,
-        error: `Target project ref '${ref}' is registered in PROTECTED_SUPABASE_PROJECT_REFS. Demo seeding is strictly forbidden.`,
+        error: `Target project ref '${ref}' is registered in PROTECTED_SUPABASE_PROJECT_REFS.`,
         projectRef: ref,
       }
     }
@@ -83,31 +79,29 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
 
   const hostname = parsedUrl.hostname.toLowerCase()
 
-  // 1. Tolak target lokal (localhost, 127.0.0.1, 0.0.0.0, IP lokal/privat)
   const isLocal =
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
     hostname === '0.0.0.0' ||
     hostname === '::1' ||
-    /^127\.\d+\.\d+\.\d+$/.test(hostname) ||
-    /^192\.168\.\d+\.\d+$/.test(hostname) ||
-    /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
-    /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)
+    /^127\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
 
   if (isLocal) {
     return {
       ok: false,
-      error: `Local target '${hostname}' is rejected. SIPANDU deployment policy requires demo seeding to run exclusively on dedicated Supabase Hosted staging projects (<ref>.supabase.co).`,
+      error: `Local target '${hostname}' is rejected. Seeding is only permitted on Supabase Hosted.`,
       hostname,
     }
   }
 
-  // 2. Tolak domain produksi
   for (const ref of protectedRefs) {
     if (hostname.includes(ref)) {
       return {
         ok: false,
-        error: `Target host '${hostname}' contains project ref '${ref}' registered in PROTECTED_SUPABASE_PROJECT_REFS. Seeding is strictly forbidden.`,
+        error: `Target host '${hostname}' contains protected project ref '${ref}'.`,
         projectRef: ref,
         hostname,
       }
@@ -121,12 +115,11 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
   ) {
     return {
       ok: false,
-      error: `Target host '${hostname}' is a production domain. Seeding is strictly prohibited.`,
+      error: `Target host '${hostname}' is a production domain.`,
       hostname,
     }
   }
 
-  // 3. Target hosted wajib berformat <project-ref>.supabase.co
   const supabaseCoMatch = hostname.match(/^([a-z0-9_-]+)\.supabase\.co$/)
   if (!supabaseCoMatch) {
     return {
@@ -141,7 +134,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
   if (protectedRefs.includes(projectRef)) {
     return {
       ok: false,
-      error: `Target project ref '${projectRef}' is registered in PROTECTED_SUPABASE_PROJECT_REFS. Seeding is strictly forbidden.`,
+      error: `Target project ref '${projectRef}' is registered in PROTECTED_SUPABASE_PROJECT_REFS.`,
       projectRef,
       hostname,
     }
@@ -150,7 +143,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
   if (!allowedProjectRef || projectRef !== allowedProjectRef) {
     return {
       ok: false,
-      error: `Hosted target project ref '${projectRef}' is not in the approved demo allowlist. To approve a dedicated demo instance, set ALLOWED_DEMO_PROJECT_REF='${projectRef}'.`,
+      error: `Hosted target project ref '${projectRef}' is not in the approved demo allowlist.`,
       projectRef,
       hostname,
     }
@@ -168,19 +161,13 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  return {
-    ok: true,
-    projectRef,
-    hostname,
-  }
+  return { ok: true, projectRef, hostname }
 }
 
 export function enforceDemoGuard(options: GuardOptions = {}): TargetValidationResult {
   const result = validateDemoTarget(options)
   if (!result.ok) {
-    console.error('======================================================================')
     console.error(`⛔ DEMO GUARD BLOCKED: ${result.error}`)
-    console.error('======================================================================')
     process.exit(1)
   }
   return result
