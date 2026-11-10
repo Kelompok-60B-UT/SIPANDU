@@ -139,7 +139,7 @@ export async function updateProfileAvatar(
         })
       }
 
-      // Hapus seluruh foto profil lama milik user agar selalu tergantikan (replace)
+      // Hapus foto profil lama pengguna agar digantikan dengan foto baru
       const { data: existingFiles } = await admin.storage
         .from(AVATAR_BUCKET)
         .list(user.id)
@@ -191,7 +191,7 @@ export async function updateProfileAvatar(
         return ok({ avatarUrl: publicUrl })
       }
     } catch {
-      // Fallback ke penyimpanan user_metadata data URL jika storage admin belum tersedia
+      // Cadangan penyimpanan data URL pada metadata jika storage belum siap
     }
   }
 
@@ -206,7 +206,7 @@ export async function updateProfileAvatar(
         },
       })
     } catch {
-      // ignore if service role unavailable
+      // Abaikan jika service role tidak tersedia
     }
 
     const { error: metaErr } = await supabase.auth.updateUser({

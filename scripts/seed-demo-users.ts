@@ -1,16 +1,8 @@
 #!/usr/bin/env node
 /**
- * SIPANDU - Demo Users Provisioning Script (Auth Admin API)
+ * Menyediakan 7 akun demo lintas peran melalui Supabase Auth Admin API.
  *
- * Responsibilities:
- * - Provisions the 7 multi-role demonstration accounts via Supabase Auth Admin API
- * - Enforces environment safety with project-ref allowlist & explicit opt-in (ALLOW_DEMO_SEED=true)
- * - Prohibits execution against protected instances (via PROTECTED_SUPABASE_PROJECT_REFS)
- * - Requires uncommitted DEMO_PASSWORD env var (NO hardcoded password in source)
- * - Supports --dry-run mode
- * - Explicitly tests verification lifecycle: Budi Prasetyo (warga.pending) is set to is_rt_verified = false
- *
- * Usage:
+ * Penggunaan:
  *   ALLOW_DEMO_SEED=true \
  *   DEMO_PASSWORD="YourDemoPassword123!" \
  *   NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321" \
@@ -21,7 +13,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { enforceDemoGuard } from './demo-guard'
 
-// Run strict target allowlist and environment safety guard
 enforceDemoGuard({ requirePassword: true })
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -33,7 +24,6 @@ if (!serviceRoleKey) {
   process.exit(1)
 }
 
-// Dry-Run Flag
 const isDryRun = process.env.DRY_RUN === 'true' || process.argv.includes('--dry-run')
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -148,7 +138,7 @@ async function seedDemoUsers() {
   let successCount = 0
 
   for (const def of DEMO_USERS) {
-    // Safety check: Pastikan hanya menyentuh email berakhiran @sipandu.test
+    // Hanya izinkan manipulasi akun berdomain @sipandu.test
     if (!def.email.endsWith('@sipandu.test')) {
       console.error(`⛔ Pelanggaran integritas: Email ${def.email} bukan domain demo @sipandu.test!`)
       failureCount++
@@ -225,7 +215,6 @@ async function seedDemoUsers() {
     }
 
     if (!isDryRun) {
-      // Synchronize public.profiles
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: userId,
         full_name: def.fullName,

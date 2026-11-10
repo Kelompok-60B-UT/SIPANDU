@@ -76,7 +76,6 @@ export async function uploadAttachment(
     dbClient = supabase
   }
 
-  // 1. Cek profil pemanggil
   const { data: profile, error: profileErr } = await dbClient
     .from('profiles')
     .select('id, is_active, is_rt_verified')
@@ -93,7 +92,6 @@ export async function uploadAttachment(
     return err('Akun Anda belum disetujui oleh pengurus RT/RW')
   }
 
-  // 2. Ambil data tiket
   const { data: ticket, error: ticketErr } = await dbClient
     .from('tickets')
     .select('id, user_id, status')
@@ -104,7 +102,6 @@ export async function uploadAttachment(
     return err('Tiket pengaduan tidak ditemukan')
   }
 
-  // 3. Validasi hak unggah berdasarkan type dan status tiket
   if (type === 'laporan') {
     if (role !== 'admin') {
       if (ticket.user_id !== user.id) {
@@ -127,7 +124,6 @@ export async function uploadAttachment(
     }
   }
 
-  // 4. Kuota maksimal 3 foto per jenis lampiran
   const { count: existingCount } = await dbClient
     .from('ticket_attachments')
     .select('*', { count: 'exact', head: true })
@@ -231,7 +227,6 @@ export async function registerAttachment(
     dbClient = supabase
   }
 
-  // 1. Cek profil pemanggil
   const { data: profile, error: profileErr } = await dbClient
     .from('profiles')
     .select('id, is_active, is_rt_verified')
@@ -248,7 +243,6 @@ export async function registerAttachment(
     return err('Akun Anda belum disetujui oleh pengurus RT/RW')
   }
 
-  // 2. Ambil data tiket
   const { data: ticket, error: ticketErr } = await dbClient
     .from('tickets')
     .select('id, user_id, status')
@@ -259,7 +253,6 @@ export async function registerAttachment(
     return err('Tiket pengaduan tidak ditemukan')
   }
 
-  // 3. Validasi hak unggah berdasarkan type dan status tiket
   if (type === 'laporan') {
     if (role !== 'admin') {
       if (ticket.user_id !== user.id) {
@@ -282,7 +275,6 @@ export async function registerAttachment(
     }
   }
 
-  // 4. Kuota maksimal 3 foto per jenis lampiran
   const { count: existingCount } = await dbClient
     .from('ticket_attachments')
     .select('*', { count: 'exact', head: true })
@@ -346,7 +338,6 @@ export async function deleteAttachment(
     dbClient = supabase
   }
 
-  // 1. Cek profil pemanggil
   const { data: profile, error: profileErr } = await dbClient
     .from('profiles')
     .select('id, is_active, is_rt_verified')
@@ -363,7 +354,6 @@ export async function deleteAttachment(
     return err('Akun Anda belum disetujui oleh pengurus RT/RW')
   }
 
-  // 2. Ambil data lampiran
   const { data: attachment, error: fetchError } = await dbClient
     .from('ticket_attachments')
     .select('id, ticket_id, storage_path, type, uploaded_by')
@@ -374,7 +364,6 @@ export async function deleteAttachment(
     return err('Lampiran tidak ditemukan')
   }
 
-  // 3. Ambil data status tiket induk dari tickets berdasarkan attachment.ticket_id
   const { data: ticket, error: ticketErr } = await dbClient
     .from('tickets')
     .select('id, status')
@@ -385,12 +374,8 @@ export async function deleteAttachment(
     return err('Tiket pengaduan tidak ditemukan')
   }
 
-  // 4. Validasi izin hapus:
-  // - Jika role === 'warga': wajib attachment.uploaded_by === user.id && attachment.type === 'laporan' && ticket.status === 'draft'
-  // - Jika role === 'ketua_rw': wajib attachment.type === 'penyelesaian' && ticket.status === 'diproses_rw'
-  // - Jika role === 'admin': izinkan pada status apa pun
   if (role === 'admin') {
-    // Diizinkan pada status apa pun
+    // Admin diizinkan menghapus lampiran pada status apa pun
   } else if (role === 'warga') {
     if (
       attachment.uploaded_by !== user.id ||

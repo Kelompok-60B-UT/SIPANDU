@@ -25,7 +25,7 @@ export async function createClient() {
               cookieStore.set(name, value, options),
             )
           } catch {
-            // Ignored in Server Components; session refresh is handled by proxy.ts
+            // Diabaikan di Server Component karena pembaruan sesi ditangani oleh proxy.ts
           }
         },
       },

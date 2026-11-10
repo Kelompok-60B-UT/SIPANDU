@@ -1,15 +1,9 @@
 #!/usr/bin/env node
 /**
- * SIPANDU - Root Administrator Bootstrap Script
+ * Menyediakan akun Administrator awal melalui Supabase Auth Admin API
+ * dan memastikan profil memenuhi prasyarat migrasi 0007 (is_active = true).
  *
- * Responsibilities:
- * - Bootstraps the initial Administrator account via Supabase Auth Admin API
- * - Enforces trusted role assignment via `app_metadata.sipandu_role = 'admin'`
- * - Triggers automatic profile generation via `handle_new_user()`
- * - Verifies the profile satisfies Migration 0007 invariants (is_active = true)
- * - Safe for production deployment: reads secrets server-side from environment variables
- *
- * Usage:
+ * Penggunaan:
  *   NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co" \
  *   SUPABASE_SERVICE_ROLE_KEY="ey..." \
  *   ADMIN_EMAIL="admin@sipandu.id" \
@@ -50,7 +44,6 @@ async function bootstrapAdmin() {
   console.log(`[*] Target URL: ${supabaseUrl}`)
   console.log(`[*] Admin Email: ${adminEmail}`)
 
-  // 1. Check if user already exists
   const { data: userList, error: listError } = await supabase.auth.admin.listUsers({ perPage: 1000 })
   if (listError) {
     console.error('❌ Gagal memeriksa daftar pengguna:', listError.message)
@@ -67,7 +60,7 @@ async function bootstrapAdmin() {
     if (currentRole === 'admin') {
       console.log(`ℹ️  Akun ${adminEmail} sudah terdaftar sebagai Admin (ID: ${adminId}). Memperbarui profil dan menyinkronkan kredensial...`)
     } else {
-      // Security Check: Cegah eskalasi hak istimewa (privilege escalation) otomatis
+      // Cegah promosi peran non-admin menjadi admin tanpa persetujuan eksplisit
       if (process.env.ALLOW_ADMIN_ROLE_PROMOTION !== 'true') {
         console.error('======================================================================')
         console.error(`⛔ PELANGGARAN KEAMANAN: Akun ${adminEmail} sudah terdaftar dengan peran '${currentRole}'.`)
@@ -125,7 +118,6 @@ async function bootstrapAdmin() {
     console.log(`✅ Akun Admin berhasil dibuat pada auth.users (ID: ${adminId}).`)
   }
 
-  // 2. Synchronize and verify public.profiles
   console.log('[*] Memverifikasi profil Admin pada public.profiles...')
   const { error: profileUpsertError } = await supabase.from('profiles').upsert({
     id: adminId,
@@ -141,7 +133,6 @@ async function bootstrapAdmin() {
     process.exit(1)
   }
 
-  // 3. Confirm profile satisfies Migration 0007 invariants
   const { data: profileCheck, error: checkError } = await supabase
     .from('profiles')
     .select('id, full_name, is_active, is_rt_verified')

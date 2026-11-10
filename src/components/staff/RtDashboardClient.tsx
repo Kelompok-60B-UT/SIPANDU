@@ -286,7 +286,6 @@ export default function RtDashboardClient({
     });
   };
 
-  // Eksekusi langsung tanpa dialog konfirmasi (sesuai instruksi)
   const handleVerify = () => {
     if (!selectedTicket || selectedTicket.status !== "terkirim") return;
     const currentId = selectedTicket.id;
@@ -323,7 +322,6 @@ export default function RtDashboardClient({
     });
   };
 
-  // Eksekusi tolak langsung tanpa dialog konfirmasi
   const handleReject = () => {
     if (!selectedTicket || selectedTicket.status !== "terkirim") return;
     const currentId = selectedTicket.id;

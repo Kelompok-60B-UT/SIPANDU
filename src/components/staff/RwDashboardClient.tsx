@@ -153,7 +153,7 @@ export default function RwDashboardClient({
     [residents],
   );
 
-  // Pilih default #PG-2026-0264 sesuai desain (atau tiket pertama)
+  // Inisialisasi tiket terpilih
   const defaultSelected =
     initialData.tickets.find((t) => t.id === 264) ?? initialData.tickets[0];
   const [selectedId, setSelectedId] = useState<number>(
@@ -341,7 +341,6 @@ export default function RwDashboardClient({
       return;
     }
 
-    // Mode pratinjau FE
     const newItem: StaffAttachmentItem = {
       id: Date.now(),
       type: "penyelesaian",
@@ -387,7 +386,6 @@ export default function RwDashboardClient({
     }));
   };
 
-  // Eksekusi langsung tanpa dialog konfirmasi (sesuai instruksi)
   const handleSaveUpdate = () => {
     if (!selectedTicket) return;
     const currentId = selectedTicket.id;

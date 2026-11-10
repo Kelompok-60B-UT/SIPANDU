@@ -336,7 +336,7 @@ export async function deleteUserByAdmin(
       }
     }
 
-    // 1. Bersihkan file foto profil user pada bucket avatars (jika ada)
+    // Bersihkan berkas foto profil pengguna pada bucket avatars (jika ada)
     try {
       const { data: avatarFiles } = await admin.storage
         .from('avatars')
@@ -351,7 +351,7 @@ export async function deleteUserByAdmin(
       // Abaikan bila bucket avatars belum ada
     }
 
-    // 2. Lepas referensi handler RT/RW dan actor_id pada timeline tiket warga lain
+    // Lepas referensi penanganan dan riwayat timeline pada tiket warga lain
     await admin
       .from('tickets')
       .update({ handler_rt_id: null })
@@ -367,7 +367,7 @@ export async function deleteUserByAdmin(
       .update({ actor_id: null })
       .eq('actor_id', cleanUserId)
 
-    // 3. Cari seluruh tiket milik user ini untuk dibersihkan lampirannya
+    // Bersihkan lampiran dan berkas penyimpanan tiket milik pengguna
     const { data: userTickets } = await admin
       .from('tickets')
       .select('id')
@@ -404,13 +404,13 @@ export async function deleteUserByAdmin(
       await admin.from('tickets').delete().in('id', userTicketIds)
     }
 
-    // 4. Jika user pernah mengunggah bukti pada tiket milik orang lain, alihkan uploaded_by ke Admin agar bukti tiket tidak hilang
+    // Alihkan kepemilikan berkas bukti pada tiket pihak lain ke akun admin agar dokumen tetap utuh
     await admin
       .from('ticket_attachments')
       .update({ uploaded_by: adminId })
       .eq('uploaded_by', cleanUserId)
 
-    // 5. Hapus notifikasi, profil, dan akun Auth pengguna
+    // Hapus notifikasi, profil, dan akun autentikasi pengguna
     await admin.from('notifications').delete().eq('user_id', cleanUserId)
     await admin.from('profiles').delete().eq('id', cleanUserId)
 

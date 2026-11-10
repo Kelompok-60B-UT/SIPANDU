@@ -9,10 +9,7 @@ import { executeCleanup, CleanupError } from './test-cleanup'
 export { validateTestTarget }
 export type { GuardOptions, GuardValidationResult }
 
-// =============================================================================
-// FAIL-CLOSED TARGET GUARD & ENVIRONMENT CHECK
-// =============================================================================
-
+// Validasi target database & environment sebelum eksekusi pengujian
 const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const rawAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const rawServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -71,7 +68,7 @@ function assert(num: number, description: string, condition: boolean, detail?: s
   })
 }
 
-// Client helper: creates a supabase client logged in as a specific user
+// Helper pembuatan client Supabase terautentikasi
 async function createAuthClient(email: string, password = testPassword): Promise<{ client: SupabaseClient; user: { id: string } }> {
   const client = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -89,7 +86,7 @@ export async function runTests() {
   const adminClient = createClient(supabaseUrl, serviceRoleKey)
   const anonClient = createClient(supabaseUrl, anonKey)
 
-  // Log in as test accounts
+  // Inisialisasi sesi akun pengujian
   const warga1 = await createAuthClient('warga1@sipandu.test')
   const warga2 = await createAuthClient('warga2@sipandu.test')
   const rt01 = await createAuthClient('rt01@sipandu.test')
@@ -108,7 +105,7 @@ export async function runTests() {
   let cleanupErrors: CleanupError[] = []
 
   try {
-    // 0. Ambil dan amankan state awal profil & notifikasi akun demo sebelum pengujian
+    // Simpan state awal profil dan notifikasi sebelum pengujian
     const { data: w1Profile } = await adminClient
       .from('profiles')
       .select('is_rt_verified, is_active')
@@ -130,9 +127,6 @@ export async function runTests() {
       initialWarga1NotificationIds = w1Notifs.map((n) => n.id)
     }
 
-    // -------------------------------------------------------------------------
-    // Test 1: Anon can read regions & categories
-    // -------------------------------------------------------------------------
     const { data: anonRegions, error: errReg } = await anonClient.from('regions').select('*')
     const { data: anonCats, error: errCat } = await anonClient.from('categories').select('*')
     assert(
@@ -142,9 +136,6 @@ export async function runTests() {
       `errReg: ${errReg?.message}, errCat: ${errCat?.message}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 2: Anon can call public_stats()
-    // -------------------------------------------------------------------------
     const { data: anonStats, error: errStats } = await anonClient.rpc('public_stats')
     assert(
       2,
@@ -153,9 +144,6 @@ export async function runTests() {
       `errStats: ${errStats?.message}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 3: Anon cannot read tickets table
-    // -------------------------------------------------------------------------
     const { data: anonTickets, error: errTickets } = await anonClient.from('tickets').select('*')
     assert(
       3,
@@ -164,9 +152,6 @@ export async function runTests() {
       `Found: ${anonTickets?.length} tickets`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 4: Public signup with user_metadata containing role stays 'warga'
-    // -------------------------------------------------------------------------
     const testEmail = `attacker_${Date.now()}@sipandu.test`
     const { data: createdAttacker, error: errCreateAttacker } = await adminClient.auth.admin.createUser({
       email: testEmail,
@@ -197,9 +182,6 @@ export async function runTests() {
       await adminClient.auth.admin.deleteUser(createdAttacker.user.id)
     }
 
-    // -------------------------------------------------------------------------
-    // Test 5: Warga cannot insert ticket with status other than 'draft'
-    // -------------------------------------------------------------------------
     const { error: errInsertNonDraft } = await warga1.client.from('tickets').insert({
       user_id: warga1.user.id,
       region_id: 1,
@@ -215,9 +197,6 @@ export async function runTests() {
       'Insert non-draft berhasil tanpa error!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 6: Warga cannot insert ticket with user_id of another user
-    // -------------------------------------------------------------------------
     const { error: errInsertOtherUser } = await warga1.client.from('tickets').insert({
       user_id: warga2.user.id,
       region_id: 1,
@@ -233,9 +212,6 @@ export async function runTests() {
       'Insert dengan user_id orang lain berhasil!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 7: Warga A can insert draft ticket
-    // -------------------------------------------------------------------------
     const { data: draftA, error: errDraftA } = await warga1.client
       .from('tickets')
       .insert({
@@ -261,9 +237,6 @@ export async function runTests() {
       `Error: ${errDraftA?.message}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 8: Warga B cannot see draft of Warga A
-    // -------------------------------------------------------------------------
     const { data: ticketsSeenByB } = await warga2.client.from('tickets').select('*').eq('id', ticketAId)
     assert(
       8,
@@ -272,9 +245,6 @@ export async function runTests() {
       `Warga B melihat ${ticketsSeenByB?.length} tiket!`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 9: Warga cannot update status directly via UPDATE
-    // -------------------------------------------------------------------------
     await warga1.client
       .from('tickets')
       .update({ status: 'selesai' as unknown as never })
@@ -288,9 +258,6 @@ export async function runTests() {
       `Status berubah menjadi: ${ticketAfterDirectUpdate?.status}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 10: Warga cannot change region_id in profile
-    // -------------------------------------------------------------------------
     const { error: errChangeRegion } = await warga1.client
       .from('profiles')
       .update({ region_id: 2 })
@@ -302,9 +269,6 @@ export async function runTests() {
       'Warga berhasil update region_id tanpa error!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 11: Submit ticket creates ticket_number format PG-YYYY-XXXX sequential
-    // -------------------------------------------------------------------------
     const { error: errSubmit } = await warga1.client.rpc('submit_ticket', { p_ticket_id: ticketAId })
     const { data: submittedTicketA } = await warga1.client.from('tickets').select('*').eq('id', ticketAId).single()
 
@@ -319,9 +283,6 @@ export async function runTests() {
       `Nomor tiket: ${submittedTicketA?.ticket_number}, Status: ${submittedTicketA?.status}, Err: ${errSubmit?.message}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 12: Second ticket gets sequential number relative to the first
-    // -------------------------------------------------------------------------
     const { data: draftA2 } = await warga1.client
       .from('tickets')
       .insert({
@@ -352,9 +313,6 @@ export async function runTests() {
       `Ticket 1: ${submittedTicketA?.ticket_number} (seq: ${seq1}), Ticket 2: ${submittedTicketA2?.ticket_number} (seq: ${seq2})`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 13: Transition writes to timeline (with actor_name and actor_role)
-    // -------------------------------------------------------------------------
     const { data: timelineA } = await warga1.client
       .from('ticket_timeline')
       .select('*')
@@ -369,9 +327,6 @@ export async function runTests() {
       `Timeline entries: ${timelineA?.length}, actor: ${firstEntry?.actor_name}, role: ${firstEntry?.actor_role}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 14: Transition creates notification for RT 01
-    // -------------------------------------------------------------------------
     const { data: notifsRt01 } = await rt01.client.from('notifications').select('*').eq('ticket_id', ticketAId)
     assert(
       14,
@@ -380,9 +335,6 @@ export async function runTests() {
       `Notif RT 01: ${notifsRt01?.length}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 15: RT 01 sees ticket; RT 02 CANNOT see ticket of RT 01
-    // -------------------------------------------------------------------------
     const { data: rt01Tickets } = await rt01.client.from('tickets').select('id').eq('id', ticketAId)
     const { data: rt02Tickets } = await rt02.client.from('tickets').select('id').eq('id', ticketAId)
     assert(
@@ -392,9 +344,6 @@ export async function runTests() {
       `RT 01 sees: ${rt01Tickets?.length}, RT 02 sees: ${rt02Tickets?.length}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 16: RT 02 cannot verify or reject ticket of RT 01
-    // -------------------------------------------------------------------------
     const { error: errRt02Verify } = await rt02.client.rpc('verify_ticket', { p_ticket_id: ticketAId })
     assert(
       16,
@@ -403,9 +352,6 @@ export async function runTests() {
       'RT 02 berhasil verifikasi tiket RT 01!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 17: Reject ticket without reason is rejected
-    // -------------------------------------------------------------------------
     const { error: errRejectNoReason } = await rt01.client.rpc('reject_ticket', {
       p_ticket_id: ticketAId,
       p_reason: '',
@@ -417,9 +363,6 @@ export async function runTests() {
       'Tolak tanpa alasan berhasil!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 18: Processing ticket that is NOT 'diverifikasi_rt' is rejected
-    // -------------------------------------------------------------------------
     const { error: errProcessTerkirim } = await rw06.client.rpc('process_ticket', { p_ticket_id: ticketAId })
     assert(
       18,
@@ -428,9 +371,6 @@ export async function runTests() {
       'Proses tiket saat status terkirim berhasil!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 19: RT 01 verifies ticket -> status becomes 'diverifikasi_rt'
-    // -------------------------------------------------------------------------
     const { error: errVerify } = await rt01.client.rpc('verify_ticket', { p_ticket_id: ticketAId })
     const { data: verifiedTicket } = await warga1.client.from('tickets').select('status').eq('id', ticketAId).single()
     assert(
@@ -440,9 +380,6 @@ export async function runTests() {
       `Status: ${verifiedTicket?.status}, Error: ${errVerify?.message}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 20: RW processes ticket -> status becomes 'diproses_rw'
-    // -------------------------------------------------------------------------
     const { error: errProcess } = await rw06.client.rpc('process_ticket', { p_ticket_id: ticketAId })
     const { data: processedTicket } = await warga1.client.from('tickets').select('status').eq('id', ticketAId).single()
     assert(
@@ -452,9 +389,6 @@ export async function runTests() {
       `Status: ${processedTicket?.status}, Error: ${errProcess?.message}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 21: Complete ticket without proof photo is rejected
-    // -------------------------------------------------------------------------
     const { error: errCompleteNoProof } = await rw06.client.rpc('complete_ticket', { p_ticket_id: ticketAId })
     assert(
       21,
@@ -463,9 +397,6 @@ export async function runTests() {
       'Complete tanpa foto penyelesaian berhasil!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 22: Warga cannot insert attachment type 'penyelesaian'
-    // -------------------------------------------------------------------------
     const { error: errWargaUploadPenyelesaian } = await warga1.client.from('ticket_attachments').insert({
       ticket_id: ticketAId,
       uploaded_by: warga1.user.id,
@@ -482,9 +413,6 @@ export async function runTests() {
       'Warga berhasil upload penyelesaian!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 23: 4th laporan photo is rejected (max 3)
-    // -------------------------------------------------------------------------
     for (let i = 1; i <= 3; i++) {
       await warga1.client.from('ticket_attachments').insert({
         ticket_id: draftA2!.id,
@@ -512,9 +440,6 @@ export async function runTests() {
       'Foto ke-4 berhasil di-insert!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 24: RW uploads penyelesaian proof and completes ticket -> status 'selesai'
-    // -------------------------------------------------------------------------
     const { error: errRwProof } = await rw06.client.from('ticket_attachments').insert({
       ticket_id: ticketAId,
       uploaded_by: rw06.user.id,
@@ -533,9 +458,6 @@ export async function runTests() {
       `Proof err: ${errRwProof?.message}, Complete err: ${errComplete?.message}, Status: ${completedTicket?.status}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 25: Rating by non-owner is rejected
-    // -------------------------------------------------------------------------
     const { error: errRatingNonOwner } = await warga2.client.rpc('rate_ticket', {
       p_ticket_id: ticketAId,
       p_rating: 5,
@@ -548,9 +470,6 @@ export async function runTests() {
       'Bukan pemilik berhasil memberi rating!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 26: Owner rates ticket (1-5) -> succeeds
-    // -------------------------------------------------------------------------
     const { error: errRatingOwner } = await warga1.client.rpc('rate_ticket', {
       p_ticket_id: ticketAId,
       p_rating: 5,
@@ -564,9 +483,6 @@ export async function runTests() {
       `Error: ${errRatingOwner?.message}`,
     )
 
-    // -------------------------------------------------------------------------
-    // Test 27: Rating a second time is rejected
-    // -------------------------------------------------------------------------
     const { error: errRatingSecondTime } = await warga1.client.rpc('rate_ticket', {
       p_ticket_id: ticketAId,
       p_rating: 4,
@@ -579,9 +495,6 @@ export async function runTests() {
       'Rating kedua kali berhasil!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 28: Storage: Warga cannot upload to penyelesaian/ folder
-    // -------------------------------------------------------------------------
     const fakeFile = Buffer.from('fake image content')
     const { error: errStoragePenyelesaian } = await warga1.client.storage
       .from('ticket-attachments')
@@ -593,9 +506,6 @@ export async function runTests() {
       'Warga berhasil upload ke folder penyelesaian/ di storage!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 29: Storage: Other warga cannot read photo of another warga ticket
-    // -------------------------------------------------------------------------
     const validPhotoPath = `laporan/${ticketAId}/valid_lampu.jpg`
     createdStoragePaths.push(validPhotoPath)
     await warga1.client.storage
@@ -612,9 +522,6 @@ export async function runTests() {
       'Warga 2 berhasil mendownload foto milik tiket Warga 1!',
     )
 
-    // -------------------------------------------------------------------------
-    // Test 30: Storage: File > 5MB or non JPG/PNG rejected by bucket config
-    // -------------------------------------------------------------------------
     const pdfFile = Buffer.from('%PDF-1.4 test')
     const { error: errUploadPdf } = await warga1.client.storage
       .from('ticket-attachments')
@@ -626,13 +533,8 @@ export async function runTests() {
       'Upload PDF berhasil tanpa error!',
     )
 
-    // =========================================================================
-    // TES TAMBAHAN (Migration 0003: Verifikasi Warga, Is Active, Foto RW, Staff)
-    // =========================================================================
+    // Verifikasi warga, status aktif, dan wewenang penanganan
 
-    // -------------------------------------------------------------------------
-    // Test 31: Warga tidak bisa ubah is_rt_verified; RT 01 bisa verifikasi warga RT 01 tapi bukan RT 02
-    // -------------------------------------------------------------------------
     await adminClient.from('profiles').update({ is_rt_verified: false }).eq('id', warga1.user.id)
 
     const { error: errWargaVerifySelf } = await warga1.client
@@ -677,9 +579,6 @@ export async function runTests() {
       await adminClient.from('profiles').update({ is_rt_verified: initialWarga1Profile.is_rt_verified }).eq('id', warga1.user.id)
     }
 
-    // -------------------------------------------------------------------------
-    // Test 32: Akun nonaktif: tidak bisa buat draf, panggil RPC, atau baca tiket
-    // -------------------------------------------------------------------------
     const inactiveEmail = `inactive_${Date.now()}@sipandu.test`
     const { data: createdInactive } = await adminClient.auth.admin.createUser({
       email: inactiveEmail,
@@ -718,9 +617,6 @@ export async function runTests() {
 
     await adminClient.auth.admin.deleteUser(inactiveUid)
 
-    // -------------------------------------------------------------------------
-    // Test 33 (Migration 0005): Admin & Ketua RW BISA upload foto bukti penyelesaian saat penanganan
-    // -------------------------------------------------------------------------
     const { data: draftT33 } = await warga1.client.from('tickets').insert({
       user_id: warga1.user.id,
       region_id: 1,
@@ -780,9 +676,6 @@ export async function runTests() {
       `Admin storage err: ${errAdminStorageProof?.message}, Admin table err: ${errAdminTableProof?.message}, RW storage err: ${errRwStorageProof?.message}, RW table err: ${errRwTableProof?.message}`
     )
 
-    // -------------------------------------------------------------------------
-    // Test 34: Akun RT yang dibuat lewat service role tetap berperan ketua_rt
-    // -------------------------------------------------------------------------
     const newStaffEmail = `staff_rt_${Date.now()}@sipandu.test`
     const { data: createdStaff } = await adminClient.auth.admin.createUser({
       email: newStaffEmail,
@@ -807,9 +700,6 @@ export async function runTests() {
     )
     await adminClient.auth.admin.deleteUser(createdStaff!.user!.id)
 
-    // -------------------------------------------------------------------------
-    // Test 35: Warga, RT, dan RW TIDAK bisa melihat draf milik warga lain
-    // -------------------------------------------------------------------------
     const { data: draftExclusive } = await warga1.client.from('tickets').insert({
       user_id: warga1.user.id,
       region_id: 1,
@@ -834,9 +724,6 @@ export async function runTests() {
       `Warga2: ${seenByWarga2?.length}, RT01: ${seenByRt01?.length}, RW06: ${seenByRw06?.length}`
     )
 
-    // -------------------------------------------------------------------------
-    // Test 36: Upload file > 5 MB ditolak
-    // -------------------------------------------------------------------------
     const bigBuffer = Buffer.alloc(5.5 * 1024 * 1024) // 5.5 MB
     const { error: errStorageBigFile } = await warga1.client.storage
       .from('ticket-attachments')
@@ -859,9 +746,6 @@ export async function runTests() {
       `Storage err: ${errStorageBigFile?.message}, Table err: ${errTableBigFile?.message}`
     )
 
-    // -------------------------------------------------------------------------
-    // Test 37: RT 01 dan RW menerima notifikasi pada transisi yang sesuai
-    // -------------------------------------------------------------------------
     await warga1.client.rpc('submit_ticket', { p_ticket_id: draftExclusive!.id })
     const { data: notifRtAfterSubmit } = await rt01.client.from('notifications').select('*').eq('ticket_id', draftExclusive!.id)
 
@@ -875,9 +759,6 @@ export async function runTests() {
       `RT notifs: ${notifRtAfterSubmit?.length}, RW notifs: ${notifRwAfterVerify?.length}`
     )
 
-    // -------------------------------------------------------------------------
-    // Test 38: Pengguna non-admin tidak bisa memanggil createStaff dan setStaffActive
-    // -------------------------------------------------------------------------
     const { error: errWargaSetStaffActive } = await warga1.client
       .from('profiles')
       .update({ is_active: false })
@@ -895,13 +776,8 @@ export async function runTests() {
       `Warga update other err: ${errWargaSetStaffActive?.message}`
     )
 
-    // =========================================================================
-    // TES TAMBAHAN (Migration 0004–0006: Pending User, RBAC Multi-Lapis, Admin Delete)
-    // =========================================================================
+    // Verifikasi warga pending, otorisasi RT/RW, dan hak kelola admin
 
-    // -------------------------------------------------------------------------
-    // Test 39 (Migration 0006): Warga dengan is_rt_verified = false DITOLAK saat insert tiket atau submit_ticket
-    // -------------------------------------------------------------------------
     const pendingEmail = `pending_warga_${Date.now()}@sipandu.test`
     const { data: createdPending } = await adminClient.auth.admin.createUser({
       email: pendingEmail,
@@ -949,9 +825,6 @@ export async function runTests() {
       `Insert err: ${errPendingInsert?.message}, Submit err: ${errPendingSubmit?.message}`
     )
 
-    // -------------------------------------------------------------------------
-    // Test 40 (Migration 0006): Ketua RT berhasil menyetujui warga di RT-nya sendiri, tetapi DITOLAK untuk RT lain
-    // -------------------------------------------------------------------------
     const { error: errRtApproveOwn } = await rt01.client.rpc('verify_resident', {
       p_user_id: pendingUid,
       p_is_verified: true,
@@ -999,9 +872,6 @@ export async function runTests() {
     await adminClient.auth.admin.deleteUser(pendingUid)
     await adminClient.auth.admin.deleteUser(otherRtUid)
 
-    // -------------------------------------------------------------------------
-    // Test 41 (Migration 0005): Non-admin DITOLAK saat mencoba menghapus tiket atau melakukan override status
-    // -------------------------------------------------------------------------
     const { data: testDeleteTicket } = await adminClient.from('tickets').insert({
       user_id: warga1.user.id,
       region_id: 1,
@@ -1071,13 +941,8 @@ export async function runTests() {
       `Warga del: ${deletedByWarga?.length}, RT del: ${deletedByRt?.length}, RW del: ${deletedByRw?.length}, Admin del: ${deletedByAdmin?.length} (${errAdminDelete?.message})`
     )
 
-    // =========================================================================
-    // TES TAMBAHAN (Migration 0010: NULL-Safe Region Authorization Hardening)
-    // =========================================================================
+    // Otorisasi wilayah aman-NULL (verify/reject ticket dan verify resident)
 
-    // -------------------------------------------------------------------------
-    // Test 42 (Migration 0010): verify_ticket & reject_ticket NULL-safe region check
-    // -------------------------------------------------------------------------
     const rtNullEmail = `rt_null_${Date.now()}@sipandu.test`
     const { data: createdRtNull } = await adminClient.auth.admin.createUser({
       email: rtNullEmail,
@@ -1148,9 +1013,6 @@ export async function runTests() {
       `CallerNull verify: ${errVerifyCallerNull?.message}, CallerNull reject: ${errRejectCallerNull?.message}, Diff verify: ${errVerifyDiffRegion?.message}, Diff reject: ${errRejectDiffRegion?.message}, Same verify: ${errVerifySameRegion?.message}`
     )
 
-    // -------------------------------------------------------------------------
-    // Test 43 (Migration 0010): reject_ticket aksi sah & aksi tidak sah pada region sama
-    // -------------------------------------------------------------------------
     const { data: ticketNullTest2 } = await adminClient
       .from('tickets')
       .insert({
@@ -1193,9 +1055,6 @@ export async function runTests() {
       `Empty reason: ${errRejectEmptyReason?.message}, Valid reject: ${errRejectValidSameRegion?.message}, Verify after reject: ${errVerifyAfterRejected?.message}`
     )
 
-    // -------------------------------------------------------------------------
-    // Test 44 (Migration 0010): verify_resident NULL-safe region check (caller NULL, target NULL, berbeda, sama)
-    // -------------------------------------------------------------------------
     const wargaNullEmail = `warga_null_${Date.now()}@sipandu.test`
     const { data: createdWargaNull } = await adminClient.auth.admin.createUser({
       email: wargaNullEmail,
@@ -1304,9 +1163,7 @@ export async function runTests() {
     })
   }
 
-  // -------------------------------------------------------------------------
-  // Print Summary Table
-  // -------------------------------------------------------------------------
+  // Ringkasan hasil pengujian
   console.log('\n=============================================================================')
   console.log('                       TABEL HASIL PENGUJIAN FASE 3                          ')
   console.log('=============================================================================')

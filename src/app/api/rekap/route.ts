@@ -385,7 +385,7 @@ export async function GET(request: Request) {
     'Catatan / Alasan Penolakan': t.rejectionReason ?? '-',
   }))
 
-  // 1. FORMAT CSV
+  // Format ekspor CSV
   if (format === 'csv') {
     const ws = XLSX.utils.json_to_sheet(tabularTicketRows)
     const csvData = XLSX.utils.sheet_to_csv(ws)
@@ -401,7 +401,7 @@ export async function GET(request: Request) {
     })
   }
 
-  // 2. FORMAT XLSX (Excel multi-sheet)
+  // Format ekspor XLSX (multi-sheet)
   if (format === 'xlsx') {
     const wb = XLSX.utils.book_new()
 
@@ -485,7 +485,7 @@ export async function GET(request: Request) {
     })
   }
 
-  // 3. DEFAULT: FORMAT JSON
+  // Format respons JSON (default)
   return NextResponse.json(
     {
       generated_at: new Date().toISOString(),

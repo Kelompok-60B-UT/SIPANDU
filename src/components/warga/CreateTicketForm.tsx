@@ -281,7 +281,7 @@ export default function CreateTicketForm({
 
         const ticketId = draftRes.data.id;
 
-        // Unggah foto ke Supabase Storage melalui server action agar aman dari RLS
+        // Unggah berkas melalui Server Action untuk memastikan validasi hak akses pada server
         if (isSupabaseConfigured()) {
           for (const item of photos) {
             if (!item.file) continue;

@@ -64,7 +64,7 @@ export default function StaffShell({
     try {
       localStorage.setItem("sipandu_last_role", role);
     } catch {
-      // ignore
+      // Abaikan jika penyimpanan lokal tidak dapat diakses
     }
   }, [role]);
 
@@ -162,7 +162,7 @@ export default function StaffShell({
           }
         }
       } catch {
-        // ignore
+        // Abaikan jika pemuatan cache profil gagal
       }
     };
     syncProfileAndAvatar();

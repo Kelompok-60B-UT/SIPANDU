@@ -96,7 +96,7 @@ export default function ProfilePageClient({
           setPreviewRole(savedRole);
         }
       } catch {
-        // ignore
+        // Abaikan jika sinkronisasi penyimpanan lokal gagal
       }
     };
     syncRole();

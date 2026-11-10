@@ -143,7 +143,7 @@ function AppShellSkeleton({
 
   return (
     <div className="flex min-h-screen bg-surface text-ink" aria-busy="true">
-      {/* Sidebar Desktop - Solid & Stable Shell (No skeleton in navigation chrome) */}
+      {/* Navigasi desktop tetap utuh agar tata letak stabil */}
       <aside className="hidden w-60 shrink-0 border-r border-border bg-white lg:sticky lg:top-0 lg:block lg:h-screen">
         <div className="flex h-full flex-col justify-between py-5">
           <div>
@@ -215,7 +215,7 @@ function AppShellSkeleton({
               </span>
             </div>
 
-            {/* Placeholder Keluar akun */}
+            {/* Placeholder menu keluar */}
             <div className="mx-3 mt-2">
               <div className="flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs font-medium text-muted">
                 <LogOut size={16} />
@@ -226,11 +226,11 @@ function AppShellSkeleton({
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Konten utama */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-white px-4 sm:px-8">
           <div className="flex items-center gap-3">
-            {/* Placeholder tombol menu mobile agar layout stabil */}
+            {/* Placeholder tombol menu seluler */}
             <div
               aria-hidden="true"
               className="rounded-lg border border-border p-2 text-muted lg:hidden"
@@ -278,7 +278,7 @@ export function WargaDashboardSkeleton() {
           <Skeleton className="h-10 w-36 rounded-xl" />
         </div>
 
-        {/* 4 Stat Cards */}
+        {/* Kartu statistik */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <div
@@ -295,7 +295,7 @@ export function WargaDashboardSkeleton() {
           ))}
         </div>
 
-        {/* Table Card */}
+        {/* Kartu tabel */}
         <div className="space-y-4 rounded-2xl border border-border bg-white p-5 sm:p-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1.5">
@@ -311,7 +311,7 @@ export function WargaDashboardSkeleton() {
           </div>
         </div>
 
-        {/* Bottom Grid */}
+        {/* Grid bawah */}
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="space-y-3 rounded-2xl border border-border bg-white p-5 sm:p-6">
             <Skeleton className="h-5 w-40 rounded-md" />
@@ -570,7 +570,7 @@ export function TicketDetailSkeleton({
           <Skeleton className="h-9 w-28 rounded-full" />
         </div>
 
-        {/* Stepper Card */}
+        {/* Indikator tahapan */}
         <div className="space-y-4 rounded-2xl border border-border bg-white p-5 sm:p-6">
           <Skeleton className="h-4 w-44 rounded-md" />
           <div className="grid grid-cols-4 gap-3">
@@ -580,7 +580,7 @@ export function TicketDetailSkeleton({
           </div>
         </div>
 
-        {/* Main Detail + Timeline */}
+        {/* Rincian dan riwayat tiket */}
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
             <div className="space-y-4 rounded-2xl border border-border bg-white p-5 sm:p-6">

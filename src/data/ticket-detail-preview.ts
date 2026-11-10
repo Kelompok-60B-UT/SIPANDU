@@ -420,7 +420,7 @@ export async function getTicketDetailPageData(
         ? `Seluruh Wilayah ${siteConfig.rwShortLabel}`
         : siteConfig.rwShortLabel
 
-  // Resolve numeric ticket ID (supports numeric ID or ticket_number e.g. PG-2026-0261)
+  // Resolusi ID tiket angka atau nomor tiket resmi (contoh: PG-2026-0261)
   const decoded = decodeURIComponent(rawId).trim()
   let ticketId = Number(decoded)
   if (!Number.isInteger(ticketId) || ticketId <= 0) {
@@ -465,7 +465,7 @@ export async function getTicketDetailPageData(
   const regionName = regionObj?.name ?? 'RT -'
   const regionRw = regionObj?.rw ?? '06'
 
-  // Collect related user IDs to look up full_name when RLS allows
+  // Kumpulkan ID pengguna terkait untuk pencarian nama lengkap
   const relatedIds = Array.from(
     new Set(
       [
@@ -506,7 +506,7 @@ export async function getTicketDetailPageData(
     createdAt: entry.created_at,
   }))
 
-  // Derive reporterName & handlerDisplay with timeline fallback so RLS never hides names
+  // Resolusi nama pelapor dan penanggung jawab dengan fallback riwayat timeline
   const submitEntry = rawTimeline.find(
     (e) => e.to_status === 'terkirim' || e.actor_role === 'warga',
   )
@@ -544,7 +544,7 @@ export async function getTicketDetailPageData(
     handlerDisplay = `${adminEntry.actor_name} • Admin`
   }
 
-  // Generate Signed URLs for private bucket 'ticket-attachments' (valid 1 hour)
+  // Buat signed URL untuk berkas privat pada bucket lampiran (masa berlaku 1 jam)
   const rawAttachments = [...(rawTicket.ticket_attachments ?? [])].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   )

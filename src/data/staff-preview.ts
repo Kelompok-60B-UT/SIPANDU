@@ -587,7 +587,6 @@ export async function getStaffDashboardData(
         ? { id: profile.region_id, name: `RT 0${profile.region_id}`, rw: '06' }
         : PREVIEW_REGIONS[2])
 
-    // Ambil nama pelapor unik
     const userIds = Array.from(new Set(rawTickets.map((t) => t.user_id)))
     const reporterMap = new Map<string, string>()
     if (userIds.length > 0) {
@@ -727,7 +726,7 @@ export async function getStaffDashboardData(
         }
       }
     } catch {
-      // ignore
+      // Abaikan jika pemanggilan service role tidak tersedia
     }
 
     let residentsQuery = supabase

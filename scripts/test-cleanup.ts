@@ -17,16 +17,10 @@ export interface CleanupParams {
 }
 
 /**
- * Menjalankan pembersihan terarah dan terisolasi untuk seluruh resource
- * yang dibuat atau dimutasi selama sesi pengujian backend.
- *
- * Prinsip:
- * 1. Menghapus anak relasi (timeline, attachment, notifikasi) sebelum tiket induk.
- * 2. Menghapus tiket uji milik user sebelum menghapus profil dan akun auth.
- * 3. Menghapus objek storage yang dibuat sesi uji.
- * 4. Memulihkan nilai profil akun demo warga1 ke state snapshot awal.
- * 5. Kegagalan satu resource tidak menghentikan resource lainnya (fail-safe).
- * 6. Setiap kegagalan dicatat terpusat tanpa menampilkan credential.
+ * Membersihkan seluruh resource yang dibuat selama sesi pengujian backend
+ * dan memulihkan profil akun demo warga1 ke kondisi semula.
+ * Penghapusan dilakukan dari tabel anak ke tabel induk agar tidak melanggar foreign key,
+ * serta bersifat fail-safe (kegagalan pada satu resource tidak menghentikan pembersihan lainnya).
  */
 export async function executeCleanup(
   adminClient: SupabaseClient,
@@ -150,9 +144,8 @@ export async function executeCleanup(
     }
   }
 
-  // 3. Hapus seluruh tiket yang dibuat selama sesi pengujian ini (beserta relasi FK)
+  // Hapus tiket yang dibuat selama sesi pengujian beserta relasi anaknya
   for (const tid of params.createdTicketIds) {
-    // 3a. Timeline
     try {
       const { error: errTl } = await adminClient.from('ticket_timeline').delete().eq('ticket_id', tid)
       if (errTl && errTl.code !== 'PGRST116') {
@@ -164,7 +157,6 @@ export async function executeCleanup(
       cleanupErrors.push({ resource: 'timeline', identifier: tid, error: msg })
     }
 
-    // 3b. Attachments
     try {
       const { error: errAtt } = await adminClient.from('ticket_attachments').delete().eq('ticket_id', tid)
       if (errAtt && errAtt.code !== 'PGRST116') {
@@ -176,7 +168,6 @@ export async function executeCleanup(
       cleanupErrors.push({ resource: 'attachment', identifier: tid, error: msg })
     }
 
-    // 3c. Notifications
     try {
       const { error: errNotif } = await adminClient.from('notifications').delete().eq('ticket_id', tid)
       if (errNotif && errNotif.code !== 'PGRST116') {
@@ -188,7 +179,6 @@ export async function executeCleanup(
       cleanupErrors.push({ resource: 'notification', identifier: tid, error: msg })
     }
 
-    // 3d. Ticket
     try {
       const { error: errTicket } = await adminClient.from('tickets').delete().eq('id', tid)
       if (errTicket && errTicket.code !== 'PGRST116') {

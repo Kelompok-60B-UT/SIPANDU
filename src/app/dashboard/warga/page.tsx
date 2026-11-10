@@ -123,7 +123,7 @@ function DashboardView({
                   Akun Menunggu Persetujuan Pengurus
                 </h3>
                 <span className="inline-flex items-center rounded-full bg-amber-200/90 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
-                  Pending Approval
+                  Menunggu Verifikasi
                 </span>
               </div>
               <p className="text-xs leading-relaxed text-amber-800">

@@ -1,14 +1,7 @@
 /**
- * SIPANDU - Demo Seeding Environment & Target Allowlist Guard
- *
- * Enforces strict boundaries to ensure demo seeding NEVER executes against:
- * - Production domains
- * - Protected projects defined in PROTECTED_SUPABASE_PROJECT_REFS
- * - Unapproved external hosted targets
- *
- * Permitted targets:
- * - Local stack (localhost / 127.0.0.1 / 0.0.0.0)
- * - Explicitly approved demo hosted projects via ALLOWED_DEMO_PROJECT_REF
+ * Penjaga target eksekusi untuk skrip seeding data demo.
+ * Menolak eksekusi pada domain produksi, project dalam PROTECTED_SUPABASE_PROJECT_REFS,
+ * serta target hosted yang tidak disetujui melalui ALLOWED_DEMO_PROJECT_REF.
  */
 
 export interface TargetValidationResult {
@@ -38,7 +31,6 @@ export function parseProtectedProjectRefs(input?: string | string[]): string[] {
 }
 
 export function validateDemoTarget(options: GuardOptions): TargetValidationResult {
-  // 1. Mandatory Explicit Opt-in Guard
   const allowDemoSeed = options.allowDemoSeed ?? process.env.ALLOW_DEMO_SEED
   if (allowDemoSeed !== 'true') {
     return {
@@ -48,7 +40,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  // 2. Production Environment Flags Check
   const nodeEnv = (options.nodeEnv ?? process.env.NODE_ENV ?? '').toLowerCase()
   const vercelEnv = (process.env.VERCEL_ENV ?? '').toLowerCase()
   const appEnv = (process.env.ENVIRONMENT ?? '').toLowerCase()
@@ -61,7 +52,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  // 3. Supabase URL Validation & Parse
   const rawUrl = options.supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   if (!rawUrl.trim()) {
     return {
@@ -71,7 +61,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  // Check against protected project refs before parsing
   const protectedRefs = parseProtectedProjectRefs(options.protectedProjectRefs)
   const allowedProjectRef = (options.allowedProjectRef ?? process.env.ALLOWED_DEMO_PROJECT_REF ?? '').trim().toLowerCase()
 
@@ -99,7 +88,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
 
   const hostname = parsedUrl.hostname.toLowerCase()
 
-  // Prohibit known production hostnames regardless of NODE_ENV
+  // Tolak domain produksi terlepas dari nilai NODE_ENV
   if (
     hostname.includes('sipandu.journey.web.id') ||
     hostname.includes('app.sipandu.id') ||
@@ -113,10 +102,8 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  // 4. Localhost / Local Stack Allowlist
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
   if (isLocal) {
-    // Password Check (if required)
     if (options.requirePassword ?? true) {
       const demoPassword = options.demoPassword ?? process.env.DEMO_PASSWORD ?? ''
       if (!demoPassword || demoPassword.length < 8) {
@@ -136,8 +123,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  // 5. Hosted Supabase Targets
-  // Must match <project-ref>.supabase.co
+  // Target hosted wajib berformat <project-ref>.supabase.co
   const supabaseCoMatch = hostname.match(/^([a-z0-9_-]+)\.supabase\.co$/)
   if (!supabaseCoMatch) {
     return {
@@ -150,7 +136,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
 
   const projectRef = supabaseCoMatch[1].toLowerCase()
 
-  // 5a. Check against protected project refs
   if (protectedRefs.includes(projectRef)) {
     return {
       ok: false,
@@ -161,7 +146,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  // 5b. Explicit Allowlist Check for Hosted Targets
   if (!allowedProjectRef || projectRef !== allowedProjectRef) {
     return {
       ok: false,
@@ -172,7 +156,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
-  // 5c. Password Check (if required)
   if (options.requirePassword ?? true) {
     const demoPassword = options.demoPassword ?? process.env.DEMO_PASSWORD ?? ''
     if (!demoPassword || demoPassword.length < 8) {

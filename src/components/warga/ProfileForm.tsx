@@ -24,7 +24,7 @@ import {
 import type { Profile, RegionOption, UserRole } from "@/types";
 import { siteConfig } from "@/config/site";
 
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB sesuai desain
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // Maksimal 2 MB
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -177,7 +177,7 @@ export default function ProfileForm({
           }
         }
       } catch {
-        // ignore
+        // Abaikan jika sinkronisasi penyimpanan lokal gagal
       }
     };
     syncSavedProfile();
@@ -212,7 +212,7 @@ export default function ProfileForm({
     }
 
     const objectUrl = URL.createObjectURL(file);
-    // Langsung replace tampilan foto profil sebelumnya
+    // Perbarui pratinjau foto profil secara langsung
     setAvatarUrl(objectUrl);
     setUploadingAvatar(true);
 
@@ -222,7 +222,7 @@ export default function ProfileForm({
         localStorage.setItem("sipandu_avatar_url", compactDataUrl);
         window.dispatchEvent(new Event("sipandu-avatar-change"));
       } catch {
-        // ignore storage quota
+        // Abaikan jika kuota penyimpanan lokal penuh
       }
 
       const fd = new FormData();
@@ -261,7 +261,7 @@ export default function ProfileForm({
       localStorage.removeItem("sipandu_avatar_url");
       window.dispatchEvent(new Event("sipandu-avatar-change"));
     } catch {
-      // ignore
+      // Abaikan jika penyimpanan lokal tidak dapat diakses
     }
 
     setUploadingAvatar(true);
@@ -360,7 +360,7 @@ export default function ProfileForm({
           localStorage.setItem("sipandu_profile_override", cachePayload);
           window.dispatchEvent(new Event("sipandu-profile-change"));
         } catch {
-          // ignore
+          // Abaikan jika penyimpanan lokal tidak dapat diakses
         }
         setFeedback({ success: "Perubahan profil berhasil disimpan." });
         router.refresh();

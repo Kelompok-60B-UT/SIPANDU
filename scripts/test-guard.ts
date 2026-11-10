@@ -1,25 +1,11 @@
 /**
- * SIPANDU - Test Target Guard Module
+ * Penjaga target eksekusi untuk skrip pengujian backend (scripts/test-backend.ts).
  *
- * Menjamin keamanan tingkat tinggi agar test suite backend (scripts/test-backend.ts)
- * TIDAK PERNAH memutasi atau merusak:
- * 1. Proyek Supabase terproteksi (didefinisikan via PROTECTED_SUPABASE_PROJECT_REFS) - DITOLAK MUTLAK tanpa celah bypass.
- * 2. Lingkungan produksi (domain produksi / NODE_ENV=production) - DITOLAK MUTLAK.
- * 3. Proyek hosted apa pun secara default (HOSTED REJECTED BY DEFAULT).
- *
- * Ketentuan Target:
- * - Default: Hanya mengizinkan local stack (localhost / 127.0.0.1 / 0.0.0.0) dengan ALLOW_DESTRUCTIVE_TEST=true.
- * - Remote Hosted Test (Opsional): Wajib opt-in eksplisit bertingkat:
- *   a. ALLOW_DESTRUCTIVE_TEST=true
- *   b. ALLOW_REMOTE_HOSTED_TEST=true
- *   c. ALLOWED_TEST_PROJECT_REF=<ref-cocok-persis>
- *   d. Target TIDAK termasuk dalam daftar PROTECTED_SUPABASE_PROJECT_REFS.
- *
- * CATATAN KEAMANAN:
- * Guard tidak dapat mengetahui secara otomatis apakah suatu proyek Supabase cloud
- * merupakan produksi atau testing murni karena keduanya memakai domain <ref>.supabase.co.
- * Oleh karena itu, pengujian remote di-disable secara default dan mewajibkan
- * konfirmasi eksplisit dari operator yang bertanggung jawab penuh atas target yang dipilih.
+ * Kebijakan target:
+ * - Bawaan: hanya mengizinkan instance lokal (localhost / 127.0.0.1 / 0.0.0.0) dengan ALLOW_DESTRUCTIVE_TEST=true.
+ * - Target hosted ditolak secara bawaan karena domain <ref>.supabase.co tidak membedakan lingkungan produksi dan uji.
+ * - Pengujian pada project hosted khusus uji memerlukan ALLOW_DESTRUCTIVE_TEST=true, ALLOW_REMOTE_HOSTED_TEST=true,
+ *   ALLOWED_TEST_PROJECT_REF yang cocok persis, serta tidak terdaftar di PROTECTED_SUPABASE_PROJECT_REFS.
  */
 
 export interface GuardOptions {
@@ -50,7 +36,6 @@ export function parseProtectedProjectRefs(input?: string | string[]): string[] {
 }
 
 export function validateTestTarget(env: GuardOptions): GuardValidationResult {
-  // 1. Validasi keberadaan URL
   const rawUrl = (env.supabaseUrl ?? '').trim()
   if (!rawUrl) {
     return {
@@ -60,11 +45,9 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // 2. Evaluasi daftar protected project refs dari environment / opsi
   const protectedRefs = parseProtectedProjectRefs(env.protectedProjectRefs)
   const allowedTestRef = (env.allowedTestProjectRef ?? '').trim().toLowerCase()
 
-  // Periksa apakah URL atau allowed test ref memuat protected ref yang dilarang
   for (const ref of protectedRefs) {
     if (rawUrl.toLowerCase().includes(ref) || allowedTestRef === ref) {
       return {
@@ -76,7 +59,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // 3. Parsing URL
   let parsed: URL
   try {
     parsed = new URL(rawUrl)
@@ -90,7 +72,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
 
   const hostname = parsed.hostname.toLowerCase()
 
-  // Verifikasi ulang hostname terhadap daftar protected refs
   for (const ref of protectedRefs) {
     if (hostname.includes(ref)) {
       return {
@@ -103,7 +84,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // 4. Tolak domain produksi
   if (
     hostname.includes('sipandu.journey.web.id') ||
     hostname.includes('app.sipandu.id') ||
@@ -117,7 +97,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // 5. Tolak environment produksi
   const nodeEnv = (env.nodeEnv ?? '').toLowerCase()
   const vercelEnv = (env.vercelEnv ?? '').toLowerCase()
   const appEnv = (env.appEnv ?? '').toLowerCase()
@@ -130,7 +109,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // 6. Wajib opt-in eksplisit mutasi pengujian (ALLOW_DESTRUCTIVE_TEST=true)
   if (env.allowDestructiveTest !== 'true') {
     return {
       ok: false,
@@ -140,14 +118,12 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // 7. Evaluasi local stack target (localhost / 127.0.0.1 / 0.0.0.0)
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
   if (isLocal) {
     return { ok: true, isLocal: true, hostname }
   }
 
-  // 8. Evaluasi hosted target (DEFAULT: DITOLAK)
-  // Remote test mode HANYA aktif jika ALLOW_REMOTE_HOSTED_TEST=true
+  // Target hosted ditolak secara bawaan kecuali ALLOW_REMOTE_HOSTED_TEST=true
   if (env.allowRemoteHostedTest !== 'true') {
     return {
       ok: false,
@@ -157,7 +133,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // Verifikasi format hosted Supabase: <project-ref>.supabase.co
   const match = hostname.match(/^([a-z0-9_-]+)\.supabase\.co$/)
   if (!match) {
     return {
@@ -170,7 +145,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
 
   const projectRef = match[1].toLowerCase()
 
-  // Verifikasi kembali terhadap daftar protected refs
   if (protectedRefs.includes(projectRef)) {
     return {
       ok: false,
@@ -181,7 +155,6 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // Wajib allowlist cocok persis
   if (!allowedTestRef || projectRef !== allowedTestRef) {
     return {
       ok: false,

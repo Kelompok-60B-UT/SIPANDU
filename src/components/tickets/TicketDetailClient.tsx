@@ -232,7 +232,7 @@ export default function TicketDetailClient({
           setPreviewRole(saved);
         }
       } catch {
-        // ignore
+        // Abaikan kegagalan sinkronisasi penyimpanan lokal
       }
     };
     syncRole();
@@ -444,7 +444,7 @@ export default function TicketDetailClient({
     }, 550);
   };
 
-  // --- Handler Upload Foto (Laporan saat Draf / Penyelesaian saat RW) ---
+  // Handler unggah foto lampiran
   const handleUploadAttachment = async (
     file: File,
     type: "laporan" | "penyelesaian",
@@ -566,7 +566,7 @@ export default function TicketDetailClient({
     });
   };
 
-  // --- Handler Penilaian Warga (rateTicket) ---
+  // Handler penilaian tiket warga
   const handleRateSubmit = () => {
     setFeedback(null);
     if (selectedRating < 1 || selectedRating > 5) {
@@ -612,7 +612,7 @@ export default function TicketDetailClient({
     });
   };
 
-  // --- Handler Transisi Status sesuai Matriks Bab 2 ---
+  // Handler transisi status tiket
   const appendLocalTimeline = (toStatus: TicketStatus, note: string) => {
     const nowIso = new Date().toISOString();
     setTicket((prev) => {
@@ -820,7 +820,7 @@ export default function TicketDetailClient({
     });
   };
 
-  // --- Banner Kontekstual Berdasarkan Status Tiket ---
+  // Banner status tiket
   const renderStatusAlertBanner = () => {
     if (ticket.status === "selesai") {
       return (
@@ -931,9 +931,9 @@ export default function TicketDetailClient({
     );
   };
 
-  // --- Kartu Aksi Berdasarkan Matriks Role × Status (Bab 2) ---
+  // Kartu aksi peran pengguna
   const renderRoleActionCard = () => {
-    // 1. Warga + Selesai -> Kartu "Bagaimana hasilnya?" sesuai desain Pelacakan Tiket Desktop.png
+    // Konfirmasi hasil penyelesaian warga
     if (viewer.role === "warga" && ticket.status === "selesai") {
       const alreadyRated = Boolean(ticket.ratedAt || ticket.rating);
       const displayStars = hoverRating || selectedRating || ticket.rating || 0;
@@ -1024,7 +1024,7 @@ export default function TicketDetailClient({
       );
     }
 
-    // 2. Warga + Draft (Pemilik) -> Edit Draf, Upload Foto (Max 3), Kirim Pengaduan, Hapus Draf
+    // Pengelolaan draf oleh pemilik tiket
     if (viewer.role === "warga" && isOwner && ticket.status === "draft") {
       return (
         <section className="rounded-2xl border border-blue-100 bg-[#F4F8FF] p-5 sm:p-6">
@@ -1101,7 +1101,7 @@ export default function TicketDetailClient({
       );
     }
 
-    // 3. Ketua RT + Terkirim -> Verifikasi Tiket / Tolak Tiket
+    // Verifikasi laporan oleh Ketua RT
     if (viewer.role === "ketua_rt" && ticket.status === "terkirim") {
       return (
         <section className="rounded-2xl border border-blue-100 bg-[#F4F8FF] p-5 sm:p-6">
@@ -1174,7 +1174,7 @@ export default function TicketDetailClient({
       );
     }
 
-    // 4. Ketua RW / Admin + Diverifikasi RT -> Mulai Proses
+    // Proses penanganan oleh RW atau Admin
     if (
       (viewer.role === "ketua_rw" || viewer.role === "admin") &&
       ticket.status === "diverifikasi_rt"
@@ -1211,7 +1211,7 @@ export default function TicketDetailClient({
       );
     }
 
-    // 5. Ketua RW / Admin + Diproses RW -> Upload Foto Bukti (maks 3) + Selesaikan Tiket
+    // Penyelesaian pengaduan oleh RW atau Admin
     if (
       (viewer.role === "ketua_rw" || viewer.role === "admin") &&
       ticket.status === "diproses_rw"
@@ -2035,7 +2035,7 @@ export default function TicketDetailClient({
             </dl>
           </section>
 
-          {/* 2. Kartu Aksi Dinamis (Termasuk "Bagaimana hasilnya?" untuk Warga saat Selesai) */}
+          {/* Kartu aksi dinamis */}
           {renderRoleActionCard()}
 
           {/* 3. Tentang Status Ditolak */}

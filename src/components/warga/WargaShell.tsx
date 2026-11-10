@@ -70,7 +70,7 @@ export default function WargaShell({
       try {
         localStorage.setItem("sipandu_last_role", "warga");
       } catch {
-        // ignore
+        // Abaikan jika penyimpanan lokal tidak dapat diakses
       }
     }
   }, [pathname]);
@@ -99,7 +99,7 @@ export default function WargaShell({
           }
         }
       } catch {
-        // ignore
+        // Abaikan jika pemuatan cache profil gagal
       }
     };
     syncProfileAndAvatar();

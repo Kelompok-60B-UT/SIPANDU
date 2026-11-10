@@ -1,17 +1,9 @@
 #!/usr/bin/env node
 /**
- * SIPANDU - Demo Tickets & Application Data Seeding Script
+ * Menyediakan tiket pengaduan demo beserta riwayat timeline, lampiran, dan notifikasi.
+ * Hanya menghapus dan mengganti tiket yang memiliki awalan nomor TKT-DEMO-%.
  *
- * Responsibilities:
- * - Dynamically resolves demo user IDs from auth.users (via Auth Admin API)
- * - Enforces environment safety with project-ref allowlist & explicit opt-in (ALLOW_DEMO_SEED=true)
- * - Prohibits execution against protected instances (via PROTECTED_SUPABASE_PROJECT_REFS)
- * - Seeds demo tickets covering full lifecycle: draft, terkirim, diverifikasi_rt, diproses_rw, selesai, ditolak
- * - Seeds timeline audit logs, attachments metadata, and notifications
- * - Supports --dry-run mode
- * - Strictly isolates deletes to demo tickets (TKT-DEMO-%) only
- *
- * Usage:
+ * Penggunaan:
  *   ALLOW_DEMO_SEED=true \
  *   NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321" \
  *   SUPABASE_SERVICE_ROLE_KEY="ey..." \
@@ -21,7 +13,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { enforceDemoGuard } from './demo-guard'
 
-// Run strict target allowlist and environment safety guard
 enforceDemoGuard({ requirePassword: false })
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -32,7 +23,6 @@ if (!serviceRoleKey) {
   process.exit(1)
 }
 
-// Dry-Run Flag
 const isDryRun = process.env.DRY_RUN === 'true' || process.argv.includes('--dry-run')
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -51,7 +41,6 @@ async function seedDemoTickets() {
     console.log('[*] MODE DRY-RUN AKTIF: Tidak ada perubahan data yang dieksekusi.')
   }
 
-  // 1. Resolve Demo Users by Email
   const { data: userList, error: userError } = await supabase.auth.admin.listUsers({ perPage: 1000 })
   if (userError || !userList) {
     console.error('❌ Gagal membaca user list:', userError?.message)
@@ -80,7 +69,6 @@ async function seedDemoTickets() {
     return
   }
 
-  // 2. Ensure Regions & Categories
   console.log('[*] Memastikan data Regions dan Categories...')
   const { error: upsertRegionsError } = await supabase.from('regions').upsert([
     { name: 'RT 01', rw: '06', is_active: true },
@@ -124,7 +112,6 @@ async function seedDemoTickets() {
   const amanCatId = catMap.get('Keamanan') || 3
   const lainCatId = catMap.get('Lainnya') || 6
 
-  // 3. Clear Existing Demo Tickets (Strictly TKT-DEMO-% Only)
   console.log('[*] Membersihkan tiket demo lama (TKT-DEMO-%)...')
   const { error: deleteTicketsError } = await supabase.from('tickets').delete().like('ticket_number', 'TKT-DEMO-%')
   if (deleteTicketsError) {
@@ -132,7 +119,6 @@ async function seedDemoTickets() {
     process.exit(1)
   }
 
-  // 4. Insert Demo Tickets
   console.log('[*] Memasukkan tiket demo lintas siklus...')
   const now = new Date()
 
@@ -229,7 +215,6 @@ async function seedDemoTickets() {
 
   const ticketIdMap = new Map(insertedTickets.map((t) => [t.ticket_number, t.id]))
 
-  // 5. Seed Timeline
   console.log('[*] Memasukkan riwayat timeline pengaduan...')
   const tkt2 = ticketIdMap.get('TKT-DEMO-002')!
   const tkt3 = ticketIdMap.get('TKT-DEMO-003')!
@@ -258,7 +243,6 @@ async function seedDemoTickets() {
     process.exit(1)
   }
 
-  // 6. Seed Attachments Metadata
   console.log('[*] Memasukkan metadata lampiran foto (sebelum & sesudah)...')
   const { error: attachmentsError } = await supabase.from('ticket_attachments').insert([
     {
@@ -287,7 +271,6 @@ async function seedDemoTickets() {
     process.exit(1)
   }
 
-  // 7. Seed Notifications
   console.log('[*] Memasukkan notifikasi sistem...')
   const { error: notificationsError } = await supabase.from('notifications').insert([
     {

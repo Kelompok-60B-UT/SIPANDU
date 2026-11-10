@@ -57,7 +57,7 @@ async function fetchHeroCardData(): Promise<HeroCardData> {
 
   await connection();
 
-  // Ambil angka resmi yang sama persis dengan Stats.tsx (public_stats RPC)
+  // Ambil statistik agregat dari RPC public_stats
   const statsRes = await getPublicStats();
   const selesaiCount = statsRes.success ? statsRes.data.selesai : 0;
   const totalCount = statsRes.success ? statsRes.data.total_tickets : 0;
@@ -65,7 +65,7 @@ async function fetchHeroCardData(): Promise<HeroCardData> {
 
   const summaryText = `${selesaiCount} laporan warga telah selesai ditangani`;
 
-  // Ambil judul & status tiket terbaru untuk baris highlight bawah
+  // Ambil laporan terbaru untuk sorotan publik
   let featured: { title: string; status: TicketStatus } | null = null;
 
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {

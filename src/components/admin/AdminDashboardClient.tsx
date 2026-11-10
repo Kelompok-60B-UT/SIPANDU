@@ -117,7 +117,7 @@ export default function AdminDashboardClient({
     initialData.activities,
   );
 
-  // Pilih default #PG-2026-0265 sesuai desain mockup
+  // Inisialisasi tiket terpilih
   const defaultTicket =
     initialData.tickets.find((t) => t.id === 265) ?? initialData.tickets[0];
   const [selectedTicketId, setSelectedTicketId] = useState<number>(

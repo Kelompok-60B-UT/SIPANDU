@@ -1,5 +1,5 @@
-# SIPANDU — Supabase CLI Configuration
-# For detailed reference: https://supabase.com/docs/guides/local-development/cli/config
+# Konfigurasi Supabase CLI untuk pengembangan lokal SIPANDU
+# Referensi: https://supabase.com/docs/guides/local-development/cli/config
 
 project_id = "sipandu"
 
@@ -27,8 +27,8 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-# Demo data seeding is intentionally disabled by default.
-# Seeding must be explicitly invoked via scripts/seed-demo-users.ts and scripts/seed-demo-tickets.ts
+# Seeding otomatis dinonaktifkan secara bawaan.
+# Jalankan scripts/seed-demo-users.ts dan scripts/seed-demo-tickets.ts bila membutuhkan data demo.
 enabled = false
 sql_paths = []
 
