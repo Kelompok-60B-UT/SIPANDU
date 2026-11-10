@@ -33,7 +33,7 @@ CREATE OR REPLACE FUNCTION public.check_profile_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = public
-AS $
+AS $$
 DECLARE
   v_role text;
   v_jwt_role text;
@@ -59,7 +59,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 4. RPC verify_resident: hanya RT sewilayah atau Admin yang bisa verifikasi

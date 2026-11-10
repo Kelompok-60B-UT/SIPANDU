@@ -41,3 +41,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 FRONTEND_INTEGRATION_GUIDE.md
+
+# supabase
+supabase/.temp/
+
+# backup & archive files
+*.gpg
+*.tar.gz
+*.sql.gz
+
+# agents
+.agents/
