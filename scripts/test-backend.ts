@@ -40,8 +40,8 @@ if (!rawSupabaseUrl || !rawAnonKey || !rawServiceRoleKey) {
 
 if (!rawTestPassword) {
   console.error('⛔ FATAL: Variabel environment TEST_PASSWORD wajib disetel untuk menjalankan test suite backend!')
-  console.error('Penggunaan:')
-  console.error('  ALLOW_DESTRUCTIVE_TEST=true TEST_PASSWORD="YourPassword123!" npx tsx scripts/test-backend.ts')
+  console.error('Penggunaan (Dedicated Supabase Hosted Test Project):')
+  console.error('  ALLOW_DESTRUCTIVE_TEST=true ALLOW_REMOTE_HOSTED_TEST=true ALLOWED_TEST_PROJECT_REF="<ref>" TEST_PASSWORD="YourPassword123!" npx tsx scripts/test-backend.ts')
   process.exit(1)
 }
 

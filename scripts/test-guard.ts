@@ -2,10 +2,11 @@
  * Penjaga target eksekusi untuk skrip pengujian backend (scripts/test-backend.ts).
  *
  * Kebijakan target:
- * - Bawaan: hanya mengizinkan instance lokal (localhost / 127.0.0.1 / 0.0.0.0) dengan ALLOW_DESTRUCTIVE_TEST=true.
+ * - Pengujian mutasi database memerlukan persetujuan eksplisit bertingkat demi mencegah kerusakan data.
  * - Target hosted ditolak secara bawaan karena domain <ref>.supabase.co tidak membedakan lingkungan produksi dan uji.
- * - Pengujian pada project hosted khusus uji memerlukan ALLOW_DESTRUCTIVE_TEST=true, ALLOW_REMOTE_HOSTED_TEST=true,
- *   ALLOWED_TEST_PROJECT_REF yang cocok persis, serta tidak terdaftar di PROTECTED_SUPABASE_PROJECT_REFS.
+ * - Pengujian pada project Supabase Hosted khusus pengujian mewajibkan ALLOW_DESTRUCTIVE_TEST=true,
+ *   ALLOW_REMOTE_HOSTED_TEST=true, ALLOWED_TEST_PROJECT_REF yang cocok persis dengan ref target,
+ *   serta tidak terdaftar di PROTECTED_SUPABASE_PROJECT_REFS.
  */
 
 export interface GuardOptions {

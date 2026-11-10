@@ -2,10 +2,11 @@
 /**
  * Menyediakan 7 akun demo lintas peran melalui Supabase Auth Admin API.
  *
- * Penggunaan:
+ * Penggunaan (pada Supabase Hosted staging/pengujian terpisah):
  *   ALLOW_DEMO_SEED=true \
+ *   ALLOWED_DEMO_PROJECT_REF="<your-staging-project-ref>" \
  *   DEMO_PASSWORD="YourDemoPassword123!" \
- *   NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321" \
+ *   NEXT_PUBLIC_SUPABASE_URL="https://<your-staging-project-ref>.supabase.co" \
  *   SUPABASE_SERVICE_ROLE_KEY="ey..." \
  *   npx tsx scripts/seed-demo-users.ts [--dry-run]
  */
