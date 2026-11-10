@@ -240,6 +240,13 @@ npx supabase db push --remote
 
 Setelah 10 berkas migrasi terpasang, buat akun Administrator perdana menggunakan skrip bootstrap resmi yang memanfaatkan Supabase Auth Admin API:
 
+> [!WARNING]
+> **Peringatan Penggunaan Bootstrap:**
+> - Skrip bootstrap ditujukan untuk inisialisasi Administrator pada project baru setelah migrasi.
+> - Jangan menjalankan ulang skrip terhadap project aktif tanpa alasan dan persetujuan operator.
+> - Menjalankan ulang skrip dengan email Admin yang sudah terdaftar akan memperbarui kredensial dan mengganti password akun tersebut.
+> - Promosi akun non-Admin menjadi Admin diblokir secara otomatis demi mencegah eskalasi privilege dan memerlukan persetujuan eksplisit melalui `ALLOW_ADMIN_ROLE_PROMOTION=true`.
+
 ```bash
 ADMIN_EMAIL="admin@sipandu.id" \
 ADMIN_PASSWORD="GantiDenganPasswordKuatMin12Karakter!" \

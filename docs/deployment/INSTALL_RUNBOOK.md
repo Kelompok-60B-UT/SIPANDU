@@ -25,10 +25,6 @@
     - [Langkah 6.4: Eksekusi Migrasi Database Remote](#langkah-64-eksekusi-migrasi-database-remote)
   - [7. Prosedur Bootstrap Root Administrator](#7-prosedur-bootstrap-root-administrator)
   - [8. Prosedur Deployment ke Vercel](#8-prosedur-deployment-ke-vercel)
-  - [9. Prosedur Seeding Demo Sintetis (Staging Terpisah - Opsional)](#9-prosedur-seeding-demo-sintetis-staging-terpisah---opsional)
-    - [Langkah 9.1: Provisioning Akun Demo](#langkah-91-provisioning-akun-demo)
-    - [Langkah 9.2: Seeding Data Tiket \& Siklus Pengaduan](#langkah-92-seeding-data-tiket--siklus-pengaduan)
-  - [10. Prosedur Pengujian Backend \& RLS (Dedicated Test Project)](#10-prosedur-pengujian-backend--rls-dedicated-test-project)
 - [BAGIAN B: Catatan Pemeliharaan Proyek Demo Hosted Terproteksi](#bagian-b-catatan-pemeliharaan-proyek-demo-hosted-terproteksi)
   - [1. Status Operasional Proyek Demo](#1-status-operasional-proyek-demo)
   - [2. Rekam Historis Skema \& Rekonsiliasi Migrasi (0001–0010)](#2-rekam-historis-skema--rekonsiliasi-migrasi-00010010)
@@ -191,6 +187,13 @@ npx supabase db push --remote
 ## 7. Prosedur Bootstrap Root Administrator
 
 Setelah 10 migrasi selesai diterapkan, buat akun Administrator perdana menggunakan skrip bootstrap resmi (Auth Admin API):
+
+> [!WARNING]
+> **Peringatan Penggunaan Bootstrap:**
+> - Skrip bootstrap ditujukan untuk inisialisasi Administrator pada project baru setelah migrasi.
+> - Jangan menjalankan ulang skrip terhadap project aktif tanpa alasan dan persetujuan operator.
+> - Menjalankan ulang skrip dengan email Admin yang sudah terdaftar akan memperbarui kredensial dan mengganti password akun tersebut.
+> - Promosi akun non-Admin menjadi Admin diblokir secara otomatis demi mencegah eskalasi privilege dan memerlukan persetujuan eksplisit melalui `ALLOW_ADMIN_ROLE_PROMOTION=true`.
 
 ```bash
 ADMIN_EMAIL="admin@sipandu.id" \

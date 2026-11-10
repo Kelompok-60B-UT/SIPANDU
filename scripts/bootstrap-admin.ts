@@ -3,6 +3,12 @@
  * Menyediakan akun Administrator awal melalui Supabase Auth Admin API
  * dan memastikan profil memenuhi prasyarat migrasi 0007 (is_active = true).
  *
+ * Peringatan Operasional:
+ * - Skrip ini ditujukan untuk inisialisasi Administrator pada project baru setelah migrasi.
+ * - Jangan menjalankan ulang skrip terhadap project aktif tanpa alasan dan persetujuan operator.
+ * - Menjalankan ulang skrip dengan email Admin yang sudah terdaftar akan memperbarui kredensial dan mengganti password akun tersebut.
+ * - Promosi akun non-Admin menjadi Admin diblokir secara otomatis dan memerlukan ALLOW_ADMIN_ROLE_PROMOTION=true.
+ *
  * Penggunaan:
  *   NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co" \
  *   SUPABASE_SERVICE_ROLE_KEY="ey..." \
