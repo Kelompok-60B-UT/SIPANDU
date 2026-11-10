@@ -1,10 +1,12 @@
 import 'server-only'
 
-import { createClient } from '@/utils/supabase/server'
+import { createClient, isSupabaseConfigured } from '@/utils/supabase/server'
 import { getRoleFromJwt } from '@/utils/roles'
 import type { UserRole } from '@/types/database.types'
 
 export async function getCurrentUser() {
+  if (!isSupabaseConfigured()) return null
+
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) return null

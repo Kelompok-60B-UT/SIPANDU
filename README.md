@@ -193,6 +193,9 @@ npm install
 
 ### Langkah 3: Konfigurasi File Environment Lokal
 
+> [!NOTE]
+> File `.env.local` **hanya digunakan untuk pengembangan lokal** pada komputer Anda (`npm run dev`). Untuk deployment ke Vercel (Preview maupun Production), konfigurasi lingkungan diatur melalui dashboard Vercel (**Project Settings → Environment Variables**), bukan melalui `.env.local`.
+
 Salin template konfigurasi lingkungan:
 
 ```bash
@@ -275,7 +278,7 @@ Setelah database Supabase Hosted siap dan akun Administrator telah dibuat, deplo
    - **Build Command**: `next build` (bawaan).
    - **Output Directory**: `.next` (bawaan).
 4. **Environment Variables**:
-   Tambahkan variabel lingkungan berikut pada dashboard Vercel (pilih environment *Production* dan *Preview*):
+   Tambahkan variabel lingkungan berikut pada dashboard Vercel (**Project Settings → Environment Variables**). Pastikan mencentang kedua opsi environment: **Production** dan **Preview**:
    - `NEXT_PUBLIC_SUPABASE_URL`: `https://<YOUR_PROJECT_REF>.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: `<YOUR_ANON_KEY>`
    - `SUPABASE_SERVICE_ROLE_KEY`: `<YOUR_SERVICE_ROLE_KEY>`
@@ -283,6 +286,9 @@ Setelah database Supabase Hosted siap dan akun Administrator telah dibuat, deplo
    - `NEXT_PUBLIC_APP_RW`: `06`
    - `NEXT_PUBLIC_APP_AREA_NAME`: `Parakan Saat, Bandung`
    - `NEXT_PUBLIC_APP_CITY`: `Kota Bandung`
+
+   > [!IMPORTANT]
+   > Variabel dengan prefix `NEXT_PUBLIC_*` disematkan (*inlined*) ke bundle JavaScript klien pada saat proses build (`next build`). Pastikan seluruh variabel di atas telah disimpan pada environment **Production** dan **Preview** sebelum memicu deployment, atau lakukan **Redeploy** jika variabel baru ditambahkan setelah build pertama.
 5. **Deploy**: Klik tombol **Deploy** dan tunggu proses kompilasi Next.js selesai hingga Vercel menerbitkan domain produksi (misalnya `https://sipandu-rw06.vercel.app`).
 6. **Sesuaikan Supabase Auth Redirect URLs**:
    Masuk ke **Supabase Dashboard** -> **Authentication** -> **URL Configuration**:

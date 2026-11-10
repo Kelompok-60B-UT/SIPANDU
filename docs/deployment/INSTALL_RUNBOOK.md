@@ -23,8 +23,7 @@
     - [Langkah 6.2: Konfigurasi File Lingkungan Lokal](#langkah-62-konfigurasi-file-lingkungan-lokal)
     - [Langkah 6.3: Tautkan Supabase CLI ke Project Hosted](#langkah-63-tautkan-supabase-cli-ke-project-hosted)
     - [Langkah 6.4: Eksekusi Migrasi Database Remote](#langkah-64-eksekusi-migrasi-database-remote)
-  - [7. Prosedur Bootstrap Root Administrator](#7-prosedur-bootstrap-root-administrator)
-  - [8. Prosedur Deployment ke Vercel](#8-prosedur-deployment-ke-vercel)
+  - [7. Prosedur Deployment ke Vercel](#7-prosedur-deployment-ke-vercel)
 - [BAGIAN B: Catatan Pemeliharaan Proyek Demo Hosted Terproteksi](#bagian-b-catatan-pemeliharaan-proyek-demo-hosted-terproteksi)
   - [1. Status Operasional Proyek Demo](#1-status-operasional-proyek-demo)
   - [2. Rekam Historis Skema \& Rekonsiliasi Migrasi (0001–0010)](#2-rekam-historis-skema--rekonsiliasi-migrasi-00010010)
@@ -105,9 +104,6 @@ Hanya digunakan pada runtime server (Server Actions, Route Handlers) di Vercel d
 SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
-> [!CAUTION]
-> Jangan pernah memublikasikan `SUPABASE_SERVICE_ROLE_KEY` ke repositori Git publik, jangan mengeksposnya ke sisi klien browser, dan jangan menyertakannya dengan prefix `NEXT_PUBLIC_`. Jangan pernah mengarahkan `.env.local` ke database demo hosted yang dilindungi.
-
 ---
 
 ## 5. Silsilah 10 Migrasi Kanonik (Single Migration Lineage)
@@ -137,6 +133,10 @@ Direktori `supabase/migrations/` memuat tepat 10 berkas migrasi kanonik beruruta
 3. Salin Project URL, Project Reference ID (`<NEW_PROJECT_REF>`), Anon Key, dan Service Role Key dari menu **Project Settings** -> **API**.
 
 ### Langkah 6.2: Konfigurasi File Lingkungan Lokal
+
+> [!NOTE]
+> File `.env.local` **hanya digunakan untuk pengembangan lokal** pada komputer Anda. Untuk deployment Vercel (Preview dan Production), variabel lingkungan dikonfigurasi melalui dashboard Vercel (**Project Settings → Environment Variables**), bukan melalui file `.env.local`.
+
 Salin berkas template lingkungan:
 ```bash
 cp .env.example .env.local
@@ -182,37 +182,8 @@ npx supabase db push --remote
 - Trigger penegakan invariant admin terakhir (`tr_protect_last_admin`) aktif.
 - RPC `verify_ticket`, `reject_ticket`, dan `verify_resident` telah diamankan dengan validasi wilayah NULL-safe.
 
----
 
-## 7. Prosedur Bootstrap Root Administrator
-
-Setelah 10 migrasi selesai diterapkan, buat akun Administrator perdana menggunakan skrip bootstrap resmi yang berada pada paket tooling eksternal (`sipandu-tooling`) via Supabase Auth Admin API:
-
-> [!WARNING]
-> **Peringatan Penggunaan Bootstrap:**
-> - Skrip bootstrap ditujukan untuk inisialisasi Administrator pada project baru setelah migrasi.
-> - Jangan menjalankan ulang skrip terhadap project aktif tanpa alasan dan persetujuan operator.
-> - Menjalankan ulang skrip dengan email Admin yang sudah terdaftar akan memperbarui kredensial dan mengganti password akun tersebut.
-> - Promosi akun non-Admin menjadi Admin diblokir secara otomatis demi mencegah eskalasi privilege dan memerlukan persetujuan eksplisit melalui `ALLOW_ADMIN_ROLE_PROMOTION=true`.
-
-Masuk ke direktori tooling eksternal (misalnya `../sipandu-tooling`) dan jalankan skrip bootstrap:
-
-```bash
-cd ../sipandu-tooling
-
-ADMIN_EMAIL="admin@sipandu.id" \
-ADMIN_PASSWORD="GantiDenganPasswordKuatMin12Karakter!" \
-NEXT_PUBLIC_SUPABASE_URL="https://<NEW_PROJECT_REF>.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>" \
-npx tsx bootstrap-admin.ts
-```
-
-*Verifikasi:*
-Skrip akan mendaftarkan user dengan klaim tepercaya `app_metadata.sipandu_role = 'admin'` dan menghasilkan profil aktif di tabel `public.profiles` (`is_active = true`, `is_rt_verified = true`).
-
----
-
-## 8. Prosedur Deployment ke Vercel
+## 7. Prosedur Deployment ke Vercel
 
 Setelah database Supabase Hosted siap dan akun Administrator telah terdaftar:
 
@@ -224,7 +195,7 @@ Setelah database Supabase Hosted siap dan akun Administrator telah terdaftar:
    - **Build Command:** `next build`
    - **Output Directory:** `.next`
 4. **Environment Variables di Vercel:**
-   Tambahkan variabel lingkungan berikut pada menu pengaturan Vercel (Environment: Production & Preview):
+   Tambahkan variabel lingkungan berikut pada menu pengaturan Vercel (**Project Settings → Environment Variables**). Pastikan mencentang kedua opsi environment: **Production** dan **Preview**:
    - `NEXT_PUBLIC_SUPABASE_URL`: `https://<NEW_PROJECT_REF>.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: `<YOUR_ANON_KEY>`
    - `SUPABASE_SERVICE_ROLE_KEY`: `<YOUR_SERVICE_ROLE_KEY>`
@@ -232,6 +203,9 @@ Setelah database Supabase Hosted siap dan akun Administrator telah terdaftar:
    - `NEXT_PUBLIC_APP_RW`: `06`
    - `NEXT_PUBLIC_APP_AREA_NAME`: `Parakan Saat, Bandung`
    - `NEXT_PUBLIC_APP_CITY`: `Kota Bandung`
+
+   > [!IMPORTANT]
+   > Variabel dengan prefix `NEXT_PUBLIC_*` disematkan (*inlined*) ke bundle JavaScript klien pada saat proses build (`next build`). Pastikan seluruh variabel di atas telah disimpan pada environment **Production** dan **Preview** sebelum memicu deployment, atau lakukan **Redeploy** jika variabel baru ditambahkan setelah build pertama.
 5. **Jalankan Deployment:** Klik tombol **Deploy** dan verifikasi hasil build Next.js.
 6. **Sesuaikan Supabase Auth URL Configuration:**
    Buka **Supabase Dashboard** -> **Authentication** -> **URL Configuration**:
@@ -294,9 +268,6 @@ Sebelum penerapan migrasi 0009 pada proyek hosted, telah dibuat cadangan penuh (
 - Disimpan terisolasi di luar repositori Git pada direktori backup terenkripsi offline yang aman (`<SECURE_BACKUP_DIR>`).
 - Dienkripsi dengan AES-256 via GPG (`hosted_backup_20261110_000003_predeployment.tar.gz.gpg`).
 - Telah diuji restorasi pada container terisolasi PostgreSQL 17 dengan kecocokan baris data 100%.
-
-> [!CAUTION]
-> **Larangan Target Cadangan:** Jika terjadi kendala infrastruktur pada lingkungan pengujian baru, pengembang/evaluator **TIDAK BOLEH** mengalihkan `.env.local` ke instance demo hosted yang dilindungi. Solusi yang benar adalah membuat proyek Supabase Hosted pengujian baru yang terisolasi sesuai Bagian A.
 
 ---
 

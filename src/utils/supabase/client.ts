@@ -8,7 +8,9 @@ export function isSupabaseConfigured(): boolean {
     url &&
       key &&
       !url.includes('your-project') &&
-      !url.includes('your-supabase'),
+      !url.includes('your-supabase') &&
+      !key.includes('your-anon-key') &&
+      !key.includes('your-supabase'),
   )
 }
 

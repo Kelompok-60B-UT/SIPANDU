@@ -50,7 +50,7 @@ export async function login(formData: FormData): Promise<AuthResponse | never> {
   if (!isSupabaseConfigured()) {
     return {
       error:
-        'Konfigurasi Supabase belum diatur. Silakan lengkapi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY di .env.local.',
+        'Konfigurasi Supabase belum tersedia. Pastikan NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY telah dikonfigurasi pada environment aplikasi yang digunakan.',
     }
   }
 
@@ -84,7 +84,7 @@ export async function signup(formData: FormData): Promise<AuthResponse> {
   if (!isSupabaseConfigured()) {
     return {
       error:
-        'Konfigurasi Supabase belum diatur. Silakan lengkapi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY di .env.local.',
+        'Konfigurasi Supabase belum tersedia. Pastikan NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY telah dikonfigurasi pada environment aplikasi yang digunakan.',
     }
   }
 
