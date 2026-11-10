@@ -800,6 +800,10 @@ export async function saveRegion(input: {
 export async function deleteRegion(
   regionId: number,
 ): Promise<ActionResult<{ fallbackRegionId: number; fallbackRegionName: string }>> {
+  if (typeof regionId !== 'number' || !Number.isInteger(regionId) || regionId <= 0) {
+    return err('ID wilayah RT tidak valid')
+  }
+
   if (!isSupabaseConfigured()) {
     return ok({ fallbackRegionId: 1, fallbackRegionName: 'RT 01' })
   }
@@ -809,40 +813,121 @@ export async function deleteRegion(
 
   try {
     const admin = createAdminClient()
-    const { data: otherRegions } = await admin
+
+    // 1. Cari wilayah aktif lain sebagai fallback penampung
+    const { data: otherRegions, error: fallbackQueryErr } = await admin
       .from('regions')
       .select('id, name')
       .neq('id', regionId)
+      .eq('is_active', true)
       .order('id', { ascending: true })
 
+    if (fallbackQueryErr) {
+      return err(`Gagal memuat wilayah penampung: ${supabaseErrorToMessage(fallbackQueryErr)}`)
+    }
+
     if (!otherRegions || otherRegions.length === 0) {
-      return err('Minimal harus ada 1 wilayah RT aktif di dalam sistem.')
+      return err('Minimal harus ada 1 wilayah RT aktif lain di dalam sistem sebagai penampung.')
     }
 
     const fallback = otherRegions[0]
+    const now = new Date().toISOString()
 
-    // Pindahkan warga & tiket yang terhubung ke wilayah penampung agar tidak melanggar FK
-    await admin
+    // 2. Pindahkan profil warga yang terhubung ke wilayah asal dan simpan ID yang dipindahkan
+    const { data: movedProfiles, error: profileUpdateErr } = await admin
       .from('profiles')
       .update({
         region_id: fallback.id,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       })
       .eq('region_id', regionId)
+      .select('id')
 
-    await admin
+    if (profileUpdateErr) {
+      return err(`Gagal memindahkan profil warga ke wilayah penampung: ${supabaseErrorToMessage(profileUpdateErr)}`)
+    }
+
+    const movedProfileIds = (movedProfiles ?? []).map((p) => p.id)
+
+    // 3. Pindahkan tiket yang terhubung ke wilayah asal dan simpan ID yang dipindahkan
+    const { data: movedTickets, error: ticketUpdateErr } = await admin
       .from('tickets')
       .update({
         region_id: fallback.id,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       })
       .eq('region_id', regionId)
+      .select('id')
 
+    if (ticketUpdateErr) {
+      let rollbackProfileError: string | null = null
+      if (movedProfileIds.length > 0) {
+        const { error: rbProfErr } = await admin
+          .from('profiles')
+          .update({
+            region_id: regionId,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', movedProfileIds)
+        if (rbProfErr) {
+          rollbackProfileError = supabaseErrorToMessage(rbProfErr)
+        }
+      }
+
+      if (rollbackProfileError) {
+        return err(
+          `Gagal memindahkan tiket (${supabaseErrorToMessage(ticketUpdateErr)}) dan rollback profil warga gagal (${rollbackProfileError}). Sebagian profil mungkin telah berpindah ke wilayah ${fallback.name}. Wilayah asal belum dihapus.`
+        )
+      }
+
+      return err(`Gagal memindahkan tiket ke wilayah penampung: ${supabaseErrorToMessage(ticketUpdateErr)}`)
+    }
+
+    const movedTicketIds = (movedTickets ?? []).map((t) => t.id)
+
+    // 4. Hapus wilayah asal setelah relokasi berhasil
     const { error: delErr } = await admin
       .from('regions')
       .delete()
       .eq('id', regionId)
-    if (delErr) return err(supabaseErrorToMessage(delErr))
+
+    if (delErr) {
+      const rollbackErrors: string[] = []
+
+      if (movedTicketIds.length > 0) {
+        const { error: rbTicketErr } = await admin
+          .from('tickets')
+          .update({
+            region_id: regionId,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', movedTicketIds)
+        if (rbTicketErr) {
+          rollbackErrors.push(`tiket: ${supabaseErrorToMessage(rbTicketErr)}`)
+        }
+      }
+
+      if (movedProfileIds.length > 0) {
+        const { error: rbProfErr } = await admin
+          .from('profiles')
+          .update({
+            region_id: regionId,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', movedProfileIds)
+        if (rbProfErr) {
+          rollbackErrors.push(`profil: ${supabaseErrorToMessage(rbProfErr)}`)
+        }
+      }
+
+      if (rollbackErrors.length > 0) {
+        return err(
+          `Gagal menghapus wilayah (${supabaseErrorToMessage(delErr)}) dan rollback relokasi sebagian gagal (${rollbackErrors.join(', ')}). Sebagian data mungkin telah berpindah ke wilayah ${fallback.name}. Wilayah asal belum dihapus.`
+        )
+      }
+
+      return err(`Gagal menghapus wilayah RT: ${supabaseErrorToMessage(delErr)}`)
+    }
 
     revalidatePath('/dashboard/admin')
     revalidatePath('/dashboard/rt')

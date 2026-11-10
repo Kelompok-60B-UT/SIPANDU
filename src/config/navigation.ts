@@ -109,7 +109,7 @@ export const RT_NAV_ITEMS: readonly NavItem[] = [
   {
     key: "verifikasi",
     label: "Verifikasi laporan",
-    href: "/dashboard/rt#antrean-verifikasi",
+    href: "/dashboard/rt#pemeriksaan-laporan",
     icon: ClipboardCheck,
   },
   {

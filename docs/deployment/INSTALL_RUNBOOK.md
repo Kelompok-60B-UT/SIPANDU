@@ -186,7 +186,7 @@ npx supabase db push --remote
 
 ## 7. Prosedur Bootstrap Root Administrator
 
-Setelah 10 migrasi selesai diterapkan, buat akun Administrator perdana menggunakan skrip bootstrap resmi (Auth Admin API):
+Setelah 10 migrasi selesai diterapkan, buat akun Administrator perdana menggunakan skrip bootstrap resmi yang berada pada paket tooling eksternal (`sipandu-tooling`) via Supabase Auth Admin API:
 
 > [!WARNING]
 > **Peringatan Penggunaan Bootstrap:**
@@ -195,12 +195,16 @@ Setelah 10 migrasi selesai diterapkan, buat akun Administrator perdana menggunak
 > - Menjalankan ulang skrip dengan email Admin yang sudah terdaftar akan memperbarui kredensial dan mengganti password akun tersebut.
 > - Promosi akun non-Admin menjadi Admin diblokir secara otomatis demi mencegah eskalasi privilege dan memerlukan persetujuan eksplisit melalui `ALLOW_ADMIN_ROLE_PROMOTION=true`.
 
+Masuk ke direktori tooling eksternal (misalnya `../sipandu-tooling`) dan jalankan skrip bootstrap:
+
 ```bash
+cd ../sipandu-tooling
+
 ADMIN_EMAIL="admin@sipandu.id" \
 ADMIN_PASSWORD="GantiDenganPasswordKuatMin12Karakter!" \
 NEXT_PUBLIC_SUPABASE_URL="https://<NEW_PROJECT_REF>.supabase.co" \
 SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>" \
-npx tsx scripts/bootstrap-admin.ts
+npx tsx bootstrap-admin.ts
 ```
 
 *Verifikasi:*
