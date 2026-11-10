@@ -8,22 +8,34 @@
 
 ## 📋 Struktur Dokumen
 
+- [SIPANDU — DEVELOPER INSTALLATION \& DEPLOYMENT RUNBOOK](#sipandu--developer-installation--deployment-runbook)
+  - [📋 Struktur Dokumen](#-struktur-dokumen)
 - [BAGIAN A: Panduan Fresh Deployment (Vercel + Supabase Hosted)](#bagian-a-panduan-fresh-deployment-vercel--supabase-hosted)
   - [1. Target Arsitektur Cloud Hosted](#1-target-arsitektur-cloud-hosted)
-  - [2. Prasyarat Sistem & Dependensi](#2-prasyarat-sistem--dependensi)
-  - [3. Kloning Repositori & Instalasi Paket](#3-kloning-repositori--instalasi-paket)
-  - [4. Audit & Pemetaan Environment Variables](#4-audit--pemetaan-environment-variables)
+  - [2. Prasyarat Sistem \& Dependensi](#2-prasyarat-sistem--dependensi)
+  - [3. Kloning Repositori \& Instalasi Paket](#3-kloning-repositori--instalasi-paket)
+  - [4. Audit \& Pemetaan Environment Variables](#4-audit--pemetaan-environment-variables)
+    - [A. Variabel Publik Klien (`NEXT_PUBLIC_*`)](#a-variabel-publik-klien-next_public_)
+    - [B. Variabel Server-Side Secret](#b-variabel-server-side-secret)
   - [5. Silsilah 10 Migrasi Kanonik (Single Migration Lineage)](#5-silsilah-10-migrasi-kanonik-single-migration-lineage)
-  - [6. Prosedur Setup & Migrasi Supabase Hosted](#6-prosedur-setup--migrasi-supabase-hosted)
+  - [6. Prosedur Setup \& Migrasi Supabase Hosted](#6-prosedur-setup--migrasi-supabase-hosted)
+    - [Langkah 6.1: Buat Project Baru di Supabase Dashboard](#langkah-61-buat-project-baru-di-supabase-dashboard)
+    - [Langkah 6.2: Konfigurasi File Lingkungan Lokal](#langkah-62-konfigurasi-file-lingkungan-lokal)
+    - [Langkah 6.3: Tautkan Supabase CLI ke Project Hosted](#langkah-63-tautkan-supabase-cli-ke-project-hosted)
+    - [Langkah 6.4: Eksekusi Migrasi Database Remote](#langkah-64-eksekusi-migrasi-database-remote)
   - [7. Prosedur Bootstrap Root Administrator](#7-prosedur-bootstrap-root-administrator)
   - [8. Prosedur Deployment ke Vercel](#8-prosedur-deployment-ke-vercel)
   - [9. Prosedur Seeding Demo Sintetis (Staging Terpisah - Opsional)](#9-prosedur-seeding-demo-sintetis-staging-terpisah---opsional)
-  - [10. Prosedur Pengujian Backend & RLS (Dedicated Test Project)](#10-prosedur-pengujian-backend--rls-dedicated-test-project)
+    - [Langkah 9.1: Provisioning Akun Demo](#langkah-91-provisioning-akun-demo)
+    - [Langkah 9.2: Seeding Data Tiket \& Siklus Pengaduan](#langkah-92-seeding-data-tiket--siklus-pengaduan)
+  - [10. Prosedur Pengujian Backend \& RLS (Dedicated Test Project)](#10-prosedur-pengujian-backend--rls-dedicated-test-project)
 - [BAGIAN B: Catatan Pemeliharaan Proyek Demo Hosted Terproteksi](#bagian-b-catatan-pemeliharaan-proyek-demo-hosted-terproteksi)
   - [1. Status Operasional Proyek Demo](#1-status-operasional-proyek-demo)
-  - [2. Rekam Historis Skema & Rekonsiliasi Migrasi (0001–0010)](#2-rekam-historis-skema--rekonsiliasi-migrasi-00010010)
-  - [3. Prosedur Backup & Kontinjensi](#3-prosedur-backup--kontinjensi)
-- [BAGIAN C: Prinsip Keamanan & Tata Kelola Kunci Akses](#bagian-c-prinsip-keamanan--tata-kelola-kunci-akses)
+  - [2. Rekam Historis Skema \& Rekonsiliasi Migrasi (0001–0010)](#2-rekam-historis-skema--rekonsiliasi-migrasi-00010010)
+    - [A. Kesesuaian Definisi Skema DDL (Schema Parity)](#a-kesesuaian-definisi-skema-ddl-schema-parity)
+    - [B. Rekonsiliasi Version ID vs Penamaan Berkas Kanonik](#b-rekonsiliasi-version-id-vs-penamaan-berkas-kanonik)
+  - [3. Prosedur Backup \& Kontinjensi](#3-prosedur-backup--kontinjensi)
+- [BAGIAN C: Prinsip Keamanan \& Tata Kelola Kunci Akses](#bagian-c-prinsip-keamanan--tata-kelola-kunci-akses)
 
 ---
 
@@ -221,71 +233,6 @@ Setelah database Supabase Hosted siap dan akun Administrator telah terdaftar:
 
 ---
 
-## 9. Prosedur Seeding Demo Sintetis (Staging Terpisah - Opsional)
-
-> [!CAUTION]
-> Skrip data demo **DILARANG** dijalankan pada database produksi maupun pada project demo yang masuk dalam `PROTECTED_SUPABASE_PROJECT_REFS`. Skrip dilengkapi guard pengaman `scripts/demo-guard.ts` yang mewajibkan opt-in eksplisit bertingkat:
-
-Hanya jalankan pada project Supabase Hosted khusus staging terpisah:
-
-### Langkah 9.1: Provisioning Akun Demo
-```bash
-ALLOW_DEMO_SEED=true \
-ALLOWED_DEMO_PROJECT_REF="<YOUR_STAGING_PROJECT_REF>" \
-DEMO_PASSWORD="DemoPassword123!" \
-NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_STAGING_PROJECT_REF>.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>" \
-npx tsx scripts/seed-demo-users.ts
-```
-
-Daftar akun demo yang dibuat:
-| Peran | Email | Wilayah | Status Verifikasi |
-|---|---|:---:|:---:|
-| **Admin** | `admin@sipandu.test` | - | Aktif / Terverifikasi |
-| **Ketua RW** | `rw06@sipandu.test` | RW 06 | Aktif / Terverifikasi |
-| **Ketua RT 01** | `rt01@sipandu.test` | RT 01 | Aktif / Terverifikasi |
-| **Ketua RT 02** | `rt02@sipandu.test` | RT 02 | Aktif / Terverifikasi |
-| **Warga RT 01** | `warga1@sipandu.test` | RT 01 | Aktif / **Terverifikasi** |
-| **Warga RT 01** | `warga.pending@sipandu.test` | RT 01 | Aktif / **Menunggu Verifikasi RT (`is_rt_verified = false`)** |
-| **Warga RT 02** | `warga2@sipandu.test` | RT 02 | Aktif / **Terverifikasi** |
-
-### Langkah 9.2: Seeding Data Tiket & Siklus Pengaduan
-```bash
-ALLOW_DEMO_SEED=true \
-ALLOWED_DEMO_PROJECT_REF="<YOUR_STAGING_PROJECT_REF>" \
-NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_STAGING_PROJECT_REF>.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>" \
-npx tsx scripts/seed-demo-tickets.ts
-```
-
-Skrip ini memasukkan 6 tiket pengaduan demo lintas status (`draft`, `terkirim`, `diverifikasi_rt`, `diproses_rw`, `selesai`, `ditolak`), riwayat kronologi, dan notifikasi alur kerja.
-
----
-
-## 10. Prosedur Pengujian Backend & RLS (Dedicated Test Project)
-
-Uji seluruh aturan keamanan database, RLS, dan transisi state machine menggunakan test suite terintegrasi (`scripts/test-backend.ts`).
-
-> [!CAUTION]
-> Test suite backend melakukan mutasi data pengujian terisolasi dan dilindungi oleh *fail-closed target guard*. Skrip **DILARANG MUTLAK** dijalankan pada database demo hosted yang dilindungi (`PROTECTED_SUPABASE_PROJECT_REFS`) maupun domain produksi.
->
-> Pengujian wajib ditargetkan ke **dedicated Supabase Hosted test project** terpisah dengan opt-in bertingkat:
-
-```bash
-ALLOW_DESTRUCTIVE_TEST=true \
-ALLOW_REMOTE_HOSTED_TEST=true \
-ALLOWED_TEST_PROJECT_REF="<YOUR_TEST_PROJECT_REF>" \
-TEST_PASSWORD="DemoPassword123!" \
-NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_TEST_PROJECT_REF>.supabase.co" \
-NEXT_PUBLIC_SUPABASE_ANON_KEY="<YOUR_TEST_ANON_KEY>" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_TEST_SERVICE_ROLE_KEY>" \
-npx tsx scripts/test-backend.ts
-```
-
-*Ekspektasi:* Seluruh 44 skenario pengujian lulus (`passed: true`) dengan 0 kegagalan assertion, dan seluruh resource pengujian (tiket, user uji, notifikasi non-tiket, file storage) dibersihkan secara idempoten melalui modul pembersihan terpusat `executeCleanup`.
-
----
-
 # BAGIAN B: Catatan Pemeliharaan Proyek Demo Hosted Terproteksi
 
 Bagian ini mendokumentasikan status dan riwayat operasional proyek demo hosted Supabase SIPANDU.
@@ -294,11 +241,11 @@ Bagian ini mendokumentasikan status dan riwayat operasional proyek demo hosted S
 
 ## 1. Status Operasional Proyek Demo
 
-* **Project ID:** `<PROTECTED_DEMO_PROJECT_REF>` (Dikonfigurasi melalui `PROTECTED_SUPABASE_PROJECT_REFS`)
+* **Project ID:** `<PROTECTED_DEMO_PROJECT_REF>`
 * **Region:** `ap-southeast-2` (AWS Sydney)
 * **Status:** **READ-ONLY / DEMO ACTIVE**
 * **Kebijakan Pemeliharaan:** Proyek ini digunakan secara aktif untuk demonstrasi capstone. Tidak boleh dilakukan DDL destruktif, reset database, atau operasi pembersihan data pada instans ini.
-* **Larangan Target Aplikasi & Testing:** Instance demo hosted terproteksi **DILARANG KERAS** dijadikan target konfigurasi `.env.local`, pengembangan lokal, maupun target eksekusi test suite backend. Instans ini terisolasi murni sebagai media tinjauan langsung (demo).
+* **Larangan Target Aplikasi & Testing:** Instance demo hosted terproteksi **DILARANG KERAS** dijadikan target konfigurasi `.env.local` maupun pengembangan lokal. Instans ini terisolasi murni sebagai media tinjauan langsung (demo).
 
 ---
 

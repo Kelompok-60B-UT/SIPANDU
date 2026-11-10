@@ -36,11 +36,9 @@ Pengembang dan evaluator dapat memasang, mengonfigurasi, menguji, dan menjalanka
    - [Langkah 6: Bootstrap Root Administrator](#langkah-6-bootstrap-root-administrator)
 9. [Panduan Deployment ke Vercel](#-panduan-deployment-ke-vercel)
 10. [Menjalankan Aplikasi secara Lokal (Dev Mode)](#-menjalankan-aplikasi-secara-lokal-dev-mode)
-11. [Seeding Pengguna & Tiket Demo (Staging Terpisah - Opsional)](#-seeding-pengguna--tiket-demo-staging-terpisah---opsional)
-12. [Pengujian Backend & RLS (Dedicated Test Project)](#-pengujian-backend--rls-dedicated-test-project)
-13. [Prinsip Keamanan & Tata Kelola Data](#-prinsip-keamanan--tata-kelola-data)
-14. [Troubleshooting & FAQ](#-troubleshooting--faq)
-15. [Lisensi & Referensi Dokumentasi](#-lisensi--referensi-dokumentasi)
+11. [Prinsip Keamanan & Tata Kelola Data](#-prinsip-keamanan--tata-kelola-data)
+12. [Troubleshooting & FAQ](#-troubleshooting--faq)
+13. [Lisensi & Referensi Dokumentasi](#-lisensi--referensi-dokumentasi)
 
 ---
 
@@ -169,20 +167,6 @@ Variabel ini bersifat rahasia dan **HANYA** digunakan oleh runtime server (Serve
 | Nama Variabel | Wajib / Opsional | Deskripsi |
 |---|:---:|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | **Wajib** | Supabase Service Role Secret Key. Memiliki akses penuh melewati RLS. **DILARANG KERAS** diekspos ke klien browser, dimasukkan ke repositori Git, atau diberi prefix `NEXT_PUBLIC_`. |
-
-### C. Variabel Pengaman Eksekusi Skrip (CLI Guards)
-Digunakan secara kondisional saat mengeksekusi skrip pengujian atau seeding data:
-
-| Nama Variabel | Wajib / Opsional | Deskripsi |
-|---|:---:|---|
-| `PROTECTED_SUPABASE_PROJECT_REFS` | Rekomendasi | Daftar project ref (dipisahkan koma) yang mutlak dilindungi dari eksekusi skrip destruktif/seeding. |
-| `ALLOW_DESTRUCTIVE_TEST` | Khusus Uji | Wajib disetel `"true"` untuk konfirmasi eksekusi mutasi pengujian pada backend test suite. |
-| `ALLOW_REMOTE_HOSTED_TEST` | Khusus Uji | Wajib disetel `"true"` untuk mengizinkan penargetan remote Supabase Hosted pada pengujian. |
-| `ALLOWED_TEST_PROJECT_REF` | Khusus Uji | Project ref target pengujian yang harus cocok persis dengan ref pada URL Supabase. |
-| `TEST_PASSWORD` | Khusus Uji | Password akun uji coba untuk autentikasi test suite. |
-| `ALLOW_DEMO_SEED` | Khusus Seeding | Wajib disetel `"true"` untuk konfirmasi eksekusi seeding demo. |
-| `ALLOWED_DEMO_PROJECT_REF` | Khusus Seeding | Project ref staging target yang harus cocok persis dengan ref pada URL Supabase. |
-| `DEMO_PASSWORD` | Khusus Seeding | Password akun demo yang akan dibuat (minimal 8 karakter). |
 
 ---
 
@@ -317,63 +301,6 @@ Buka [http://localhost:3000](http://localhost:3000) pada peramban web Anda.
 
 ---
 
-## 🎭 Seeding Pengguna & Tiket Demo (Staging Terpisah - Opsional)
-
-> [!CAUTION]
-> Skrip seeding data demo **BUKAN** bagian wajib dari deployment produksi.
-> Skrip ini **DILARANG KERAS** dijalankan pada database produksi maupun project demo hosted yang dilindungi (`PROTECTED_SUPABASE_PROJECT_REFS`).
-> Seeding hanya boleh dijalankan pada project Supabase Hosted khusus staging/evaluasi terpisah dengan opt-in eksplisit bertingkat:
-
-```bash
-# 1. Provisioning 7 Akun Demo Lintas Peran:
-ALLOW_DEMO_SEED=true \
-ALLOWED_DEMO_PROJECT_REF="<YOUR_STAGING_PROJECT_REF>" \
-DEMO_PASSWORD="DemoPassword123!" \
-NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_STAGING_PROJECT_REF>.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>" \
-npx tsx scripts/seed-demo-users.ts
-
-# 2. Provisioning 6 Tiket Demo Lintas Status Alur Kerja:
-ALLOW_DEMO_SEED=true \
-ALLOWED_DEMO_PROJECT_REF="<YOUR_STAGING_PROJECT_REF>" \
-NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_STAGING_PROJECT_REF>.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>" \
-npx tsx scripts/seed-demo-tickets.ts
-```
-
-Daftar akun demo yang terbentuk pada project staging:
-- `admin@sipandu.test` (Admin)
-- `rw06@sipandu.test` (Ketua RW 06)
-- `rt01@sipandu.test` (Ketua RT 01)
-- `rt02@sipandu.test` (Ketua RT 02)
-- `warga1@sipandu.test` (Warga RT 01 - Terverifikasi)
-- `warga2@sipandu.test` (Warga RT 02 - Terverifikasi)
-- `warga.pending@sipandu.test` (Warga RT 01 - Menunggu Verifikasi RT)
-
----
-
-## 🧪 Pengujian Backend & RLS (Dedicated Test Project)
-
-SIPANDU menyertakan test suite terintegrasi (`scripts/test-backend.ts`) yang memvalidasi lebih dari 40 skenario keamanan RLS, otorisasi peran, dan integritas state machine.
-
-> [!WARNING]
-> Test suite melakukan operasi mutasi data terisolasi dan dilindungi oleh *fail-closed target guard*. Script **DILARANG** dijalankan pada database produksi maupun database demo hosted yang dilindungi. Pengujian wajib menggunakan **dedicated Supabase Hosted test project** terpisah.
-
-Jalankan pengujian pada project uji Supabase Hosted tersendiri:
-
-```bash
-ALLOW_DESTRUCTIVE_TEST=true \
-ALLOW_REMOTE_HOSTED_TEST=true \
-ALLOWED_TEST_PROJECT_REF="<YOUR_TEST_PROJECT_REF>" \
-TEST_PASSWORD="DemoPassword123!" \
-NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_TEST_PROJECT_REF>.supabase.co" \
-NEXT_PUBLIC_SUPABASE_ANON_KEY="<YOUR_TEST_ANON_KEY>" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_TEST_SERVICE_ROLE_KEY>" \
-npx tsx scripts/test-backend.ts
-```
-
----
-
 ## 🛡️ Prinsip Keamanan & Tata Kelola Data
 
 1. **Principle of Least Privilege (PoLP)**:
@@ -400,10 +327,6 @@ npx tsx scripts/test-backend.ts
 ### 2. Error `relation already exists` saat menjalankan migrasi
 - **Penyebab**: Database sudah memiliki tabel dari migrasi sebelumnya namun belum tercatat pada tabel histori migrasi Supabase.
 - **Solusi**: Gunakan perintah `npx supabase migration repair <MIGRATION_ID> --status applied` untuk menyelaraskan riwayat migrasi, atau jalankan pada database Supabase Hosted baru yang bersih (*blank database*).
-
-### 3. Error `TARGET GUARD BLOCKED` saat menjalankan test backend
-- **Penyebab**: Target URL terdeteksi sebagai project yang dilindungi (`PROTECTED_SUPABASE_PROJECT_REFS`), domain produksi, atau ketiadaan flag `ALLOW_REMOTE_HOSTED_TEST=true` dan `ALLOWED_TEST_PROJECT_REF`.
-- **Solusi**: Jalankan test suite pada project uji Supabase Hosted tersendiri dengan menyertakan flag konfirmasi `ALLOW_DESTRUCTIVE_TEST=true`, `ALLOW_REMOTE_HOSTED_TEST=true`, dan `ALLOWED_TEST_PROJECT_REF="<ref>"`.
 
 ---
 
