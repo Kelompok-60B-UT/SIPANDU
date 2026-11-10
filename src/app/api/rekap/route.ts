@@ -60,7 +60,7 @@ const PREVIEW_TICKETS_RAW: RawExportTicket[] = [
     title: 'Sampah menumpuk di Gang Melati',
     categoryName: 'Kebersihan',
     regionName: 'RT 03',
-    rw: '06',
+    rw: siteConfig.rwNumber,
     reporterName: 'Dewi Lestari',
     phone: '0812 3456 7890',
     status: 'terkirim',
@@ -80,7 +80,7 @@ const PREVIEW_TICKETS_RAW: RawExportTicket[] = [
     title: 'Lampu jalan padam di Gang Mawar',
     categoryName: 'Penerangan',
     regionName: 'RT 03',
-    rw: '06',
+    rw: siteConfig.rwNumber,
     reporterName: 'Dewi Lestari',
     phone: '0812 3456 7890',
     status: 'diverifikasi_rt',
@@ -100,7 +100,7 @@ const PREVIEW_TICKETS_RAW: RawExportTicket[] = [
     title: 'Jalan berlubang dekat pos ronda',
     categoryName: 'Infrastruktur',
     regionName: 'RT 03',
-    rw: '06',
+    rw: siteConfig.rwNumber,
     reporterName: 'Dewi Lestari',
     phone: '0812 3456 7890',
     status: 'diproses_rw',
@@ -120,7 +120,7 @@ const PREVIEW_TICKETS_RAW: RawExportTicket[] = [
     title: 'Genangan air di Jalan Cempaka',
     categoryName: 'Drainase',
     regionName: 'RT 02',
-    rw: '06',
+    rw: siteConfig.rwNumber,
     reporterName: 'Siti Aminah',
     phone: '0813 9876 5432',
     status: 'diproses_rw',
@@ -140,7 +140,7 @@ const PREVIEW_TICKETS_RAW: RawExportTicket[] = [
     title: 'Saluran air tersumbat di Gang Melati',
     categoryName: 'Drainase',
     regionName: 'RT 03',
-    rw: '06',
+    rw: siteConfig.rwNumber,
     reporterName: 'Dewi Lestari',
     phone: '0812 3456 7890',
     status: 'selesai',
@@ -158,15 +158,15 @@ const PREVIEW_TICKETS_RAW: RawExportTicket[] = [
   },
   {
     ticketNumber: 'PG-2026-0262',
-    title: 'Perbaikan jalan di luar RW 06',
+    title: `Perbaikan jalan di luar ${siteConfig.rwShortLabel}`,
     categoryName: 'Infrastruktur',
     regionName: 'RT 03',
-    rw: '06',
+    rw: siteConfig.rwNumber,
     reporterName: 'Dewi Lestari',
     phone: '0812 3456 7890',
     status: 'ditolak',
-    locationLandmark: 'Luar batas RW 06',
-    description: 'Usulan perbaikan jalan di perbatasan luar RW 06.',
+    locationLandmark: `Luar batas ${siteConfig.rwShortLabel}`,
+    description: `Usulan perbaikan jalan di perbatasan luar ${siteConfig.rwShortLabel}.`,
     submittedAt: '2026-10-28T07:30:00Z',
     verifiedAt: null,
     processedAt: null,
@@ -174,7 +174,7 @@ const PREVIEW_TICKETS_RAW: RawExportTicket[] = [
     rating: null,
     ratingComment: null,
     rejectionReason:
-      'Lokasi berada di luar wilayah RW 06. Silakan lapor ke pengurus wilayah setempat.',
+      `Lokasi berada di luar wilayah ${siteConfig.rwShortLabel}. Silakan lapor ke pengurus wilayah setempat.`,
   },
 ]
 
@@ -184,7 +184,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const format = (searchParams.get('format') ?? 'json').toLowerCase()
   const todayIso = new Date().toISOString().slice(0, 10)
-  let baseFilename = `rekap-sipandu-rw06-${todayIso}`
+  const rwSlug = siteConfig.rwShortLabel.toLowerCase().replace(/\s+/g, '')
+  let baseFilename = `rekap-sipandu-${rwSlug}-${todayIso}`
 
   let rawTickets: RawExportTicket[] = []
   let totalTickets = 0
@@ -275,7 +276,7 @@ export async function GET(request: Request) {
       const rtCode = (regionData?.name ?? `rt${callerProfile.region_id}`)
         .toLowerCase()
         .replace(/\s+/g, '')
-      baseFilename = `rekap-sipandu-${rtCode}-rw06-${todayIso}`
+      baseFilename = `rekap-sipandu-${rtCode}-${rwSlug}-${todayIso}`
     }
 
     let ticketsQuery = supabase
@@ -333,7 +334,7 @@ export async function GET(request: Request) {
       const reg = t.regions as { name: string; rw: string } | null
       const cat = t.categories as { name: string } | null
       const regName = reg?.name ?? 'RT -'
-      const rwName = reg?.rw ?? '06'
+      const rwName = reg?.rw ?? siteConfig.rwNumber
       const catName = cat?.name ?? 'Lainnya'
       const reporter = profileMap.get(t.user_id)
 
@@ -488,7 +489,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       generated_at: new Date().toISOString(),
-      rw: '06',
+      rw: siteConfig.rwNumber,
       total_tickets: totalTickets,
       summary: {
         per_status: perStatus,

@@ -40,7 +40,7 @@ const FAQ_ITEMS = [
   {
     question: "Berapa batas foto dan format berkas yang diperbolehkan?",
     answer:
-      "Anda dapat mengunggah hingga maksimal 5 foto pendukung per pengaduan. Format yang didukung adalah JPEG, PNG, dan WebP dengan ukuran maksimal 5 MB untuk setiap berkas foto.",
+      "Anda dapat mengunggah hingga maksimal 3 foto pendukung per pengaduan. Format yang didukung adalah JPG dan PNG dengan ukuran maksimal 5 MB untuk setiap berkas foto.",
   },
   {
     question: "Apa yang harus saya lakukan jika pengaduan saya ditolak?",
@@ -106,7 +106,7 @@ const WARGA_STEPS = [
   {
     no: "02",
     title: "Buat Pengaduan Lengkap",
-    text: "Pilih kategori masalah, cantumkan patokan lokasi (landmark) yang jelas, dan unggah hingga 5 foto pendukung (maks. 5 MB per berkas).",
+    text: "Pilih kategori masalah, cantumkan patokan lokasi (landmark) yang jelas, dan unggah hingga 3 foto pendukung dalam format JPG atau PNG (maks. 5 MB per berkas).",
   },
   {
     no: "03",

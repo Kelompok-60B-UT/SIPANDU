@@ -1,13 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import {
   validateTestTarget,
-  FORBIDDEN_DEMO_PROJECT_REF,
   GuardOptions,
   GuardValidationResult,
 } from './test-guard'
 import { executeCleanup, CleanupError } from './test-cleanup'
 
-export { validateTestTarget, FORBIDDEN_DEMO_PROJECT_REF }
+export { validateTestTarget }
 export type { GuardOptions, GuardValidationResult }
 
 // =============================================================================
@@ -27,6 +26,7 @@ const guardResult = validateTestTarget({
   allowDestructiveTest: process.env.ALLOW_DESTRUCTIVE_TEST,
   allowRemoteHostedTest: process.env.ALLOW_REMOTE_HOSTED_TEST,
   allowedTestProjectRef: process.env.ALLOWED_TEST_PROJECT_REF,
+  protectedProjectRefs: process.env.PROTECTED_SUPABASE_PROJECT_REFS,
 })
 
 if (!guardResult.ok) {
@@ -100,13 +100,15 @@ export async function runTests() {
   const createdTicketIds: number[] = []
   const createdUserIds: string[] = []
   const createdStoragePaths: string[] = []
+  const createdNotificationIds: number[] = []
   let initialWarga1Profile: { is_rt_verified: boolean; is_active: boolean } | null = null
+  let initialWarga1NotificationIds: number[] = []
 
   let testExecutionError: unknown = null
   let cleanupErrors: CleanupError[] = []
 
   try {
-    // 0. Ambil dan amankan state awal profil akun demo sebelum pengujian
+    // 0. Ambil dan amankan state awal profil & notifikasi akun demo sebelum pengujian
     const { data: w1Profile } = await adminClient
       .from('profiles')
       .select('is_rt_verified, is_active')
@@ -117,6 +119,15 @@ export async function runTests() {
         is_rt_verified: Boolean(w1Profile.is_rt_verified),
         is_active: Boolean(w1Profile.is_active),
       }
+    }
+
+    const { data: w1Notifs } = await adminClient
+      .from('notifications')
+      .select('id')
+      .eq('user_id', warga1.user.id)
+      .is('ticket_id', null)
+    if (w1Notifs) {
+      initialWarga1NotificationIds = w1Notifs.map((n) => n.id)
     }
 
     // -------------------------------------------------------------------------
@@ -648,7 +659,20 @@ export async function runTests() {
       `Self err: ${errWargaVerifySelf?.message}, RT01 err: ${errRt01VerifyWarga01?.message}, RT02 err: ${errRt01VerifyWarga02?.message}`
     )
 
-    // Pulihkan status warga1 segera setelah pengujian
+    // Pulihkan status warga1 segera setelah pengujian dan lacak notifikasi yang dibuat verify_resident
+    const { data: w1NotifsAfterT31 } = await adminClient
+      .from('notifications')
+      .select('id')
+      .eq('user_id', warga1.user.id)
+      .is('ticket_id', null)
+    if (w1NotifsAfterT31) {
+      const initialSet = new Set(initialWarga1NotificationIds)
+      for (const n of w1NotifsAfterT31) {
+        if (!initialSet.has(n.id)) {
+          createdNotificationIds.push(n.id)
+        }
+      }
+    }
     if (initialWarga1Profile) {
       await adminClient.from('profiles').update({ is_rt_verified: initialWarga1Profile.is_rt_verified }).eq('id', warga1.user.id)
     }
@@ -1047,6 +1071,223 @@ export async function runTests() {
       `Warga del: ${deletedByWarga?.length}, RT del: ${deletedByRt?.length}, RW del: ${deletedByRw?.length}, Admin del: ${deletedByAdmin?.length} (${errAdminDelete?.message})`
     )
 
+    // =========================================================================
+    // TES TAMBAHAN (Migration 0010: NULL-Safe Region Authorization Hardening)
+    // =========================================================================
+
+    // -------------------------------------------------------------------------
+    // Test 42 (Migration 0010): verify_ticket & reject_ticket NULL-safe region check
+    // -------------------------------------------------------------------------
+    const rtNullEmail = `rt_null_${Date.now()}@sipandu.test`
+    const { data: createdRtNull } = await adminClient.auth.admin.createUser({
+      email: rtNullEmail,
+      password: testPassword,
+      email_confirm: true,
+      user_metadata: { full_name: 'Ketua RT Wilayah NULL' },
+      app_metadata: { sipandu_role: 'ketua_rt' },
+    })
+    const rtNullUid = createdRtNull!.user!.id
+    createdUserIds.push(rtNullUid)
+
+    await adminClient
+      .from('profiles')
+      .update({ region_id: null, is_active: true })
+      .eq('id', rtNullUid)
+
+    const rtNullClient = await createAuthClient(rtNullEmail)
+
+    const { data: ticketNullTest1 } = await adminClient
+      .from('tickets')
+      .insert({
+        ticket_number: `TKT-NULLTEST-1-${Date.now()}`,
+        user_id: warga1.user.id,
+        region_id: 1,
+        category_id: 1,
+        title: 'Tiket Uji NULL Region Verify',
+        description: 'Pengujian otorisasi wilayah NULL-safe pada verify_ticket',
+        status: 'terkirim',
+      })
+      .select('id')
+      .single()
+
+    if (ticketNullTest1?.id) {
+      createdTicketIds.push(ticketNullTest1.id)
+    }
+
+    // 1. Caller Ketua RT dengan region_id NULL DITOLAK saat verify_ticket & reject_ticket
+    const { error: errVerifyCallerNull } = await rtNullClient.client.rpc('verify_ticket', {
+      p_ticket_id: ticketNullTest1!.id,
+    })
+    const { error: errRejectCallerNull } = await rtNullClient.client.rpc('reject_ticket', {
+      p_ticket_id: ticketNullTest1!.id,
+      p_reason: 'Percobaan tolak oleh RT region NULL',
+    })
+
+    // 2. Caller Ketua RT dengan region berbeda (RT 02 vs RT 01) DITOLAK
+    const { error: errVerifyDiffRegion } = await rt02.client.rpc('verify_ticket', {
+      p_ticket_id: ticketNullTest1!.id,
+    })
+    const { error: errRejectDiffRegion } = await rt02.client.rpc('reject_ticket', {
+      p_ticket_id: ticketNullTest1!.id,
+      p_reason: 'Percobaan tolak oleh RT 02 pada tiket RT 01',
+    })
+
+    // 3. Caller Ketua RT dengan region sama (RT 01 == RT 01) BERHASIL
+    const { error: errVerifySameRegion } = await rt01.client.rpc('verify_ticket', {
+      p_ticket_id: ticketNullTest1!.id,
+    })
+
+    assert(
+      42,
+      'Migration 0010: verify_ticket & reject_ticket menolak Ketua RT dengan region NULL atau berbeda, menerima region sama',
+      !!errVerifyCallerNull &&
+        !!errRejectCallerNull &&
+        !!errVerifyDiffRegion &&
+        !!errRejectDiffRegion &&
+        !errVerifySameRegion,
+      `CallerNull verify: ${errVerifyCallerNull?.message}, CallerNull reject: ${errRejectCallerNull?.message}, Diff verify: ${errVerifyDiffRegion?.message}, Diff reject: ${errRejectDiffRegion?.message}, Same verify: ${errVerifySameRegion?.message}`
+    )
+
+    // -------------------------------------------------------------------------
+    // Test 43 (Migration 0010): reject_ticket aksi sah & aksi tidak sah pada region sama
+    // -------------------------------------------------------------------------
+    const { data: ticketNullTest2 } = await adminClient
+      .from('tickets')
+      .insert({
+        ticket_number: `TKT-NULLTEST-2-${Date.now()}`,
+        user_id: warga1.user.id,
+        region_id: 1,
+        category_id: 1,
+        title: 'Tiket Uji Reject Region Sama',
+        description: 'Pengujian aksi sah dan tidak sah pada reject_ticket',
+        status: 'terkirim',
+      })
+      .select('id')
+      .single()
+
+    if (ticketNullTest2?.id) {
+      createdTicketIds.push(ticketNullTest2.id)
+    }
+
+    // Aksi tidak sah: alasan kosong
+    const { error: errRejectEmptyReason } = await rt01.client.rpc('reject_ticket', {
+      p_ticket_id: ticketNullTest2!.id,
+      p_reason: '   ',
+    })
+
+    // Aksi sah: region sama + alasan valid
+    const { error: errRejectValidSameRegion } = await rt01.client.rpc('reject_ticket', {
+      p_ticket_id: ticketNullTest2!.id,
+      p_reason: 'Laporan duplikat dengan tiket sebelumnya',
+    })
+
+    // Aksi tidak sah: memverifikasi tiket yang sudah berstatus ditolak_rt
+    const { error: errVerifyAfterRejected } = await rt01.client.rpc('verify_ticket', {
+      p_ticket_id: ticketNullTest2!.id,
+    })
+
+    assert(
+      43,
+      'Migration 0010: reject_ticket pada region sama menolak alasan kosong/status tidak sah dan menerima penolakan sah',
+      !!errRejectEmptyReason && !errRejectValidSameRegion && !!errVerifyAfterRejected,
+      `Empty reason: ${errRejectEmptyReason?.message}, Valid reject: ${errRejectValidSameRegion?.message}, Verify after reject: ${errVerifyAfterRejected?.message}`
+    )
+
+    // -------------------------------------------------------------------------
+    // Test 44 (Migration 0010): verify_resident NULL-safe region check (caller NULL, target NULL, berbeda, sama)
+    // -------------------------------------------------------------------------
+    const wargaNullEmail = `warga_null_${Date.now()}@sipandu.test`
+    const { data: createdWargaNull } = await adminClient.auth.admin.createUser({
+      email: wargaNullEmail,
+      password: testPassword,
+      email_confirm: true,
+      user_metadata: { full_name: 'Warga Tanpa Wilayah' },
+    })
+    const wargaNullUid = createdWargaNull!.user!.id
+    createdUserIds.push(wargaNullUid)
+
+    await adminClient
+      .from('profiles')
+      .update({ region_id: null, is_rt_verified: false, is_active: true })
+      .eq('id', wargaNullUid)
+
+    const wargaRt01Email = `warga_rt01_nulltest_${Date.now()}@sipandu.test`
+    const { data: createdWargaRt01 } = await adminClient.auth.admin.createUser({
+      email: wargaRt01Email,
+      password: testPassword,
+      email_confirm: true,
+      user_metadata: { full_name: 'Warga RT 01 Uji', region_id: 1 },
+    })
+    const wargaRt01Uid = createdWargaRt01!.user!.id
+    createdUserIds.push(wargaRt01Uid)
+
+    await adminClient
+      .from('profiles')
+      .update({ region_id: 1, is_rt_verified: false, is_active: true })
+      .eq('id', wargaRt01Uid)
+
+    // 1. Caller region NULL -> Target region 1 (DITOLAK)
+    const { error: errResCallerNull } = await rtNullClient.client.rpc('verify_resident', {
+      p_user_id: wargaRt01Uid,
+      p_is_verified: true,
+    })
+
+    // 2. Caller region NULL -> Target region NULL (DITOLAK)
+    const { error: errResBothNull } = await rtNullClient.client.rpc('verify_resident', {
+      p_user_id: wargaNullUid,
+      p_is_verified: true,
+    })
+
+    // 3. Caller region 1 (rt01) -> Target region NULL (DITOLAK - mencegah bypass FALSE OR UNKNOWN)
+    const { error: errResTargetNull } = await rt01.client.rpc('verify_resident', {
+      p_user_id: wargaNullUid,
+      p_is_verified: true,
+    })
+
+    // 4. Caller region 2 (rt02) -> Target region 1 (DITOLAK - region berbeda)
+    const { error: errResDiffRegion } = await rt02.client.rpc('verify_resident', {
+      p_user_id: wargaRt01Uid,
+      p_is_verified: true,
+    })
+
+    // 5. Aksi tidak sah: warga biasa mencoba memanggil verify_resident (DITOLAK)
+    const { error: errResInvalidRole } = await warga1.client.rpc('verify_resident', {
+      p_user_id: wargaRt01Uid,
+      p_is_verified: true,
+    })
+
+    // 6. Aksi sah: Caller region 1 (rt01) -> Target region 1 (BERHASIL)
+    const { error: errResSameRegion } = await rt01.client.rpc('verify_resident', {
+      p_user_id: wargaRt01Uid,
+      p_is_verified: true,
+    })
+
+    const { data: wargaNullAfter } = await adminClient
+      .from('profiles')
+      .select('is_rt_verified')
+      .eq('id', wargaNullUid)
+      .single()
+
+    const { data: wargaRt01After } = await adminClient
+      .from('profiles')
+      .select('is_rt_verified')
+      .eq('id', wargaRt01Uid)
+      .single()
+
+    assert(
+      44,
+      'Migration 0010: verify_resident menolak caller region NULL, target region NULL, region berbeda, & role tidak sah; menerima region sama',
+      !!errResCallerNull &&
+        !!errResBothNull &&
+        !!errResTargetNull &&
+        !!errResDiffRegion &&
+        !!errResInvalidRole &&
+        !errResSameRegion &&
+        wargaNullAfter?.is_rt_verified === false &&
+        wargaRt01After?.is_rt_verified === true,
+      `CallerNull: ${errResCallerNull?.message}, BothNull: ${errResBothNull?.message}, TargetNull: ${errResTargetNull?.message}, DiffRegion: ${errResDiffRegion?.message}, InvalidRole: ${errResInvalidRole?.message}, SameRegion: ${errResSameRegion?.message}`
+    )
+
   } catch (err) {
     testExecutionError = err
     console.error('\n💥 Eksepsi selama eksekusi test:', err)
@@ -1056,8 +1297,10 @@ export async function runTests() {
       createdTicketIds,
       createdUserIds,
       createdStoragePaths,
+      createdNotificationIds,
       warga1Id: warga1?.user?.id,
       initialWarga1Profile,
+      initialWarga1NotificationIds,
     })
   }
 

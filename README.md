@@ -10,7 +10,7 @@
 2. [Peran Pengguna & Hierarki Akses (RBAC)](#-peran-pengguna--hierarki-akses-rbac)
 3. [Alur Siklus Pengaduan (State Machine)](#-alur-siklus-pengaduan-state-machine)
 4. [Tech Stack & Arsitektur](#-tech-stack--arsitektur)
-5. [Silsilah Migrasi Database Kanonik (0001–0009)](#-silsilah-migrasi-database-kanonik-00010009)
+5. [Silsilah Migrasi Database Kanonik (0001–0010)](#-silsilah-migrasi-database-kanonik-00010010)
 6. [Prasyarat Sistem](#-prasyarat-sistem)
 7. [Panduan Instalasi & Setup Lokal](#-panduan-instalasi--setup-lokal)
    - [Langkah 1: Kloning Repositori & Instal Dependensi](#langkah-1-kloning-repositori--instal-dependensi)
@@ -90,21 +90,22 @@ Setiap transisi status secara otomatis mencatat riwayat ke tabel `ticket_timelin
 
 ---
 
-## 📜 Silsilah Migrasi Database Kanonik (0001–0009)
+## 📜 Silsilah Migrasi Database Kanonik (0001–0010)
 
-Seluruh struktur skema, keamanan, master data, dan logika database didefinisikan secara deklaratif dalam 9 file migrasi kanonik pada `supabase/migrations/`:
+Seluruh struktur skema, keamanan, master data, dan logika database didefinisikan secara deklaratif dalam 10 file migrasi kanonik pada `supabase/migrations/`:
 
 | No | File Migrasi | Deskripsi & Cakupan Fungsional |
 |:---:|---|---|
 | **01** | `20261101120001_sipandu_init.sql` | Enum tipe data, 7 tabel inti (`regions`, `categories`, `profiles`, `tickets`, `ticket_attachments`, `ticket_timeline`, `notifications`), baseline RLS, bucket `ticket-attachments`, serta seed master data RT 01–RT 08 & 6 kategori laporan. |
 | **02** | `20261101120002_fix_attachments_and_indexes.sql` | Helper penghitung lampiran `_count_laporan_attachments`, policy insert lampiran foto, dan 7 indeks performa foreign key. |
-| **03** | `20261101120003_verification_active_guards.sql` | Kolom `is_rt_verified`, helper `_is_caller_active()`, status active guards, dan proteksi profil warga dari modifikasi ilegal. |
+| **03** | `20261101120003_verification_active_guards.sql` | Kolom `is_rt_verified`, helper `_is_caller_active()`, status active guards, dan proteksi profil warga dari modifikasi ilegal (dengan normalisasi delimiter fungsi `AS $$ ... $$;`). |
 | **04** | `20261101120004_avatars_bucket.sql` | Pembuatan storage bucket publik `avatars` untuk foto profil pengguna. |
 | **05** | `20261101122337_admin_rls_and_delete.sql` | Policy pembacaan bukti penyelesaian tiket oleh Admin & RW, serta policy penghapusan tiket administratif `tickets_admin_delete`. |
 | **06** | `20261101122344_pending_user_verification.sql` | RPC `verify_resident(uuid, boolean)` dengan validasi wilayah RT, pengiriman notifikasi approval, dan pemblokiran pembuatan tiket warga pending. |
-| **07** | `20261109000001_admin_protection_and_profile_guards.sql` | Helper real-time role checking (`_is_caller_admin`, `_get_caller_role`), trigger penegakan invariant admin terakhir (`tr_protect_last_admin`), trigger proteksi profil (`tr_check_profile_guards`), dan preflight assertion verifikasi keberadaan minimal 1 Admin aktif sah. |
+| **07** | `20261109000001_admin_protection_and_profile_guards.sql` | Helper real-time role checking (`_is_caller_admin`, `_get_caller_role`), trigger penegakan invariant admin terakhir (`tr_protect_last_admin`), trigger proteksi profil (`tr_check_profile_guards`), dan preflight assertion cerdas (melewati pemeriksaan dengan `NOTICE` pada database baru yang masih kosong / 0 user, serta mewajibkan minimal 1 Admin aktif pada database yang sudah berisi user). |
 | **08** | `20261109000002_storage_and_privilege_hardening.sql` | Penambahan master data RT 09, penguatan 4 storage policies bucket `avatars` (`read`, `insert`, `update`, `delete`), schema anti-hijacking (`REVOKE CREATE ON SCHEMA public`), Principle of Least Privilege (PoLP) tabel dan fungsi, serta default privileges. |
 | **09** | `20261109000003_deduplicate_rt09_and_unique_constraint.sql` | Deduplikasi dinamis record wilayah RT 09, penataan ulang sequence `public.regions.id` via `ALTER SEQUENCE ... RESTART WITH`, dan penambahan constraint integritas `UNIQUE (name, rw)` pada `public.regions`. |
+| **10** | `20261110000001_fix_null_region_auth_bypass.sql` | Perbaikan celah otorisasi wilayah *three-valued logic* (`NULL` comparison) pada RPC `verify_ticket`, `reject_ticket`, dan `verify_resident` menggunakan validasi eksplisit `IS NULL` serta operator NULL-safe `IS DISTINCT FROM`. |
 
 ---
 
@@ -152,55 +153,58 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ### Langkah 3: Setup Database Supabase Baru & Bootstrap Administrator
 
-Direktori `supabase/migrations/` memuat 9 berkas migrasi kanonik berurutan. Berkas migrasi 0007 memuat *preflight assertion* yang memvalidasi keberadaan minimal 1 Admin aktif sah sebelum memasang DDL proteksi invariant admin.
+Direktori `supabase/migrations/` memuat 10 berkas migrasi kanonik berurutan (`0001` s/d `0010`). Berkas migrasi 0007 dilengkapi *preflight assertion* yang mengenali kondisi database baru:
+- Pada **database kosong (0 akun di `auth.users`)**, preflight dilewati secara aman dengan `NOTICE` sehingga seluruh 10 migrasi dapat dipasang langsung dalam satu tahap tanpa jeda.
+- Pada **database yang sudah memiliki akun pengguna**, preflight memverifikasi keberadaan minimal 1 Administrator aktif sah sebelum memasang trigger proteksi invariant admin.
 
-Alur instalasi pada database baru dilakukan dalam tiga langkah terintegrasi via Supabase CLI:
-
-#### 1. Push Migrasi Awal (0001–0006)
+#### 1. Terapkan Seluruh Migrasi Kanonik (0001–0010)
 ```bash
-# Untuk Local Supabase:
+# Untuk Local Supabase Stack (reset & terapkan seluruh migrasi dari nol):
+npx supabase db reset
+
+# Atau push migrasi pada Local Supabase yang sedang berjalan:
 npx supabase db push
 
-# Untuk Hosted Supabase Baru:
+# Untuk Hosted Supabase Project Baru (hubungkan project terlebih dahulu):
 npx supabase link --project-ref <NEW_PROJECT_REF>
 npx supabase db push --remote
 ```
-*(CLI akan memasang skema inti 0001–0006 dan berhenti sementara pada preflight migrasi 0007 karena mendeteksi belum ada akun admin).*
+*Hasil:* 10 migrasi terpasang tuntas, 9 record RT (RT 01–RT 09) dengan constraint unik `(name, rw)`, sequence selaras, fungsi RPC NULL-safe, dan seluruh proteksi invariant aktif.
 
 #### 2. Bootstrap Root Administrator
-Jalankan skrip bootstrap resmi menggunakan Auth Admin API:
+Segera setelah migrasi selesai, buat akun Administrator utama menggunakan skrip bootstrap resmi (Auth Admin API):
 ```bash
 ADMIN_EMAIL="admin@sipandu.id" \
 ADMIN_PASSWORD="GantiDenganPasswordKuat123!" \
 npx tsx scripts/bootstrap-admin.ts
 ```
 
-#### 3. Push Migrasi Lanjutan (0007–0009)
-Jalankan kembali perintah push untuk menyelesaikan seluruh migrasi:
-```bash
-# Untuk Local Supabase:
-npx supabase db push
-
-# Untuk Hosted Supabase Baru:
-npx supabase db push --remote
-```
-*Hasil:* 9 migrasi terpasang tuntas, 9 record RT (RT 01–RT 09), sequence selaras, dan seluruh proteksi invariant aktif.
-
 ### Langkah 4: Seeding Pengguna & Tiket Demo (Opsional)
 
 > [!NOTE]
-> Script demo dilindungi oleh guard keamanan (`scripts/demo-guard.ts`). Script ini menolak berjalan di lingkungan `NODE_ENV=production` dan mewajibkan opt-in eksplisit `ALLOW_DEMO_SEED=true`.
+> Script demo dilindungi oleh guard keamanan (`scripts/demo-guard.ts`). Script ini menolak berjalan di lingkungan produksi (`NODE_ENV=production`), menolak project yang terdaftar di `PROTECTED_SUPABASE_PROJECT_REFS`, dan mewajibkan opt-in eksplisit `ALLOW_DEMO_SEED=true`. Untuk target hosted non-produksi, wajib menyertakan `ALLOWED_DEMO_PROJECT_REF` yang cocok persis dengan project ref target.
 
-Untuk keperluan demonstrasi atau pengujian QA lokal, Anda dapat mengisi data sintetis:
+Untuk keperluan demonstrasi atau pengujian QA, Anda dapat mengisi data sintetis:
 
 ```bash
-# 1. Buat akun-akun demo (Ketua RW, Ketua RT 01-02, Warga terverifikasi, Warga pending)
+# A. Pada Local Supabase Stack (localhost / 127.0.0.1):
+# 1. Buat 7 akun demo (Admin, Ketua RW, Ketua RT 01-02, Warga terverifikasi, Warga pending)
 ALLOW_DEMO_SEED=true \
 DEMO_PASSWORD="DemoPassword123!" \
 npx tsx scripts/seed-demo-users.ts
 
-# 2. Buat tiket-tiket pengaduan demo yang mencakup seluruh status alur kerja
+# 2. Buat 6 tiket pengaduan demo yang mencakup seluruh status alur kerja
 ALLOW_DEMO_SEED=true \
+npx tsx scripts/seed-demo-tickets.ts
+
+# B. Pada Hosted Staging / Demo Project Terpisah:
+ALLOW_DEMO_SEED=true \
+ALLOWED_DEMO_PROJECT_REF="<YOUR_STAGING_PROJECT_REF>" \
+DEMO_PASSWORD="DemoPassword123!" \
+npx tsx scripts/seed-demo-users.ts
+
+ALLOW_DEMO_SEED=true \
+ALLOWED_DEMO_PROJECT_REF="<YOUR_STAGING_PROJECT_REF>" \
 npx tsx scripts/seed-demo-tickets.ts
 ```
 
@@ -279,7 +283,7 @@ SIPANDU dibangun dengan arsitektur pertahanan berlapis (*Defense in Depth*):
 SIPANDU dilengkapi test suite terintegrasi (`scripts/test-backend.ts`) untuk menguji seluruh aturan RLS, proteksi peran, dan transisi state machine.
 
 > [!WARNING]
-> Test suite backend melakukan mutasi data pengujian terisolasi sehingga dilindungi oleh *fail-closed target guard*. Script **DILARANG MUTLAK** dijalankan pada database demo capstone hosted (`zbttpwepgzqmyspbmsnz`) maupun domain produksi.
+> Test suite backend melakukan mutasi data pengujian terisolasi sehingga dilindungi oleh *fail-closed target guard*. Script **DILARANG MUTLAK** dijalankan pada database demo hosted yang dilindungi maupun domain produksi.
 >
 > Secara **default**, target hosted Supabase Cloud **DITOLAK**. Guard tidak dapat membedakan secara otomatis antara instance produksi dan instance pengujian pada domain `<ref>.supabase.co`. Pengujian ditujukan untuk **local stack** (`localhost` / `127.0.0.1`), atau **dedicated hosted test project** terpisah dengan opt-in bertingkat dari operator.
 
@@ -328,8 +332,8 @@ Test suite ini memvalidasi lebih dari 40 skenario pengujian fungsional dan keama
 - **Solusi**: Gunakan perintah `npx supabase migration repair <MIGRATION_ID> --status applied` untuk menyelaraskan riwayat migrasi, atau jalankan database baru yang benar-benar kosong (*blank database*).
 
 ### 3. Error `TARGET GUARD BLOCKED` saat menjalankan test backend
-- **Penyebab**: Script mendeteksi target database demo yang dilindungi (`zbttpwepgzqmyspbmsnz`), target domain/environment produksi, target hosted tanpa opt-in remote, atau ketiadaan flag `ALLOW_DESTRUCTIVE_TEST=true`.
-- **Solusi**: Jalankan test suite pada local stack dengan menyertakan `ALLOW_DESTRUCTIVE_TEST=true` dan `TEST_PASSWORD`. Jika menguji hosted test project terpisah, pastikan menyertakan `ALLOW_REMOTE_HOSTED_TEST=true` dan `ALLOWED_TEST_PROJECT_REF=<ref>`. Database demo capstone tidak boleh dijadikan target pengujian mutatif.
+- **Penyebab**: Script mendeteksi target database terproteksi (`PROTECTED_SUPABASE_PROJECT_REFS`), target domain/environment produksi, target hosted tanpa opt-in remote, atau ketiadaan flag `ALLOW_DESTRUCTIVE_TEST=true`.
+- **Solusi**: Jalankan test suite pada local stack dengan menyertakan `ALLOW_DESTRUCTIVE_TEST=true` dan `TEST_PASSWORD`. Jika menguji hosted test project terpisah, pastikan menyertakan `ALLOW_REMOTE_HOSTED_TEST=true` dan `ALLOWED_TEST_PROJECT_REF=<ref>`. Database demo terproteksi tidak boleh dijadikan target pengujian mutatif.
 
 ---
 

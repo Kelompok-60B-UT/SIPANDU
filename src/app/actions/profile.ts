@@ -20,6 +20,14 @@ import type { Notification, Profile } from '@/types/database.types'
 const AVATAR_BUCKET = 'avatars'
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
+function isProductionEnv(): boolean {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production' ||
+    process.env.ENVIRONMENT === 'production'
+  )
+}
+
 export async function getProfile(): Promise<ActionResult<Profile>> {
   if (!isSupabaseConfigured()) {
     return err('Supabase belum dikonfigurasi')
@@ -231,6 +239,9 @@ export async function updateProfile(
   }
 
   if (!isSupabaseConfigured()) {
+    if (isProductionEnv()) {
+      return err('Layanan autentikasi belum dikonfigurasi pada lingkungan produksi')
+    }
     return okEmpty()
   }
 
@@ -380,6 +391,9 @@ export async function changePassword(
   }
 
   if (!isSupabaseConfigured()) {
+    if (isProductionEnv()) {
+      return err('Layanan autentikasi belum dikonfigurasi pada lingkungan produksi')
+    }
     return okEmpty()
   }
 
@@ -426,6 +440,9 @@ export async function markNotificationsRead(
   notificationIds?: number[],
 ): Promise<ActionResult<undefined>> {
   if (!isSupabaseConfigured()) {
+    if (isProductionEnv()) {
+      return err('Layanan autentikasi belum dikonfigurasi pada lingkungan produksi')
+    }
     return okEmpty()
   }
 

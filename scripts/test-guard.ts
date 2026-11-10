@@ -3,16 +3,17 @@
  *
  * Menjamin keamanan tingkat tinggi agar test suite backend (scripts/test-backend.ts)
  * TIDAK PERNAH memutasi atau merusak:
- * 1. Proyek demo capstone hosted (zbttpwepgzqmyspbmsnz) - DITOLAK MUTLAK tanpa celah bypass.
+ * 1. Proyek Supabase terproteksi (didefinisikan via PROTECTED_SUPABASE_PROJECT_REFS) - DITOLAK MUTLAK tanpa celah bypass.
  * 2. Lingkungan produksi (domain produksi / NODE_ENV=production) - DITOLAK MUTLAK.
  * 3. Proyek hosted apa pun secara default (HOSTED REJECTED BY DEFAULT).
  *
  * Ketentuan Target:
- * - Default: Hanya mengizinkan local stack (localhost / 127.0.0.1) dengan ALLOW_DESTRUCTIVE_TEST=true.
+ * - Default: Hanya mengizinkan local stack (localhost / 127.0.0.1 / 0.0.0.0) dengan ALLOW_DESTRUCTIVE_TEST=true.
  * - Remote Hosted Test (Opsional): Wajib opt-in eksplisit bertingkat:
  *   a. ALLOW_DESTRUCTIVE_TEST=true
  *   b. ALLOW_REMOTE_HOSTED_TEST=true
  *   c. ALLOWED_TEST_PROJECT_REF=<ref-cocok-persis>
+ *   d. Target TIDAK termasuk dalam daftar PROTECTED_SUPABASE_PROJECT_REFS.
  *
  * CATATAN KEAMANAN:
  * Guard tidak dapat mengetahui secara otomatis apakah suatu proyek Supabase cloud
@@ -20,8 +21,6 @@
  * Oleh karena itu, pengujian remote di-disable secara default dan mewajibkan
  * konfirmasi eksplisit dari operator yang bertanggung jawab penuh atas target yang dipilih.
  */
-
-export const FORBIDDEN_DEMO_PROJECT_REF = 'zbttpwepgzqmyspbmsnz'
 
 export interface GuardOptions {
   supabaseUrl?: string
@@ -31,6 +30,7 @@ export interface GuardOptions {
   allowDestructiveTest?: string
   allowRemoteHostedTest?: string
   allowedTestProjectRef?: string
+  protectedProjectRefs?: string | string[]
 }
 
 export interface GuardValidationResult {
@@ -39,6 +39,14 @@ export interface GuardValidationResult {
   projectRef?: string
   isLocal: boolean
   hostname?: string
+}
+
+export function parseProtectedProjectRefs(input?: string | string[]): string[] {
+  const source = input ?? process.env.PROTECTED_SUPABASE_PROJECT_REFS ?? ''
+  const items = Array.isArray(source) ? source : source.split(',')
+  return items
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item.length > 0)
 }
 
 export function validateTestTarget(env: GuardOptions): GuardValidationResult {
@@ -52,16 +60,19 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
     }
   }
 
-  // 2. Mutlak tolak hosted demo project zbttpwepgzqmyspbmsnz tanpa celah bypass apapun
-  if (
-    rawUrl.toLowerCase().includes(FORBIDDEN_DEMO_PROJECT_REF) ||
-    (env.allowedTestProjectRef ?? '').trim().toLowerCase() === FORBIDDEN_DEMO_PROJECT_REF
-  ) {
-    return {
-      ok: false,
-      error: `Project ref '${FORBIDDEN_DEMO_PROJECT_REF}' adalah basis data DEMO CAPSTONE HOSTED (READ-ONLY). Pengujian mutatif backend DILARANG MUTLAK tanpa pengecualian!`,
-      projectRef: FORBIDDEN_DEMO_PROJECT_REF,
-      isLocal: false,
+  // 2. Evaluasi daftar protected project refs dari environment / opsi
+  const protectedRefs = parseProtectedProjectRefs(env.protectedProjectRefs)
+  const allowedTestRef = (env.allowedTestProjectRef ?? '').trim().toLowerCase()
+
+  // Periksa apakah URL atau allowed test ref memuat protected ref yang dilarang
+  for (const ref of protectedRefs) {
+    if (rawUrl.toLowerCase().includes(ref) || allowedTestRef === ref) {
+      return {
+        ok: false,
+        error: `Target project ref '${ref}' terdaftar sebagai basis data terproteksi (PROTECTED_SUPABASE_PROJECT_REFS). Pengujian mutatif backend DILARANG MUTLAK tanpa pengecualian!`,
+        projectRef: ref,
+        isLocal: false,
+      }
     }
   }
 
@@ -79,14 +90,16 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
 
   const hostname = parsed.hostname.toLowerCase()
 
-  // Verifikasi ulang hostname terhadap project demo
-  if (hostname.includes(FORBIDDEN_DEMO_PROJECT_REF)) {
-    return {
-      ok: false,
-      error: `Project ref '${FORBIDDEN_DEMO_PROJECT_REF}' adalah basis data DEMO CAPSTONE HOSTED (READ-ONLY). Pengujian mutatif backend DILARANG MUTLAK tanpa pengecualian!`,
-      projectRef: FORBIDDEN_DEMO_PROJECT_REF,
-      isLocal: false,
-      hostname,
+  // Verifikasi ulang hostname terhadap daftar protected refs
+  for (const ref of protectedRefs) {
+    if (hostname.includes(ref)) {
+      return {
+        ok: false,
+        error: `Target host '${hostname}' memuat project ref '${ref}' yang terdaftar sebagai basis data terproteksi (PROTECTED_SUPABASE_PROJECT_REFS). Pengujian mutatif backend DILARANG MUTLAK tanpa pengecualian!`,
+        projectRef: ref,
+        isLocal: false,
+        hostname,
+      }
     }
   }
 
@@ -157,11 +170,11 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
 
   const projectRef = match[1].toLowerCase()
 
-  // Verifikasi kembali terhadap demo ref
-  if (projectRef === FORBIDDEN_DEMO_PROJECT_REF) {
+  // Verifikasi kembali terhadap daftar protected refs
+  if (protectedRefs.includes(projectRef)) {
     return {
       ok: false,
-      error: `Project ref '${FORBIDDEN_DEMO_PROJECT_REF}' adalah basis data DEMO CAPSTONE HOSTED. DILARANG MUTLAK!`,
+      error: `Project ref '${projectRef}' terdaftar sebagai basis data terproteksi (PROTECTED_SUPABASE_PROJECT_REFS). DILARANG MUTLAK!`,
       projectRef,
       isLocal: false,
       hostname,
@@ -169,11 +182,10 @@ export function validateTestTarget(env: GuardOptions): GuardValidationResult {
   }
 
   // Wajib allowlist cocok persis
-  const allowedRef = (env.allowedTestProjectRef ?? '').trim().toLowerCase()
-  if (!allowedRef || projectRef !== allowedRef) {
+  if (!allowedTestRef || projectRef !== allowedTestRef) {
     return {
       ok: false,
-      error: `Hosted target project ref '${projectRef}' tidak cocok dengan ALLOWED_TEST_PROJECT_REF='${allowedRef}'. Target hosted wajib dicocokkan secara eksplisit.`,
+      error: `Hosted target project ref '${projectRef}' tidak cocok dengan ALLOWED_TEST_PROJECT_REF='${allowedTestRef}'. Target hosted wajib dicocokkan secara eksplisit.`,
       projectRef,
       isLocal: false,
       hostname,

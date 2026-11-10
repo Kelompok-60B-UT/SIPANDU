@@ -762,7 +762,7 @@ export default function CreateTicketForm({
             <div className="mt-3.5 space-y-0.5 text-xs text-muted">
               <p>{profile.phone || "0812 3456 7890"}</p>
               <p className="truncate">
-                {isPreview ? "dewi.lestari@email.com" : email}
+                {isPreview ? "dewi.lestari@example.test" : email}
               </p>
             </div>
           </div>

@@ -10,8 +10,10 @@ export interface CleanupParams {
   createdTicketIds: number[]
   createdUserIds: string[]
   createdStoragePaths: string[]
+  createdNotificationIds?: number[]
   warga1Id?: string
   initialWarga1Profile?: { is_rt_verified: boolean; is_active: boolean } | null
+  initialWarga1NotificationIds?: number[]
 }
 
 /**
@@ -59,6 +61,66 @@ export async function executeCleanup(
         error: msg,
       })
       console.error(`❌ Cleanup profil warga1 exception: ${msg}`)
+    }
+  }
+
+  // 1b. Bersihkan notifikasi non-tiket (ticket_id IS NULL) yang dibuat selama pengujian (misal dari verify_resident)
+  const notifIdsToDelete = new Set<number>(params.createdNotificationIds ?? [])
+  if (params.warga1Id && params.initialWarga1NotificationIds) {
+    try {
+      const initialSet = new Set<number>(params.initialWarga1NotificationIds)
+      const { data: currentNullTicketNotifs, error: errQueryNotifs } = await adminClient
+        .from('notifications')
+        .select('id')
+        .eq('user_id', params.warga1Id)
+        .is('ticket_id', null)
+
+      if (errQueryNotifs) {
+        cleanupErrors.push({
+          resource: 'notification',
+          identifier: `query:${params.warga1Id}`,
+          error: errQueryNotifs.message,
+        })
+      } else if (currentNullTicketNotifs) {
+        for (const row of currentNullTicketNotifs) {
+          if (!initialSet.has(row.id)) {
+            notifIdsToDelete.add(row.id)
+          }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      cleanupErrors.push({
+        resource: 'notification',
+        identifier: `query:${params.warga1Id}`,
+        error: msg,
+      })
+    }
+  }
+
+  if (notifIdsToDelete.size > 0) {
+    const idsArray = Array.from(notifIdsToDelete)
+    try {
+      const { error: errDelNotifs } = await adminClient
+        .from('notifications')
+        .delete()
+        .in('id', idsArray)
+
+      if (errDelNotifs && errDelNotifs.code !== 'PGRST116') {
+        cleanupErrors.push({
+          resource: 'notification',
+          identifier: idsArray.join(','),
+          error: errDelNotifs.message,
+        })
+        console.error(`❌ Cleanup notifikasi non-tiket gagal: ${errDelNotifs.message}`)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      cleanupErrors.push({
+        resource: 'notification',
+        identifier: idsArray.join(','),
+        error: msg,
+      })
     }
   }
 
@@ -141,6 +203,16 @@ export async function executeCleanup(
 
   // 4. Hapus seluruh akun pengguna uji yang dibuat selama sesi pengujian ini
   for (const uid of params.createdUserIds) {
+    try {
+      const { error: errUserNotifs } = await adminClient.from('notifications').delete().eq('user_id', uid)
+      if (errUserNotifs && errUserNotifs.code !== 'PGRST116') {
+        cleanupErrors.push({ resource: 'notification', identifier: `user:${uid}`, error: errUserNotifs.message })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      cleanupErrors.push({ resource: 'notification', identifier: `user:${uid}`, error: msg })
+    }
+
     try {
       const { error: errUserTickets } = await adminClient.from('tickets').delete().eq('user_id', uid)
       if (errUserTickets && errUserTickets.code !== 'PGRST116') {

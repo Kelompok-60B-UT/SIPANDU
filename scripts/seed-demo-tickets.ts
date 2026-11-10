@@ -5,7 +5,7 @@
  * Responsibilities:
  * - Dynamically resolves demo user IDs from auth.users (via Auth Admin API)
  * - Enforces environment safety with project-ref allowlist & explicit opt-in (ALLOW_DEMO_SEED=true)
- * - Prohibits execution against historical QA (zbttpwepgzqmyspbmsnz)
+ * - Prohibits execution against protected instances (via PROTECTED_SUPABASE_PROJECT_REFS)
  * - Seeds demo tickets covering full lifecycle: draft, terkirim, diverifikasi_rt, diproses_rw, selesai, ditolak
  * - Seeds timeline audit logs, attachments metadata, and notifications
  * - Supports --dry-run mode
@@ -82,7 +82,7 @@ async function seedDemoTickets() {
 
   // 2. Ensure Regions & Categories
   console.log('[*] Memastikan data Regions dan Categories...')
-  await supabase.from('regions').upsert([
+  const { error: upsertRegionsError } = await supabase.from('regions').upsert([
     { name: 'RT 01', rw: '06', is_active: true },
     { name: 'RT 02', rw: '06', is_active: true },
     { name: 'RT 03', rw: '06', is_active: true },
@@ -92,15 +92,33 @@ async function seedDemoTickets() {
     { name: 'RT 07', rw: '06', is_active: true },
     { name: 'RT 08', rw: '06', is_active: true },
     { name: 'RT 09', rw: '06', is_active: true },
-  ], { onConflict: 'id', ignoreDuplicates: true })
+  ], { onConflict: 'name,rw', ignoreDuplicates: true })
 
-  const { data: regionsData } = await supabase.from('regions').select('id, name')
-  const regionMap = new Map(regionsData?.map((r) => [r.name, r.id]))
-  const rt01RegionId = regionMap.get('RT 01') || 1
-  const rt02RegionId = regionMap.get('RT 02') || 2
+  if (upsertRegionsError) {
+    console.error('❌ Gagal memastikan master data regions:', upsertRegionsError.message)
+    process.exit(1)
+  }
 
-  const { data: catsData } = await supabase.from('categories').select('id, name')
-  const catMap = new Map(catsData?.map((c) => [c.name, c.id]))
+  const { data: regionsData, error: selectRegionsError } = await supabase.from('regions').select('id, name')
+  if (selectRegionsError || !regionsData || regionsData.length === 0) {
+    console.error('❌ Gagal membaca master data regions:', selectRegionsError?.message || 'Tabel regions kosong')
+    process.exit(1)
+  }
+  const regionMap = new Map(regionsData.map((r) => [r.name, r.id]))
+  const rt01RegionId = regionMap.get('RT 01')
+  const rt02RegionId = regionMap.get('RT 02')
+
+  if (!rt01RegionId || !rt02RegionId) {
+    console.error('❌ Wilayah RT 01 atau RT 02 tidak ditemukan pada tabel regions!')
+    process.exit(1)
+  }
+
+  const { data: catsData, error: selectCatsError } = await supabase.from('categories').select('id, name')
+  if (selectCatsError || !catsData || catsData.length === 0) {
+    console.error('❌ Gagal membaca master data categories:', selectCatsError?.message || 'Tabel categories kosong')
+    process.exit(1)
+  }
+  const catMap = new Map(catsData.map((c) => [c.name, c.id]))
   const infraCatId = catMap.get('Infrastruktur') || 1
   const bersihCatId = catMap.get('Kebersihan') || 2
   const amanCatId = catMap.get('Keamanan') || 3
@@ -108,7 +126,11 @@ async function seedDemoTickets() {
 
   // 3. Clear Existing Demo Tickets (Strictly TKT-DEMO-% Only)
   console.log('[*] Membersihkan tiket demo lama (TKT-DEMO-%)...')
-  await supabase.from('tickets').delete().like('ticket_number', 'TKT-DEMO-%')
+  const { error: deleteTicketsError } = await supabase.from('tickets').delete().like('ticket_number', 'TKT-DEMO-%')
+  if (deleteTicketsError) {
+    console.error('❌ Gagal membersihkan tiket demo lama:', deleteTicketsError.message)
+    process.exit(1)
+  }
 
   // 4. Insert Demo Tickets
   console.log('[*] Memasukkan tiket demo lintas siklus...')
@@ -230,11 +252,15 @@ async function seedDemoTickets() {
     { ticket_id: tkt6, actor_id: rt02Id, actor_name: 'Budi Hartono', actor_role: 'ketua_rt', from_status: 'terkirim', to_status: 'ditolak', note: 'Bukan pengaduan gangguan/fasilitas umum.', created_at: new Date(now.getTime() - 2 * 86400000).toISOString() },
   ]
 
-  await supabase.from('ticket_timeline').insert(timelineEntries)
+  const { error: timelineError } = await supabase.from('ticket_timeline').insert(timelineEntries)
+  if (timelineError) {
+    console.error('❌ Gagal memasukkan riwayat timeline:', timelineError.message)
+    process.exit(1)
+  }
 
   // 6. Seed Attachments Metadata
   console.log('[*] Memasukkan metadata lampiran foto (sebelum & sesudah)...')
-  await supabase.from('ticket_attachments').insert([
+  const { error: attachmentsError } = await supabase.from('ticket_attachments').insert([
     {
       ticket_id: tkt5,
       type: 'laporan',
@@ -256,10 +282,14 @@ async function seedDemoTickets() {
       created_at: new Date(now.getTime() - 1 * 86400000).toISOString(),
     },
   ])
+  if (attachmentsError) {
+    console.error('❌ Gagal memasukkan metadata lampiran foto:', attachmentsError.message)
+    process.exit(1)
+  }
 
   // 7. Seed Notifications
   console.log('[*] Memasukkan notifikasi sistem...')
-  await supabase.from('notifications').insert([
+  const { error: notificationsError } = await supabase.from('notifications').insert([
     {
       user_id: warga1Id,
       ticket_id: tkt5,
@@ -275,6 +305,10 @@ async function seedDemoTickets() {
       created_at: new Date(now.getTime() - 2 * 86400000).toISOString(),
     },
   ])
+  if (notificationsError) {
+    console.error('❌ Gagal memasukkan notifikasi sistem:', notificationsError.message)
+    process.exit(1)
+  }
 
   console.log('\n======================================================================')
   console.log('✅ SEEDING TIKET & DATA DEMO SINTETIS SELESAI!')

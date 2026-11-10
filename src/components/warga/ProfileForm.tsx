@@ -295,7 +295,9 @@ export default function ProfileForm({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleChangePassword = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleChangePassword = (
+    e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>,
+  ) => {
     e.preventDefault();
     setPasswordFeedback(null);
 
@@ -326,16 +328,17 @@ export default function ProfileForm({
     });
   };
 
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = () => {
     setFeedback(null);
-    formData.set("full_name", fullName.trim());
-    formData.set("phone", phone.trim());
-    formData.set("address", address.trim());
-    formData.set("region_id", String(regionId));
-    formData.set("kelurahan", kelurahan.trim());
-    formData.set("city", city.trim());
+    const profileFormData = new FormData();
+    profileFormData.set("full_name", fullName.trim());
+    profileFormData.set("phone", phone.trim());
+    profileFormData.set("address", address.trim());
+    profileFormData.set("region_id", String(regionId));
+    profileFormData.set("kelurahan", kelurahan.trim());
+    profileFormData.set("city", city.trim());
     startTransition(async () => {
-      const res = await updateProfile(formData);
+      const res = await updateProfile(profileFormData);
       if (!res.success) {
         setFeedback({ error: res.error });
       } else {
@@ -366,12 +369,13 @@ export default function ProfileForm({
   };
 
   return (
-    <form
-      ref={formRef}
-      action={handleSubmit}
-      className="mt-6 divide-y divide-border rounded-2xl border border-border bg-white"
-    >
-      {/* Bagian 1: Foto profil */}
+    <div className="mt-6 divide-y divide-border rounded-2xl border border-border bg-white">
+      <form
+        ref={formRef}
+        action={handleSubmit}
+        className="divide-y divide-border"
+      >
+        {/* Bagian 1: Foto profil */}
       <div className="grid gap-5 p-6 sm:p-7 lg:grid-cols-[230px_1fr] lg:gap-8">
         <div>
           <h2 className="text-sm font-bold text-ink">Foto profil</h2>
@@ -633,8 +637,53 @@ export default function ProfileForm({
         </div>
       </div>
 
-      {/* Bagian 4: Keamanan dan kata sandi */}
-      <div className="grid gap-5 p-6 sm:p-7 lg:grid-cols-[230px_1fr] lg:gap-8">
+      {/* Footer Aksi Simpan Profil */}
+      <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <div>
+          {feedback?.error ? (
+            <p className="inline-flex items-center gap-2 text-xs font-medium text-red-600">
+              <AlertCircle size={15} className="shrink-0" />
+              <span>{feedback.error}</span>
+            </p>
+          ) : feedback?.success ? (
+            <p className="inline-flex items-center gap-2 text-xs font-medium text-emerald-600">
+              <CheckCircle2 size={15} className="shrink-0" />
+              <span>{feedback.success}</span>
+            </p>
+          ) : (
+            <p className="inline-flex items-center gap-2 text-xs text-muted">
+              <ShieldCheck size={15} className="shrink-0 text-muted" />
+              <span>Periksa kembali data Anda sebelum menyimpan.</span>
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={isPending}
+            className="cursor-pointer rounded-xl border border-border bg-white px-5 py-2.5 text-xs font-semibold text-ink transition-colors hover:bg-surface disabled:opacity-50"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+          >
+            {isPending && <Loader2 size={14} className="animate-spin" />}
+            {isPending ? "Menyimpan..." : "Simpan perubahan"}
+          </button>
+        </div>
+      </div>
+      </form>
+
+      {/* Bagian 4: Keamanan dan kata sandi (Form Terpisah) */}
+      <form
+        onSubmit={handleChangePassword}
+        className="grid gap-5 p-6 sm:p-7 lg:grid-cols-[230px_1fr] lg:gap-8"
+      >
         <div>
           <h2 className="text-sm font-bold text-ink">Keamanan & kata sandi</h2>
           <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -656,6 +705,7 @@ export default function ProfileForm({
                   id="new_password"
                   name="new_password"
                   type={showNewPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={newPassword}
                   onChange={(e) => {
                     setNewPassword(e.target.value);
@@ -691,6 +741,7 @@ export default function ProfileForm({
                   id="confirm_password"
                   name="confirm_password"
                   type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => {
                     setConfirmPassword(e.target.value);
@@ -742,9 +793,8 @@ export default function ProfileForm({
             </div>
 
             <button
-              type="button"
+              type="submit"
               disabled={isPasswordPending || !newPassword || !confirmPassword}
-              onClick={handleChangePassword}
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-border/40 disabled:opacity-50"
             >
               {isPasswordPending && (
@@ -757,48 +807,7 @@ export default function ProfileForm({
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Footer Aksi Simpan */}
-      <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-        <div>
-          {feedback?.error ? (
-            <p className="inline-flex items-center gap-2 text-xs font-medium text-red-600">
-              <AlertCircle size={15} className="shrink-0" />
-              <span>{feedback.error}</span>
-            </p>
-          ) : feedback?.success ? (
-            <p className="inline-flex items-center gap-2 text-xs font-medium text-emerald-600">
-              <CheckCircle2 size={15} className="shrink-0" />
-              <span>{feedback.success}</span>
-            </p>
-          ) : (
-            <p className="inline-flex items-center gap-2 text-xs text-muted">
-              <ShieldCheck size={15} className="shrink-0 text-muted" />
-              <span>Periksa kembali data Anda sebelum menyimpan.</span>
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={handleReset}
-            disabled={isPending}
-            className="cursor-pointer rounded-xl border border-border bg-white px-5 py-2.5 text-xs font-semibold text-ink transition-colors hover:bg-surface disabled:opacity-50"
-          >
-            Batal
-          </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
-          >
-            {isPending && <Loader2 size={14} className="animate-spin" />}
-            {isPending ? "Menyimpan..." : "Simpan perubahan"}
-          </button>
-        </div>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }

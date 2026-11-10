@@ -12,8 +12,13 @@
 -- -----------------------------------------------------------------------------
 DO $$
 DECLARE
+  v_total_users   int;
   v_active_admins int;
 BEGIN
+  SELECT count(*) INTO v_total_users
+  FROM auth.users
+  WHERE deleted_at IS NULL;
+
   SELECT count(*) INTO v_active_admins
   FROM auth.users u
   JOIN public.profiles p ON p.id = u.id
@@ -22,11 +27,13 @@ BEGIN
     AND (u.banned_until IS NULL OR u.banned_until <= pg_catalog.now())
     AND p.is_active = true;
 
-  IF v_active_admins < 1 THEN
-    RAISE EXCEPTION 'PREFLIGHT ABORT: Ditemukan 0 akun Admin aktif sah. Sistem wajib memiliki minimal 1 Admin aktif sebelum migration ini dapat diterapkan.';
+  IF v_total_users = 0 THEN
+    RAISE NOTICE 'PREFLIGHT SKIPPED: Database kosong (0 akun di auth.users). Pastikan bootstrap Admin aktif dijalankan setelah migrasi selesai.';
+  ELSIF v_active_admins < 1 THEN
+    RAISE EXCEPTION 'PREFLIGHT ABORT: Ditemukan 0 akun Admin aktif sah dari % akun terdaftar. Sistem wajib memiliki minimal 1 Admin aktif sebelum migration ini dapat diterapkan.', v_total_users;
+  ELSE
+    RAISE NOTICE 'PREFLIGHT PASSED: Terverifikasi % akun Admin aktif sah.', v_active_admins;
   END IF;
-
-  RAISE NOTICE 'PREFLIGHT PASSED: Terverifikasi % akun Admin aktif sah.', v_active_admins;
 END $$;
 
 -- -----------------------------------------------------------------------------

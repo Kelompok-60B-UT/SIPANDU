@@ -5,7 +5,7 @@
  * Responsibilities:
  * - Provisions the 7 multi-role demonstration accounts via Supabase Auth Admin API
  * - Enforces environment safety with project-ref allowlist & explicit opt-in (ALLOW_DEMO_SEED=true)
- * - Prohibits execution against historical QA (zbttpwepgzqmyspbmsnz)
+ * - Prohibits execution against protected instances (via PROTECTED_SUPABASE_PROJECT_REFS)
  * - Requires uncommitted DEMO_PASSWORD env var (NO hardcoded password in source)
  * - Supports --dry-run mode
  * - Explicitly tests verification lifecycle: Budi Prasetyo (warga.pending) is set to is_rt_verified = false
@@ -144,11 +144,14 @@ async function seedDemoUsers() {
   }
 
   const existingMap = new Map(userList.users.map((u) => [u.email?.toLowerCase(), u]))
+  let failureCount = 0
+  let successCount = 0
 
   for (const def of DEMO_USERS) {
     // Safety check: Pastikan hanya menyentuh email berakhiran @sipandu.test
     if (!def.email.endsWith('@sipandu.test')) {
       console.error(`⛔ Pelanggaran integritas: Email ${def.email} bukan domain demo @sipandu.test!`)
+      failureCount++
       continue
     }
 
@@ -161,6 +164,7 @@ async function seedDemoUsers() {
 
       if (isDryRun) {
         console.log(`   [DRY-RUN] Akan memperbarui app_metadata dan password untuk ${def.email}`)
+        successCount++
         continue
       }
 
@@ -182,6 +186,7 @@ async function seedDemoUsers() {
 
       if (updateError) {
         console.error(`❌ Gagal update user ${def.email}:`, updateError.message)
+        failureCount++
         continue
       }
     } else {
@@ -189,6 +194,7 @@ async function seedDemoUsers() {
 
       if (isDryRun) {
         console.log(`   [DRY-RUN] Akan memanggil createUser untuk ${def.email}`)
+        successCount++
         continue
       }
 
@@ -209,8 +215,9 @@ async function seedDemoUsers() {
         },
       })
 
-      if (createError) {
-        console.error(`❌ Gagal membuat user ${def.email}:`, createError.message)
+      if (createError || !createData?.user?.id) {
+        console.error(`❌ Gagal membuat user ${def.email}:`, createError?.message || 'ID user tidak ditemukan')
+        failureCount++
         continue
       }
 
@@ -232,17 +239,26 @@ async function seedDemoUsers() {
 
       if (profileError) {
         console.error(`❌ Gagal menyinkronkan profil ${def.email}:`, profileError.message)
+        failureCount++
       } else {
         console.log(`   [+] Profil tersimpan: is_rt_verified = ${def.isRtVerified}`)
+        successCount++
       }
     }
   }
 
   console.log('\n======================================================================')
+  if (failureCount > 0) {
+    console.error(`❌ PROVISIONING SELESAI DENGAN KEGAGALAN: ${failureCount} gagal, ${successCount} berhasil dari ${DEMO_USERS.length} akun.`)
+    console.log('======================================================================')
+    process.exitCode = 1
+    return
+  }
+
   if (isDryRun) {
     console.log('✅ DRY-RUN SELESAI: Seluruh validasi konfigurasi dan allowlist lolos.')
   } else {
-    console.log('✅ SELURUH AKUN DEMO BERHASIL DI-PROVISIONING!')
+    console.log(`✅ SELURUH ${successCount} AKUN DEMO BERHASIL DI-PROVISIONING!`)
   }
   console.log('======================================================================')
 }

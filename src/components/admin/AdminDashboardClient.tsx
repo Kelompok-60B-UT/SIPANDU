@@ -586,7 +586,7 @@ export default function AdminDashboardClient({
       setAccountFeedback("Tidak dapat menurunkan peran akun Admin Anda sendiri.");
       return;
     }
-    if (acc.role === "admin" && draftRole !== "admin") {
+    if (acc.role === "admin" && acc.isActive && draftRole !== "admin") {
       if (activeAdminsCount <= 1) {
         setAccountFeedback(
           "Tidak dapat menurunkan peran akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.",
@@ -738,7 +738,7 @@ export default function AdminDashboardClient({
       setAccountFeedback("Tidak dapat menghapus akun Admin yang sedang digunakan.");
       return;
     }
-    if (acc.role === "admin" && activeAdminsCount <= 1) {
+    if (acc.role === "admin" && acc.isActive && activeAdminsCount <= 1) {
       setAccountFeedback(
         "Tidak dapat menghapus akun Admin ini. Sistem wajib mempertahankan minimal 1 akun Admin aktif.",
       );

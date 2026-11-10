@@ -141,9 +141,26 @@ async function isTargetAdmin(
 ): Promise<boolean> {
   const { data, error } = await adminClient.auth.admin.getUserById(userId)
   if (error || !data?.user) return false
-  const role = (data.user.app_metadata as Record<string, string> | undefined)
-    ?.sipandu_role
-  return role === 'admin'
+  const u = data.user as {
+    app_metadata?: Record<string, unknown>
+    banned_until?: string | null
+    deleted_at?: string | null
+  }
+  const role = u.app_metadata?.sipandu_role
+  if (role !== 'admin') return false
+  if (u.deleted_at) return false
+  if (u.banned_until && new Date(u.banned_until).getTime() > Date.now()) {
+    return false
+  }
+
+  const { data: profile, error: profErr } = await adminClient
+    .from('profiles')
+    .select('is_active')
+    .eq('id', userId)
+    .single()
+
+  if (profErr || !profile) return false
+  return profile.is_active === true
 }
 
 export async function createStaff(

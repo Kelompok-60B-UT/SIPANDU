@@ -3,17 +3,13 @@
  *
  * Enforces strict boundaries to ensure demo seeding NEVER executes against:
  * - Production domains
- * - The protected historical QA project (`zbttpwepgzqmyspbmsnz`)
+ * - Protected projects defined in PROTECTED_SUPABASE_PROJECT_REFS
  * - Unapproved external hosted targets
  *
  * Permitted targets:
- * - Local stack (localhost / 127.0.0.1)
+ * - Local stack (localhost / 127.0.0.1 / 0.0.0.0)
  * - Explicitly approved demo hosted projects via ALLOWED_DEMO_PROJECT_REF
  */
-
-export const FORBIDDEN_PROJECT_REFS = Object.freeze([
-  'zbttpwepgzqmyspbmsnz', // Historical QA Project (READ-ONLY REFERENCE)
-])
 
 export interface TargetValidationResult {
   ok: boolean
@@ -28,8 +24,17 @@ export interface GuardOptions {
   supabaseUrl?: string
   demoPassword?: string
   allowedProjectRef?: string
+  protectedProjectRefs?: string | string[]
   nodeEnv?: string
   requirePassword?: boolean
+}
+
+export function parseProtectedProjectRefs(input?: string | string[]): string[] {
+  const source = input ?? process.env.PROTECTED_SUPABASE_PROJECT_REFS ?? ''
+  const items = Array.isArray(source) ? source : source.split(',')
+  return items
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item.length > 0)
 }
 
 export function validateDemoTarget(options: GuardOptions): TargetValidationResult {
@@ -66,6 +71,21 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     }
   }
 
+  // Check against protected project refs before parsing
+  const protectedRefs = parseProtectedProjectRefs(options.protectedProjectRefs)
+  const allowedProjectRef = (options.allowedProjectRef ?? process.env.ALLOWED_DEMO_PROJECT_REF ?? '').trim().toLowerCase()
+
+  for (const ref of protectedRefs) {
+    if (rawUrl.toLowerCase().includes(ref) || allowedProjectRef === ref) {
+      return {
+        ok: false,
+        error: `Target project ref '${ref}' is registered in PROTECTED_SUPABASE_PROJECT_REFS. Demo seeding is strictly forbidden.`,
+        projectRef: ref,
+        isLocal: false,
+      }
+    }
+  }
+
   let parsedUrl: URL
   try {
     parsedUrl = new URL(rawUrl)
@@ -96,7 +116,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
   // 4. Localhost / Local Stack Allowlist
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
   if (isLocal) {
-    // 5. Password Check (if required)
+    // Password Check (if required)
     if (options.requirePassword ?? true) {
       const demoPassword = options.demoPassword ?? process.env.DEMO_PASSWORD ?? ''
       if (!demoPassword || demoPassword.length < 8) {
@@ -130,11 +150,11 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
 
   const projectRef = supabaseCoMatch[1].toLowerCase()
 
-  // 5a. Denylist Check: Strictly forbid historical QA
-  if (FORBIDDEN_PROJECT_REFS.includes(projectRef)) {
+  // 5a. Check against protected project refs
+  if (protectedRefs.includes(projectRef)) {
     return {
       ok: false,
-      error: `Target project ref '${projectRef}' is the protected historical QA project (zbttpwepgzqmyspbmsnz). Seeding is strictly forbidden.`,
+      error: `Target project ref '${projectRef}' is registered in PROTECTED_SUPABASE_PROJECT_REFS. Seeding is strictly forbidden.`,
       projectRef,
       isLocal: false,
       hostname,
@@ -142,8 +162,7 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
   }
 
   // 5b. Explicit Allowlist Check for Hosted Targets
-  const allowedRef = (options.allowedProjectRef ?? process.env.ALLOWED_DEMO_PROJECT_REF ?? '').trim().toLowerCase()
-  if (!allowedRef || projectRef !== allowedRef) {
+  if (!allowedProjectRef || projectRef !== allowedProjectRef) {
     return {
       ok: false,
       error: `Hosted target project ref '${projectRef}' is not in the approved demo allowlist. To approve a dedicated demo instance, set ALLOWED_DEMO_PROJECT_REF='${projectRef}'.`,
