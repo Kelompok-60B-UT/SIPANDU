@@ -1,14 +1,14 @@
 /**
  * Penjaga target eksekusi untuk skrip seeding data demo.
- * Menolak eksekusi pada domain produksi, project dalam PROTECTED_SUPABASE_PROJECT_REFS,
- * serta target hosted yang tidak disetujui melalui ALLOWED_DEMO_PROJECT_REF.
+ * Hanya mengizinkan target Supabase Hosted staging (<ref>.supabase.co) terpisah.
+ * Menolak target lokal (localhost, 127.0.0.1, 0.0.0.0), domain produksi,
+ * project dalam PROTECTED_SUPABASE_PROJECT_REFS, serta target yang tidak disetujui.
  */
 
 export interface TargetValidationResult {
   ok: boolean
   error?: string
   projectRef?: string
-  isLocal: boolean
   hostname?: string
 }
 
@@ -36,7 +36,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     return {
       ok: false,
       error: 'ALLOW_DEMO_SEED=true is required in environment to execute demo seeding.',
-      isLocal: false,
     }
   }
 
@@ -48,7 +47,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     return {
       ok: false,
       error: 'Execution is strictly forbidden in production environment (NODE_ENV/VERCEL_ENV=production).',
-      isLocal: false,
     }
   }
 
@@ -57,7 +55,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     return {
       ok: false,
       error: 'NEXT_PUBLIC_SUPABASE_URL must be provided.',
-      isLocal: false,
     }
   }
 
@@ -70,7 +67,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
         ok: false,
         error: `Target project ref '${ref}' is registered in PROTECTED_SUPABASE_PROJECT_REFS. Demo seeding is strictly forbidden.`,
         projectRef: ref,
-        isLocal: false,
       }
     }
   }
@@ -82,13 +78,42 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     return {
       ok: false,
       error: `Invalid NEXT_PUBLIC_SUPABASE_URL format: '${rawUrl}'.`,
-      isLocal: false,
     }
   }
 
   const hostname = parsedUrl.hostname.toLowerCase()
 
-  // Tolak domain produksi terlepas dari nilai NODE_ENV
+  // 1. Tolak target lokal (localhost, 127.0.0.1, 0.0.0.0, IP lokal/privat)
+  const isLocal =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1' ||
+    /^127\.\d+\.\d+\.\d+$/.test(hostname) ||
+    /^192\.168\.\d+\.\d+$/.test(hostname) ||
+    /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)
+
+  if (isLocal) {
+    return {
+      ok: false,
+      error: `Local target '${hostname}' is rejected. SIPANDU deployment policy requires demo seeding to run exclusively on dedicated Supabase Hosted staging projects (<ref>.supabase.co).`,
+      hostname,
+    }
+  }
+
+  // 2. Tolak domain produksi
+  for (const ref of protectedRefs) {
+    if (hostname.includes(ref)) {
+      return {
+        ok: false,
+        error: `Target host '${hostname}' contains project ref '${ref}' registered in PROTECTED_SUPABASE_PROJECT_REFS. Seeding is strictly forbidden.`,
+        projectRef: ref,
+        hostname,
+      }
+    }
+  }
+
   if (
     hostname.includes('sipandu.journey.web.id') ||
     hostname.includes('app.sipandu.id') ||
@@ -97,39 +122,16 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
     return {
       ok: false,
       error: `Target host '${hostname}' is a production domain. Seeding is strictly prohibited.`,
-      isLocal: false,
       hostname,
     }
   }
 
-  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
-  if (isLocal) {
-    if (options.requirePassword ?? true) {
-      const demoPassword = options.demoPassword ?? process.env.DEMO_PASSWORD ?? ''
-      if (!demoPassword || demoPassword.length < 8) {
-        return {
-          ok: false,
-          error: 'DEMO_PASSWORD environment variable is required (min 8 characters).',
-          isLocal: true,
-          hostname,
-        }
-      }
-    }
-
-    return {
-      ok: true,
-      isLocal: true,
-      hostname,
-    }
-  }
-
-  // Target hosted wajib berformat <project-ref>.supabase.co
+  // 3. Target hosted wajib berformat <project-ref>.supabase.co
   const supabaseCoMatch = hostname.match(/^([a-z0-9_-]+)\.supabase\.co$/)
   if (!supabaseCoMatch) {
     return {
       ok: false,
-      error: `External target '${hostname}' is not a valid Supabase host or local development stack.`,
-      isLocal: false,
+      error: `External target '${hostname}' is not a valid Supabase Hosted (<ref>.supabase.co) instance.`,
       hostname,
     }
   }
@@ -141,7 +143,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
       ok: false,
       error: `Target project ref '${projectRef}' is registered in PROTECTED_SUPABASE_PROJECT_REFS. Seeding is strictly forbidden.`,
       projectRef,
-      isLocal: false,
       hostname,
     }
   }
@@ -151,7 +152,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
       ok: false,
       error: `Hosted target project ref '${projectRef}' is not in the approved demo allowlist. To approve a dedicated demo instance, set ALLOWED_DEMO_PROJECT_REF='${projectRef}'.`,
       projectRef,
-      isLocal: false,
       hostname,
     }
   }
@@ -163,7 +163,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
         ok: false,
         error: 'DEMO_PASSWORD environment variable is required (min 8 characters).',
         projectRef,
-        isLocal: false,
         hostname,
       }
     }
@@ -172,7 +171,6 @@ export function validateDemoTarget(options: GuardOptions): TargetValidationResul
   return {
     ok: true,
     projectRef,
-    isLocal: false,
     hostname,
   }
 }

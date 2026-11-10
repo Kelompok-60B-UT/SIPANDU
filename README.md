@@ -7,14 +7,14 @@
 
 ## 🏛️ Target Arsitektur Hosted-Only
 
-SIPANDU beroperasi sepenuhnya di atas infrastruktur *cloud-hosted* tanpa ketergantungan pada Docker, Docker Compose, maupun local database stack:
+SIPANDU beroperasi sepenuhnya di atas infrastruktur *cloud-hosted* terkelola:
 
 | Komponen | Platform Hosting | Cakupan Layanan |
 |---|---|---|
 | **Frontend & Runtime Server** | [Vercel](https://vercel.com/) | Next.js 16 App Router, Turbopack, Server Actions, Route Handlers, Edge Middleware |
 | **Backend & Database** | [Supabase Hosted](https://supabase.com/) | PostgreSQL 17, Supabase Auth, Supabase Storage (`ticket-attachments`, `avatars`), RLS 100%, RPC Stored Procedures |
 
-Pengembang dan evaluator dapat memasang, mengonfigurasi, menguji, dan menjalankan SIPANDU dari awal hanya dengan akun Vercel dan project Supabase Hosted baru tanpa perlu menginstal atau menjalankan Docker.
+Pengembang dan evaluator dapat memasang, mengonfigurasi, menguji, dan menjalankan SIPANDU dari awal menggunakan akun Vercel dan project Supabase Hosted baru.
 
 ---
 
@@ -141,7 +141,7 @@ Sebelum memulai instalasi, pastikan dependensi berikut terpasang pada komputer p
   - Akun [Vercel](https://vercel.com/) aktif untuk deployment aplikasi web.
 
 > [!NOTE]
-> Tidak memerlukan Docker, Docker Compose, maupun PostgreSQL lokal. Seluruh workflow migrasi dan runtime aplikasi ditujukan langsung ke layanan Supabase Hosted dan Vercel.
+> Seluruh alur kerja migrasi, pengujian, dan runtime aplikasi ditujukan langsung ke layanan Supabase Hosted dan Vercel.
 
 ---
 

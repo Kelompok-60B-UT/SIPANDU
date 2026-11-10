@@ -8,50 +8,22 @@
 
 ## 📋 Struktur Dokumen
 
-  - [📋 Struktur Dokumen](#-struktur-dokumen)
-- [BAGIAN A: Panduan Fresh Deployment (Database Kosong / Baru)](#bagian-a-panduan-fresh-deployment-database-kosong--baru)
 - [BAGIAN A: Panduan Fresh Deployment (Vercel + Supabase Hosted)](#bagian-a-panduan-fresh-deployment-vercel--supabase-hosted)
-  - [1. Prasyarat Sistem \& Dependensi](#1-prasyarat-sistem--dependensi)
   - [1. Target Arsitektur Cloud Hosted](#1-target-arsitektur-cloud-hosted)
-  - [2. Prasyarat Sistem \& Dependensi](#2-prasyarat-sistem--dependensi)
-  - [2. Kloning Repositori \& Instalasi Paket](#2-kloning-repositori--instalasi-paket)
-  - [3. Kloning Repositori \& Instalasi Paket](#3-kloning-repositori--instalasi-paket)
-  - [3. Konfigurasi Environment Variables](#3-konfigurasi-environment-variables)
-  - [4. Audit \& Pemetaan Environment Variables](#4-audit--pemetaan-environment-variables)
-    - [A. Variabel Publik Klien (`NEXT_PUBLIC_*`)](#a-variabel-publik-klien-next_public_)
-    - [B. Variabel Server-Side Secret](#b-variabel-server-side-secret)
-  - [4. Silsilah 10 Migrasi Kanonik (Single Migration Lineage)](#4-silsilah-10-migrasi-kanonik-single-migration-lineage)
+  - [2. Prasyarat Sistem & Dependensi](#2-prasyarat-sistem--dependensi)
+  - [3. Kloning Repositori & Instalasi Paket](#3-kloning-repositori--instalasi-paket)
+  - [4. Audit & Pemetaan Environment Variables](#4-audit--pemetaan-environment-variables)
   - [5. Silsilah 10 Migrasi Kanonik (Single Migration Lineage)](#5-silsilah-10-migrasi-kanonik-single-migration-lineage)
-  - [5. Eksekusi Migrasi Database Baru](#5-eksekusi-migrasi-database-baru)
-  - [6. Prosedur Setup \& Migrasi Supabase Hosted](#6-prosedur-setup--migrasi-supabase-hosted)
-    - [Langkah 6.1: Buat Project Baru di Supabase Dashboard](#langkah-61-buat-project-baru-di-supabase-dashboard)
-    - [Langkah 6.2: Konfigurasi File Lingkungan Lokal](#langkah-62-konfigurasi-file-lingkungan-lokal)
-    - [Tahap 5.1: Eksekusi pada Local Supabase Stack](#tahap-51-eksekusi-pada-local-supabase-stack)
-    - [Langkah 6.3: Tautkan Supabase CLI ke Project Hosted](#langkah-63-tautkan-supabase-cli-ke-project-hosted)
-    - [Tahap 5.2: Eksekusi pada Hosted Supabase Project Baru](#tahap-52-eksekusi-pada-hosted-supabase-project-baru)
-    - [Langkah 6.4: Eksekusi Migrasi Database Remote](#langkah-64-eksekusi-migrasi-database-remote)
-  - [6. Prosedur Bootstrap Root Administrator](#6-prosedur-bootstrap-root-administrator)
+  - [6. Prosedur Setup & Migrasi Supabase Hosted](#6-prosedur-setup--migrasi-supabase-hosted)
   - [7. Prosedur Bootstrap Root Administrator](#7-prosedur-bootstrap-root-administrator)
-  - [7. Prosedur Seeding Demo Sintetis (Opsional / Non-Production)](#7-prosedur-seeding-demo-sintetis-opsional--non-production)
   - [8. Prosedur Deployment ke Vercel](#8-prosedur-deployment-ke-vercel)
   - [9. Prosedur Seeding Demo Sintetis (Staging Terpisah - Opsional)](#9-prosedur-seeding-demo-sintetis-staging-terpisah---opsional)
-    - [Langkah 7.1: Provisioning Akun Demo](#langkah-71-provisioning-akun-demo)
-    - [Langkah 9.1: Provisioning Akun Demo](#langkah-91-provisioning-akun-demo)
-    - [Langkah 7.2: Seeding Data Tiket \& Siklus Pengaduan](#langkah-72-seeding-data-tiket--siklus-pengaduan)
-    - [Langkah 9.2: Seeding Data Tiket \& Siklus Pengaduan](#langkah-92-seeding-data-tiket--siklus-pengaduan)
-  - [8. Verifikasi Backend \& RLS Test Suite](#8-verifikasi-backend--rls-test-suite)
-  - [10. Prosedur Pengujian Backend \& RLS (Dedicated Test Project)](#10-prosedur-pengujian-backend--rls-dedicated-test-project)
-    - [Prasyarat Variabel Lingkungan:](#prasyarat-variabel-lingkungan)
-    - [Eksekusi pada Local Supabase Stack (Default):](#eksekusi-pada-local-supabase-stack-default)
-    - [Eksekusi pada Dedicated Hosted Test Project Terpisah:](#eksekusi-pada-dedicated-hosted-test-project-terpisah)
-  - [9. Menjalankan Server Aplikasi](#9-menjalankan-server-aplikasi)
+  - [10. Prosedur Pengujian Backend & RLS (Dedicated Test Project)](#10-prosedur-pengujian-backend--rls-dedicated-test-project)
 - [BAGIAN B: Catatan Pemeliharaan Proyek Demo Hosted Terproteksi](#bagian-b-catatan-pemeliharaan-proyek-demo-hosted-terproteksi)
   - [1. Status Operasional Proyek Demo](#1-status-operasional-proyek-demo)
-  - [2. Rekam Historis Skema \& Rekonsiliasi Migrasi (0001–0010)](#2-rekam-historis-skema--rekonsiliasi-migrasi-00010010)
-    - [A. Kesesuaian Definisi Skema DDL (Schema Parity)](#a-kesesuaian-definisi-skema-ddl-schema-parity)
-    - [B. Rekonsiliasi Version ID vs Penamaan Berkas Kanonik](#b-rekonsiliasi-version-id-vs-penamaan-berkas-kanonik)
-  - [3. Prosedur Backup \& Kontinjensi](#3-prosedur-backup--kontinjensi)
-- [BAGIAN C: Prinsip Keamanan \& Tata Kelola Kunci Akses](#bagian-c-prinsip-keamanan--tata-kelola-kunci-akses)
+  - [2. Rekam Historis Skema & Rekonsiliasi Migrasi (0001–0010)](#2-rekam-historis-skema--rekonsiliasi-migrasi-00010010)
+  - [3. Prosedur Backup & Kontinjensi](#3-prosedur-backup--kontinjensi)
+- [BAGIAN C: Prinsip Keamanan & Tata Kelola Kunci Akses](#bagian-c-prinsip-keamanan--tata-kelola-kunci-akses)
 
 ---
 
@@ -63,7 +35,7 @@ Panduan ini adalah prosedur operasional standar bagi pengembang, penguji, atau e
 
 ## 1. Target Arsitektur Cloud Hosted
 
-SIPANDU beroperasi tanpa ketergantungan pada container lokal (Docker / Docker Compose / Local PostgreSQL). Seluruh alur kerja difokuskan pada:
+SIPANDU beroperasi pada infrastruktur cloud terkelola penuh. Seluruh alur kerja difokuskan pada:
 
 1. **Vercel**: Menjalankan frontend Next.js 16, App Router, Turbopack, Server Actions, Route Handlers, dan Edge Middleware.
 2. **Supabase Hosted**: Menyediakan PostgreSQL 17, Supabase Auth, Storage Buckets privat dan publik, Row Level Security (RLS 100%), dan fungsi RPC `SECURITY DEFINER`.
@@ -79,8 +51,6 @@ Pastikan perangkat lunak berikut terpasang di komputer Anda:
 * **Supabase CLI**: `v3.0.0+` (`npx supabase -v`)
 * **Git**: Terpasang untuk kloning repositori (`git -v`)
 * **Akun Supabase & Vercel**: Akun aktif pada kedua penyedia layanan cloud.
-
-*(Catatan: Tidak memerlukan instalasi Docker Desktop atau Docker Engine)*.
 
 ---
 
