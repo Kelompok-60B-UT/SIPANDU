@@ -1,0 +1,10 @@
+# Konfigurasi Supabase CLI untuk manajemen proyek dan migrasi database hosted SIPANDU
+
+project_id = "sipandu"
+
+[db]
+major_version = 17
+
+[db.migrations]
+enabled = true
+schema_paths = []
