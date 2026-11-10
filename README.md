@@ -1,11 +1,11 @@
 # SIPANDU — Sistem Informasi Pelayanan Warga Terpadu RW 06
 
 > Platform digital tata kelola aspirasi, pelaporan masalah lingkungan, dan pelayanan publik warga RW 06 Parakan Saat, Kelurahan Cisaranten Endah, Kecamatan Arcamanik, Kota Bandung.
-> Repositori ini dirancang khusus dengan target arsitektur **Hosted-Only**: **Next.js 16 di Vercel** dan **PostgreSQL 17, Authentication, Storage, & RPC di Supabase Hosted**.
+> Repositori ini dirancang khusus dengan target arsitektur: **Next.js 16 di Vercel** dan **PostgreSQL 17, Authentication, Storage, & RPC di Supabase Hosted**.
 
 ---
 
-## 🏛️ Target Arsitektur Hosted-Only
+## Target Arsitektur Hosted-Only
 
 SIPANDU beroperasi sepenuhnya di atas infrastruktur *cloud-hosted* terkelola:
 
@@ -16,33 +16,7 @@ SIPANDU beroperasi sepenuhnya di atas infrastruktur *cloud-hosted* terkelola:
 
 Pengembang dan evaluator dapat memasang, mengonfigurasi, menguji, dan menjalankan SIPANDU dari awal menggunakan akun Vercel dan project Supabase Hosted baru.
 
----
-
-## 📋 Daftar Isi
-
-1. [Tentang SIPANDU](#-tentang-sipandu)
-2. [Peran Pengguna & Hierarki Akses (RBAC)](#-peran-pengguna--hierarki-akses-rbac)
-3. [Alur Siklus Pengaduan (State Machine)](#-alur-siklus-pengaduan-state-machine)
-4. [Tech Stack & Arsitektur Cloud](#-tech-stack--arsitektur-cloud)
-5. [Silsilah Migrasi Database Kanonik (0001–0010)](#-silsilah-migrasi-database-kanonik-00010010)
-6. [Prasyarat Sistem](#-prasyarat-sistem)
-7. [Daftar Lengkap Environment Variables](#-daftar-lengkap-environment-variables)
-8. [Panduan Setup Supabase Hosted & Migrasi](#-panduan-setup-supabase-hosted--migrasi)
-   - [Langkah 1: Kloning Repositori & Instal Dependensi](#langkah-1-kloning-repositori--instal-dependensi)
-   - [Langkah 2: Buat Project Baru di Supabase Dashboard](#langkah-2-buat-project-baru-di-supabase-dashboard)
-   - [Langkah 3: Konfigurasi File Environment Lokal](#langkah-3-konfigurasi-file-environment-lokal)
-   - [Langkah 4: Hubungkan Supabase CLI ke Project Hosted](#langkah-4-hubungkan-supabase-cli-ke-project-hosted)
-   - [Langkah 5: Terapkan 10 Migrasi Kanonik ke Remote Database](#langkah-5-terapkan-10-migrasi-kanonik-ke-remote-database)
-   - [Langkah 6: Bootstrap Root Administrator](#langkah-6-bootstrap-root-administrator)
-9. [Panduan Deployment ke Vercel](#-panduan-deployment-ke-vercel)
-10. [Menjalankan Aplikasi secara Lokal (Dev Mode)](#-menjalankan-aplikasi-secara-lokal-dev-mode)
-11. [Prinsip Keamanan & Tata Kelola Data](#-prinsip-keamanan--tata-kelola-data)
-12. [Troubleshooting & FAQ](#-troubleshooting--faq)
-13. [Lisensi & Referensi Dokumentasi](#-lisensi--referensi-dokumentasi)
-
----
-
-## 📖 Tentang SIPANDU
+## Tentang SIPANDU
 
 **SIPANDU** (Sistem Informasi Pelayanan Warga Terpadu) adalah aplikasi web layanan publik berbasis komunitas yang mendigitalkan birokrasi warga di tingkat Rukun Warga (RW) dan Rukun Tetangga (RT).
 
@@ -55,7 +29,7 @@ Pelaporan warga yang sebelumnya dilakukan secara lisan atau melalui grup pesan i
 
 ---
 
-## 👥 Peran Pengguna & Hierarki Akses (RBAC)
+## Peran Pengguna & Hierarki Akses (RBAC)
 
 SIPANDU menerapkan kontrol akses berbasis peran (*Role-Based Access Control*) berjenjang:
 
@@ -68,7 +42,7 @@ SIPANDU menerapkan kontrol akses berbasis peran (*Role-Based Access Control*) be
 
 ---
 
-## 🔄 Alur Siklus Pengaduan (State Machine)
+## Alur Siklus Pengaduan (State Machine)
 
 Setiap tiket pengaduan melewati mesin status (*finite state machine*) yang diatur ketat oleh fungsi RPC PostgreSQL (`SECURITY DEFINER`):
 
@@ -88,7 +62,7 @@ Setiap transisi status secara otomatis mencatat riwayat ke tabel `ticket_timelin
 
 ---
 
-## 🛠 Tech Stack & Arsitektur Cloud
+## Tech Stack & Arsitektur Cloud
 
 ### Frontend & Application Layer (Hosted on Vercel)
 - **Framework**: [Next.js](https://nextjs.org/) `16.4.3` (App Router, Turbopack, Server Actions)
@@ -107,7 +81,7 @@ Setiap transisi status secara otomatis mencatat riwayat ke tabel `ticket_timelin
 
 ---
 
-## 📜 Silsilah Migrasi Database Kanonik (0001–0010)
+## Silsilah Migrasi Database Kanonik (0001–0010)
 
 Seluruh struktur skema, keamanan, master data, dan logika database didefinisikan secara deklaratif dalam 10 file migrasi kanonik pada `supabase/migrations/`:
 
@@ -126,7 +100,7 @@ Seluruh struktur skema, keamanan, master data, dan logika database didefinisikan
 
 ---
 
-## 💻 Prasyarat Sistem
+## Prasyarat Sistem
 
 Sebelum memulai instalasi, pastikan dependensi berikut terpasang pada komputer pengembang:
 
@@ -143,7 +117,7 @@ Sebelum memulai instalasi, pastikan dependensi berikut terpasang pada komputer p
 
 ---
 
-## 🔐 Daftar Lengkap Environment Variables
+## Daftar Lengkap Environment Variables
 
 Berdasarkan audit menyeluruh terhadap kode sumber aplikasi, berikut adalah daftar variabel lingkungan yang digunakan:
 
@@ -170,7 +144,7 @@ Variabel ini bersifat rahasia dan **HANYA** digunakan oleh runtime server (Serve
 
 ---
 
-## 🚀 Panduan Setup Supabase Hosted & Migrasi
+## Panduan Setup Supabase Hosted & Migrasi
 
 ### Langkah 1: Kloning Repositori & Instal Dependensi
 
@@ -192,9 +166,6 @@ npm install
    - **service_role key** (Secret)
 
 ### Langkah 3: Konfigurasi File Environment Lokal
-
-> [!NOTE]
-> File `.env.local` **hanya digunakan untuk pengembangan lokal** pada komputer Anda (`npm run dev`). Untuk deployment ke Vercel (Preview maupun Production), konfigurasi lingkungan diatur melalui dashboard Vercel (**Project Settings → Environment Variables**), bukan melalui `.env.local`.
 
 Salin template konfigurasi lingkungan:
 
@@ -236,37 +207,9 @@ npx supabase db push --remote --dry-run
 npx supabase db push --remote
 ```
 
-> [!IMPORTANT]
-> Pastikan selalu menyertakan flag `--remote` secara eksplisit. Jangan menggunakan opsi `--yes` agar operator selalu dapat meninjau konfirmasi target sebelum migrasi dieksekusi. Berkas migrasi `0007` secara cerdas mendeteksi database kosong (0 akun) dan menerapkan seluruh 10 migrasi secara tuntas dalam satu tahap.
-
-### Langkah 6: Bootstrap Root Administrator
-
-Setelah 10 berkas migrasi terpasang, buat akun Administrator perdana menggunakan skrip bootstrap resmi yang berada pada paket tooling eksternal (`sipandu-tooling`) via Supabase Auth Admin API:
-
-> [!WARNING]
-> **Peringatan Penggunaan Bootstrap:**
-> - Skrip bootstrap ditujukan untuk inisialisasi Administrator pada project baru setelah migrasi.
-> - Jangan menjalankan ulang skrip terhadap project aktif tanpa alasan dan persetujuan operator.
-> - Menjalankan ulang skrip dengan email Admin yang sudah terdaftar akan memperbarui kredensial dan mengganti password akun tersebut.
-> - Promosi akun non-Admin menjadi Admin diblokir secara otomatis demi mencegah eskalasi privilege dan memerlukan persetujuan eksplisit melalui `ALLOW_ADMIN_ROLE_PROMOTION=true`.
-
-Masuk ke direktori tooling eksternal (misalnya `../sipandu-tooling`) dan jalankan skrip bootstrap:
-
-```bash
-cd ../sipandu-tooling
-
-ADMIN_EMAIL="admin@sipandu.id" \
-ADMIN_PASSWORD="GantiDenganPasswordKuatMin12Karakter!" \
-NEXT_PUBLIC_SUPABASE_URL="https://<YOUR_PROJECT_REF>.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>" \
-npx tsx bootstrap-admin.ts
-```
-
-Skrip ini akan mendaftarkan akun di `auth.users`, menetapkan klaim tepercaya `app_metadata.sipandu_role = 'admin'`, dan menyinkronkan profil aktif di tabel `public.profiles` (`is_active = true`, `is_rt_verified = true`).
-
 ---
 
-## ☁️ Panduan Deployment ke Vercel
+## Panduan Deployment ke Vercel
 
 Setelah database Supabase Hosted siap dan akun Administrator telah dibuat, deploy aplikasi Next.js ke Vercel:
 
@@ -299,7 +242,7 @@ Setelah database Supabase Hosted siap dan akun Administrator telah dibuat, deplo
 
 ---
 
-## 🏃 Menjalankan Aplikasi secara Lokal (Dev Mode)
+## Menjalankan Aplikasi secara Lokal (Dev Mode)
 
 Jika Anda ingin menjalankan server Next.js pada komputer lokal dengan menghubungkan frontend ke database Supabase Hosted yang sudah dikonfigurasi pada `.env.local`:
 
@@ -318,39 +261,10 @@ Buka [http://localhost:3000](http://localhost:3000) pada peramban web Anda.
 
 ---
 
-## 🛡️ Prinsip Keamanan & Tata Kelola Data
-
-1. **Principle of Least Privilege (PoLP)**:
-   - Izin pembuatan objek pada schema publik dicabut (`REVOKE CREATE ON SCHEMA public FROM PUBLIC`).
-   - Peran `anon` dan `authenticated` hanya memiliki izin `SELECT` pada tabel yang diizinkan. Mutasi data dibatasi melalui hak akses kolom dan RLS policies.
-   - Eksekusi fungsi RPC sensitif dicabut dari `PUBLIC` dan hanya diberikan eksplisit kepada `authenticated` atau `service_role`.
-2. **Perlindungan Invariant Administrator Terakhir**:
-   - Database trigger `tr_protect_last_admin` menolak operasi `DELETE`, penonaktifan (`is_active = false`), atau demosi terhadap satu-satunya admin aktif yang tersisa.
-3. **Verifikasi Warga oleh RT**:
-   - Akun warga baru memiliki status `is_rt_verified = false`. Pembuatan atau pengiriman tiket diblokir pada tingkat RLS dan RPC hingga disetujui oleh Ketua RT setempat.
-4. **Klaim Autentikasi Tepercaya**:
-   - Peran pengguna disimpan pada `auth.users.app_metadata.sipandu_role` yang hanya dapat dimutasi melalui koneksi server/service role tepercaya. Trigger database mencegah manipulasi peran melalui `user_metadata` saat registrasi publik.
-5. **Integritas Audit Trail**:
-   - Tabel `ticket_timeline` bersifat *append-only* untuk menjamin rekam jejak setiap pergantian status pengaduan.
-
----
-
-## ❓ Troubleshooting & FAQ
-
-### 1. Warga tidak dapat mengirimkan laporan (Tombol Submit dinonaktifkan)
-- **Penyebab**: Akun warga berstatus belum diverifikasi (`is_rt_verified = false`).
-- **Solusi**: Masuk sebagai Ketua RT dari wilayah warga tersebut, buka menu persetujuan warga, dan berikan verifikasi persetujuan.
-
-### 2. Error `relation already exists` saat menjalankan migrasi
-- **Penyebab**: Database sudah memiliki tabel dari migrasi sebelumnya namun belum tercatat pada tabel histori migrasi Supabase.
-- **Solusi**: Gunakan perintah `npx supabase migration repair <MIGRATION_ID> --status applied` untuk menyelaraskan riwayat migrasi, atau jalankan pada database Supabase Hosted baru yang bersih (*blank database*).
-
----
-
-## 📄 Lisensi & Referensi Dokumentasi
+## Lisensi & Referensi Dokumentasi
 
 Dokumentasi detail operasional dan panduan teknis deployment dapat dilihat pada:
 - [`INSTALL_RUNBOOK.md`](docs/deployment/INSTALL_RUNBOOK.md): Panduan instalasi dan deployment teknis terperinci.
 - [`AGENTS.md`](AGENTS.md): Panduan arsitektur Next.js.
 
-Proyek ini dikembangkan oleh **Kelompok 60B UT** sebagai tugas akhir *Capstone Project* Sistem Informasi Pelayanan Warga.
+Proyek ini dikembangkan oleh **Kelompok 60B UT**  sebagai tugas akhir *Capstone Project* Sistem Informasi Pelayanan Warga.

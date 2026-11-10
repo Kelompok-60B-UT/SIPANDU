@@ -134,9 +134,6 @@ Direktori `supabase/migrations/` memuat tepat 10 berkas migrasi kanonik beruruta
 
 ### Langkah 6.2: Konfigurasi File Lingkungan Lokal
 
-> [!NOTE]
-> File `.env.local` **hanya digunakan untuk pengembangan lokal** pada komputer Anda. Untuk deployment Vercel (Preview dan Production), variabel lingkungan dikonfigurasi melalui dashboard Vercel (**Project Settings → Environment Variables**), bukan melalui file `.env.local`.
-
 Salin berkas template lingkungan:
 ```bash
 cp .env.example .env.local
